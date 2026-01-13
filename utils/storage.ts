@@ -5,13 +5,18 @@ import { MMKV } from 'react-native-mmkv';
 let _storage: MMKV | null = null;
 let _initializationAttempted = false;
 let _initializationError: Error | null = null;
+let _fallbackWarningLogged = false;
 
 function getStorage(): MMKV | null {
   if (_storage) return _storage;
   
   // Don't retry if we already failed
   if (_initializationAttempted && _initializationError) {
-    console.warn('MMKV not available, using fallback. Original error:', _initializationError.message);
+    // Only log the warning once to avoid console spam
+    if (!_fallbackWarningLogged) {
+      console.warn('MMKV not available, using fallback. Original error:', _initializationError.message);
+      _fallbackWarningLogged = true;
+    }
     return null;
   }
   

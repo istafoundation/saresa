@@ -163,18 +163,18 @@ export default function OnboardingScreen() {
           </MotiView>
         )}
 
-        {/* Next Button */}
+        {/* Next Button - Clean & Integrated */}
         <MotiView
-          from={{ opacity: 0, translateY: 20, scale: 0.9 }}
-          animate={{ opacity: 1, translateY: 0, scale: 1 }}
-          transition={{ type: 'spring', delay: 300, damping: 12 }}
+          from={{ opacity: 0, translateY: 20 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: 'spring', delay: 300, damping: 15 }}
           style={styles.buttonContainer}
         >
           <Pressable
             style={({ pressed }) => [
               styles.nextButton,
               step === 'name' && userName.trim().length < 2 && styles.nextButtonDisabled,
-              pressed && { transform: [{ scale: 0.95 }] },
+              pressed && styles.nextButtonPressed,
             ]}
             onPress={handleNext}
             disabled={step === 'name' && userName.trim().length < 2}
@@ -182,8 +182,8 @@ export default function OnboardingScreen() {
             <LinearGradient
               colors={
                 step === 'name' && userName.trim().length < 2
-                  ? [COLORS.surface, COLORS.surface]
-                  : [COLORS.rainbow1, COLORS.primary, COLORS.rainbow4]
+                  ? [COLORS.textMuted, COLORS.textMuted]
+                  : [COLORS.primary, COLORS.primaryDark]
               }
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
@@ -191,11 +191,20 @@ export default function OnboardingScreen() {
             >
               <Text style={styles.nextButtonText}>
                 {step === 'welcome' 
-                  ? "🚀 Let's Go!" 
+                  ? "Let's Go!" 
                   : step === 'name' 
-                    ? "✨ Continue" 
-                    : "🎉 Start Adventure!"}
+                    ? "Continue" 
+                    : "Start Adventure!"}
               </Text>
+              
+              {/* Subtle animated arrow */}
+              <MotiView
+                from={{ translateX: 0 }}
+                animate={{ translateX: 4 }}
+                transition={{ type: 'timing', duration: 800, loop: true }}
+              >
+                <Text style={styles.buttonArrow}>→</Text>
+              </MotiView>
             </LinearGradient>
           </Pressable>
         </MotiView>
@@ -344,20 +353,35 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xxl,
   },
   nextButton: {
-    borderRadius: BORDER_RADIUS.lg,
+    borderRadius: BORDER_RADIUS.xl,
     overflow: 'hidden',
+    ...SHADOWS.md,
+  },
+  nextButtonPressed: {
+    transform: [{ scale: 0.97 }],
+    opacity: 0.9,
   },
   nextButtonDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
   nextButtonGradient: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: SPACING.lg,
+    paddingHorizontal: SPACING.xl,
+    gap: SPACING.sm,
   },
   nextButtonText: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
-    color: COLORS.text,
+    color: '#FFFFFF',
+  },
+  buttonArrow: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    opacity: 0.9,
   },
   progressDots: {
     flexDirection: 'row',

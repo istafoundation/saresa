@@ -129,15 +129,8 @@ export const useGKStore = create<GKState>()(
       nextQuestion: () => {
         const { currentQuestionIndex, questions, mode } = get();
         
-        if (currentQuestionIndex >= questions.length - 1) {
-          // Quiz finished
-          set({ quizState: 'finished' });
-          return;
-        }
-        
-        // In practice mode, we can continue indefinitely
+        // In practice mode, add more questions when running low
         if (mode === 'practice' && currentQuestionIndex >= questions.length - 1) {
-          // Get more questions
           const moreQuestions = getRandomQuestions(5);
           set({
             questions: [...get().questions, ...moreQuestions],
@@ -145,12 +138,20 @@ export const useGKStore = create<GKState>()(
             currentQuestionIndex: currentQuestionIndex + 1,
             questionStartTime: Date.now(),
           });
-        } else {
-          set({
-            currentQuestionIndex: currentQuestionIndex + 1,
-            questionStartTime: Date.now(),
-          });
+          return;
         }
+        
+        // For competitive mode, check if quiz is complete
+        if (currentQuestionIndex >= questions.length - 1) {
+          set({ quizState: 'finished' });
+          return;
+        }
+        
+        // Move to next question
+        set({
+          currentQuestionIndex: currentQuestionIndex + 1,
+          questionStartTime: Date.now(),
+        });
       },
       
       finishQuiz: () => {
