@@ -1,0 +1,332 @@
+// Games Hub - GK Quiz and Wordle access
+import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { MotiView } from 'moti';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants/theme';
+import { useGKStore } from '../../stores/gk-store';
+import { useWordleStore } from '../../stores/wordle-store';
+import { useUserStore } from '../../stores/user-store';
+
+export default function FunScreen() {
+  const router = useRouter();
+  const { mascot } = useUserStore();
+  const canPlayCompetitive = useGKStore(state => state.canPlayCompetitiveToday());
+  const canPlayWordle = useWordleStore(state => state.canPlayToday());
+  
+  const handleGamePress = (route: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push(route as any);
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.content}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>Fun Zone</Text>
+          <Text style={styles.subtitle}>Play games to earn XP and level up!</Text>
+        </View>
+
+        {/* Mascot Tip */}
+        <MotiView
+          from={{ opacity: 0, translateY: 10 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: 'spring', delay: 100 }}
+          style={styles.mascotTip}
+        >
+          <Text style={styles.mascotEmoji}>
+            {mascot === 'male' ? '🧙' : '🧙‍♀️'}
+          </Text>
+          <Text style={styles.mascotTipText}>
+            Tip: Competitive mode gives more XP, but you can only play once per day!
+          </Text>
+        </MotiView>
+
+        {/* GK Quiz Card */}
+        <MotiView
+          from={{ opacity: 0, translateY: 20 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: 'spring', delay: 200 }}
+        >
+          <View style={styles.gameCard}>
+            <LinearGradient
+              colors={[COLORS.primary, COLORS.primaryDark]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.gameCardHeader}
+            >
+              <Text style={styles.gameCardEmoji}>🧠</Text>
+              <View style={styles.gameCardTitleContainer}>
+                <Text style={styles.gameCardTitle}>General Knowledge</Text>
+                <Text style={styles.gameCardDesc}>Test your mythology mastery</Text>
+              </View>
+            </LinearGradient>
+            
+            <View style={styles.gameCardContent}>
+              {/* Practice Mode */}
+              <Pressable 
+                style={styles.modeButton}
+                onPress={() => handleGamePress('/games/gk/practice')}
+              >
+                <View style={styles.modeButtonContent}>
+                  <Ionicons name="infinite" size={24} color={COLORS.primary} />
+                  <View style={styles.modeButtonText}>
+                    <Text style={styles.modeButtonTitle}>Practice Mode</Text>
+                    <Text style={styles.modeButtonDesc}>Infinite questions • No XP</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+              </Pressable>
+
+              {/* Competitive Mode */}
+              <Pressable 
+                style={[
+                  styles.modeButton, 
+                  !canPlayCompetitive && styles.modeButtonDisabled
+                ]}
+                onPress={() => canPlayCompetitive && handleGamePress('/games/gk/competitive')}
+                disabled={!canPlayCompetitive}
+              >
+                <View style={styles.modeButtonContent}>
+                  <Ionicons 
+                    name="trophy" 
+                    size={24} 
+                    color={canPlayCompetitive ? COLORS.accentGold : COLORS.textMuted} 
+                  />
+                  <View style={styles.modeButtonText}>
+                    <Text style={[
+                      styles.modeButtonTitle,
+                      !canPlayCompetitive && styles.modeButtonTitleDisabled
+                    ]}>
+                      Competitive Mode
+                    </Text>
+                    <Text style={styles.modeButtonDesc}>
+                      {canPlayCompetitive 
+                        ? '10 questions • 30s timer • Earn XP!' 
+                        : 'Come back tomorrow!'}
+                    </Text>
+                  </View>
+                </View>
+                {canPlayCompetitive ? (
+                  <View style={styles.xpBadge}>
+                    <Text style={styles.xpBadgeText}>+XP</Text>
+                  </View>
+                ) : (
+                  <Ionicons name="lock-closed" size={20} color={COLORS.textMuted} />
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </MotiView>
+
+        {/* Wordle Card */}
+        <MotiView
+          from={{ opacity: 0, translateY: 20 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: 'spring', delay: 300 }}
+        >
+          <Pressable
+            style={[
+              styles.gameCard, 
+              !canPlayWordle && styles.gameCardPlayed
+            ]}
+            onPress={() => handleGamePress('/games/wordle')}
+          >
+            <LinearGradient
+              colors={canPlayWordle 
+                ? [COLORS.accent, COLORS.accentLight] 
+                : [COLORS.surface, COLORS.backgroundCard]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.gameCardHeader}
+            >
+              <Text style={styles.gameCardEmoji}>📝</Text>
+              <View style={styles.gameCardTitleContainer}>
+                <Text style={styles.gameCardTitle}>Mythology Wordle</Text>
+                <Text style={styles.gameCardDesc}>
+                  {canPlayWordle 
+                    ? 'Guess the 5-letter word!' 
+                    : 'You\'ve played today\'s word'}
+                </Text>
+              </View>
+              {canPlayWordle ? (
+                <View style={styles.dailyBadge}>
+                  <Text style={styles.dailyBadgeText}>DAILY</Text>
+                </View>
+              ) : (
+                <Ionicons name="checkmark-circle" size={28} color={COLORS.success} />
+              )}
+            </LinearGradient>
+            
+            <View style={styles.gameCardContent}>
+              <View style={styles.wordleInfo}>
+                <View style={styles.wordleInfoItem}>
+                  <Ionicons name="grid" size={18} color={COLORS.textSecondary} />
+                  <Text style={styles.wordleInfoText}>6 attempts</Text>
+                </View>
+                <View style={styles.wordleInfoItem}>
+                  <Ionicons name="star" size={18} color={COLORS.accentGold} />
+                  <Text style={styles.wordleInfoText}>+100 XP on win</Text>
+                </View>
+              </View>
+            </View>
+          </Pressable>
+        </MotiView>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  content: {
+    flex: 1,
+    padding: SPACING.lg,
+  },
+  header: {
+    marginBottom: SPACING.lg,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: SPACING.xs,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: COLORS.textSecondary,
+  },
+  mascotTip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.lg,
+    gap: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.primary + '30',
+  },
+  mascotEmoji: {
+    fontSize: 32,
+  },
+  mascotTipText: {
+    flex: 1,
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    lineHeight: 20,
+  },
+  gameCard: {
+    backgroundColor: COLORS.backgroundCard,
+    borderRadius: BORDER_RADIUS.xl,
+    overflow: 'hidden',
+    marginBottom: SPACING.lg,
+    ...SHADOWS.md,
+  },
+  gameCardPlayed: {
+    opacity: 0.8,
+  },
+  gameCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: SPACING.lg,
+    gap: SPACING.md,
+  },
+  gameCardEmoji: {
+    fontSize: 40,
+  },
+  gameCardTitleContainer: {
+    flex: 1,
+  },
+  gameCardTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  gameCardDesc: {
+    fontSize: 13,
+    color: COLORS.text + 'CC',
+    marginTop: 2,
+  },
+  gameCardContent: {
+    padding: SPACING.md,
+    paddingTop: 0,
+  },
+  modeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+  },
+  modeButtonDisabled: {
+    backgroundColor: COLORS.surface + '80',
+    opacity: 0.7,
+  },
+  modeButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  modeButtonText: {
+    gap: 2,
+  },
+  modeButtonTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  modeButtonTitleDisabled: {
+    color: COLORS.textMuted,
+  },
+  modeButtonDesc: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  xpBadge: {
+    backgroundColor: COLORS.accentGold + '30',
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.full,
+  },
+  xpBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.accentGold,
+  },
+  dailyBadge: {
+    backgroundColor: COLORS.text + '20',
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.full,
+  },
+  dailyBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: COLORS.text,
+    letterSpacing: 1,
+  },
+  wordleInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: SPACING.sm,
+  },
+  wordleInfoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  wordleInfoText: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+});

@@ -1,0 +1,142 @@
+// MMKV storage utility for high-performance persistence
+import { MMKV } from 'react-native-mmkv';
+
+// Lazy initialization to avoid JSI errors during module load
+let _storage: MMKV | null = null;
+let _initializationAttempted = false;
+let _initializationError: Error | null = null;
+
+function getStorage(): MMKV | null {
+  if (_storage) return _storage;
+  
+  // Don't retry if we already failed
+  if (_initializationAttempted && _initializationError) {
+    console.warn('MMKV not available, using fallback. Original error:', _initializationError.message);
+    return null;
+  }
+  
+  _initializationAttempted = true;
+  
+  try {
+    _storage = new MMKV({
+      id: 'detective-mythology-storage',
+    });
+    return _storage;
+  } catch (error) {
+    _initializationError = error as Error;
+    console.warn('Failed to initialize MMKV:', (error as Error).message);
+    return null;
+  }
+}
+
+// In-memory fallback storage for when MMKV is not available
+const memoryStorage: Map<string, string | number | boolean> = new Map();
+
+// Export a getter for backward compatibility
+export const storage = {
+  getString: (key: string) => {
+    const s = getStorage();
+    if (s) return s.getString(key);
+    const val = memoryStorage.get(key);
+    return typeof val === 'string' ? val : undefined;
+  },
+  getNumber: (key: string) => {
+    const s = getStorage();
+    if (s) return s.getNumber(key);
+    const val = memoryStorage.get(key);
+    return typeof val === 'number' ? val : undefined;
+  },
+  getBoolean: (key: string) => {
+    const s = getStorage();
+    if (s) return s.getBoolean(key);
+    const val = memoryStorage.get(key);
+    return typeof val === 'boolean' ? val : undefined;
+  },
+  set: (key: string, value: string | number | boolean) => {
+    const s = getStorage();
+    if (s) {
+      s.set(key, value);
+    } else {
+      memoryStorage.set(key, value);
+    }
+  },
+  delete: (key: string) => {
+    const s = getStorage();
+    if (s) {
+      s.delete(key);
+    } else {
+      memoryStorage.delete(key);
+    }
+  },
+  clearAll: () => {
+    const s = getStorage();
+    if (s) {
+      s.clearAll();
+    } else {
+      memoryStorage.clear();
+    }
+  },
+};
+
+// Helper functions for typed storage access
+export const storageUtils = {
+  // String
+  getString: (key: string): string | undefined => storage.getString(key),
+  setString: (key: string, value: string) => storage.set(key, value),
+  
+  // Number
+  getNumber: (key: string): number | undefined => storage.getNumber(key),
+  setNumber: (key: string, value: number) => storage.set(key, value),
+  
+  // Boolean
+  getBoolean: (key: string): boolean | undefined => storage.getBoolean(key),
+  setBoolean: (key: string, value: boolean) => storage.set(key, value),
+  
+  // JSON objects
+  getObject: <T>(key: string): T | undefined => {
+    const json = storage.getString(key);
+    if (!json) return undefined;
+    try {
+      return JSON.parse(json) as T;
+    } catch {
+      return undefined;
+    }
+  },
+  setObject: <T>(key: string, value: T) => {
+    storage.set(key, JSON.stringify(value));
+  },
+  
+  // Delete
+  delete: (key: string) => storage.delete(key),
+  
+  // Clear all
+  clearAll: () => storage.clearAll(),
+};
+
+// Storage keys
+export const STORAGE_KEYS = {
+  // User data
+  USER_XP: 'user_xp',
+  USER_LEVEL: 'user_level',
+  USER_STREAK: 'user_streak',
+  USER_MASCOT: 'user_mascot',
+  USER_NAME: 'user_name',
+  ONBOARDING_COMPLETE: 'onboarding_complete',
+  
+  // Unlocked content
+  UNLOCKED_ARTIFACTS: 'unlocked_artifacts',
+  UNLOCKED_WEAPONS: 'unlocked_weapons',
+  
+  // Game state
+  GK_LAST_COMPETITIVE_DATE: 'gk_last_competitive_date',
+  GK_PRACTICE_STATS: 'gk_practice_stats',
+  
+  // Wordle
+  WORDLE_STATE: 'wordle_state',
+  WORDLE_STATS: 'wordle_stats',
+  WORDLE_LAST_PLAYED_DATE: 'wordle_last_played_date',
+  
+  // Misc
+  LAST_LOGIN_DATE: 'last_login_date',
+  DAILY_FACT_INDEX: 'daily_fact_index',
+};
