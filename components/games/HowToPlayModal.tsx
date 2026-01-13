@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable, Modal, ScrollView } from 'react-nati
 import { MotiView } from 'moti';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, BORDER_RADIUS } from '../../constants/theme';
+import { useTapFeedback } from '../../utils/useTapFeedback';
 
 interface HowToPlayModalProps {
   visible: boolean;
@@ -31,12 +32,19 @@ function ExampleTile({
 }
 
 export default function HowToPlayModal({ visible, onClose }: HowToPlayModalProps) {
+  const { triggerTap } = useTapFeedback();
+  
+  const handleClose = () => {
+    triggerTap();
+    onClose();
+  };
+
   return (
     <Modal
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
       <View style={styles.overlay}>
         <MotiView
@@ -48,7 +56,7 @@ export default function HowToPlayModal({ visible, onClose }: HowToPlayModalProps
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>How To Play</Text>
-            <Pressable onPress={onClose} style={styles.closeButton}>
+            <Pressable onPress={handleClose} style={styles.closeButton}>
               <Ionicons name="close" size={24} color={COLORS.text} />
             </Pressable>
           </View>
@@ -160,7 +168,7 @@ export default function HowToPlayModal({ visible, onClose }: HowToPlayModalProps
           </ScrollView>
 
           {/* Got it button */}
-          <Pressable style={styles.gotItButton} onPress={onClose}>
+          <Pressable style={styles.gotItButton} onPress={handleClose}>
             <Text style={styles.gotItText}>Got it!</Text>
           </Pressable>
         </MotiView>

@@ -12,6 +12,7 @@ import { ARTIFACTS } from '../../data/artifacts';
 import { WEAPONS, type Rarity, type Weapon } from '../../data/weapons';
 import { getLevelForXP } from '../../constants/levels';
 import WeaponPackOpening from '../../components/animations/WeaponPackOpening';
+import { useTapFeedback } from '../../utils/useTapFeedback';
 
 type TabType = 'artifacts' | 'weapons';
 
@@ -38,15 +39,16 @@ export default function ArtifactsScreen() {
   const currentLevel = getLevelForXP(xp).level;
   const PACK_COST = 100;
   const DUPLICATE_BONUS = 25;
+  const { triggerTap } = useTapFeedback();
   
   const handleTabChange = (tab: TabType) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerTap();
     setActiveTab(tab);
   };
 
   const handleOpenPack = () => {
     if (!canAffordPack()) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    triggerTap('heavy');
     spendWeaponShards(PACK_COST);
     setShowPackOpening(true);
   };

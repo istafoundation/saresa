@@ -5,20 +5,21 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView } from 'moti';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants/theme';
 import { useGKStore } from '../../stores/gk-store';
 import { useWordleStore } from '../../stores/wordle-store';
 import { useUserStore } from '../../stores/user-store';
+import { useTapFeedback } from '../../utils/useTapFeedback';
 
 export default function FunScreen() {
   const router = useRouter();
   const { mascot } = useUserStore();
+  const { triggerTap } = useTapFeedback();
   const canPlayCompetitive = useGKStore(state => state.canPlayCompetitiveToday());
   const canPlayWordle = useWordleStore(state => state.canPlayToday());
   
   const handleGamePress = (route: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    triggerTap('medium');
     router.push(route as any);
   };
 

@@ -19,10 +19,12 @@ import { useUserStore } from '../../stores/user-store';
 import { getRandomFunFact, getTodaysWordOfTheDay } from '../../data/fun-facts';
 import { Ionicons } from '@expo/vector-icons';
 import { BubbleBackground } from '../../components/animations/SparkleBackground';
+import { useTapFeedback } from '../../utils/useTapFeedback';
 
 export default function HomeScreen() {
   const router = useRouter();
   const { name, xp, streak, mascot } = useUserStore();
+  const { triggerTap } = useTapFeedback();
   const [funFact, setFunFact] = useState(() => getRandomFunFact());
   const [showWordOfDay, setShowWordOfDay] = useState(false);
   
@@ -113,7 +115,10 @@ export default function HomeScreen() {
           style={styles.mascotSection}
         >
           <Pressable 
-            onPress={() => setFunFact(getRandomFunFact())}
+            onPress={() => {
+              triggerTap();
+              setFunFact(getRandomFunFact());
+            }}
             style={styles.mascotContainer}
           >
             <Animated.View style={[styles.mascot, mascotAnimatedStyle]}>
@@ -138,7 +143,10 @@ export default function HomeScreen() {
         >
           <Pressable 
             style={styles.wordCard}
-            onPress={() => setShowWordOfDay(!showWordOfDay)}
+            onPress={() => {
+              triggerTap();
+              setShowWordOfDay(!showWordOfDay);
+            }}
           >
             <View style={styles.wordCardHeader}>
               <Ionicons name="book-outline" size={20} color={COLORS.accentGold} />
@@ -168,7 +176,10 @@ export default function HomeScreen() {
           
           <Pressable 
             style={styles.actionCard}
-            onPress={() => router.push('/fun')}
+            onPress={() => {
+              triggerTap('medium');
+              router.push('/fun');
+            }}
           >
             <LinearGradient
               colors={[COLORS.accent + '40', COLORS.accent + '20']}
@@ -185,7 +196,10 @@ export default function HomeScreen() {
 
           <Pressable 
             style={styles.actionCard}
-            onPress={() => router.push('/artifacts')}
+            onPress={() => {
+              triggerTap('medium');
+              router.push('/artifacts');
+            }}
           >
             <LinearGradient
               colors={[COLORS.primary + '40', COLORS.primary + '20']}

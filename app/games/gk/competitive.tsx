@@ -19,6 +19,7 @@ import { COLORS, SPACING, BORDER_RADIUS } from '../../../constants/theme';
 import { useGKStore } from '../../../stores/gk-store';
 import { useUserStore } from '../../../stores/user-store';
 import { useGameAudio } from '../../../utils/sound-manager';
+import { useTapFeedback } from '../../../utils/useTapFeedback';
 
 const TIME_LIMIT = 30;
 const TOTAL_QUESTIONS = 10;
@@ -55,6 +56,7 @@ export default function CompetitiveScreen() {
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const timerProgress = useSharedValue(1);
+  const { triggerTap } = useTapFeedback();
 
   useEffect(() => {
     const success = startQuiz('competitive');
@@ -116,8 +118,7 @@ export default function CompetitiveScreen() {
     if (showResult) return;
     if (timerRef.current) clearInterval(timerRef.current);
     
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    playTap();
+    triggerTap('medium');
     setSelectedAnswer(index);
     
     const result = answerQuestion(index);
@@ -125,6 +126,7 @@ export default function CompetitiveScreen() {
     setCorrectIndex(result.correctIndex);
     setShowResult(true);
     
+    // Only play correct/wrong sound, not tap + result together
     if (result.correct) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       playCorrect();
@@ -135,8 +137,7 @@ export default function CompetitiveScreen() {
   };
 
   const handleNext = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    playTap();
+    triggerTap();
     setSelectedAnswer(null);
     setShowResult(false);
     timerProgress.value = 1;
@@ -217,7 +218,7 @@ export default function CompetitiveScreen() {
             </Text>
           </View>
 
-          <Pressable style={styles.doneButton} onPress={() => router.back()}>
+          <Pressable style={styles.doneButton} onPress={() => { triggerTap(); router.back(); }}>
             <LinearGradient
               colors={[COLORS.primary, COLORS.primaryDark]}
               style={styles.doneButtonGradient}

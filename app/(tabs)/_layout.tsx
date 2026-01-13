@@ -13,11 +13,14 @@ import { COLORS, SPACING, BORDER_RADIUS } from '../../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import * as Haptics from 'expo-haptics';
+import { useSoundEffects } from '../../utils/sound-manager';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 // Custom animated tab bar
 function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+  const { playTap } = useSoundEffects();
+  
   return (
     <View style={styles.tabBarContainer}>
       <LinearGradient
@@ -36,6 +39,7 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
             (isFocused ? 'person' : 'person-outline');
 
           const onPress = () => {
+            playTap();
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             const event = navigation.emit({
               type: 'tabPress',

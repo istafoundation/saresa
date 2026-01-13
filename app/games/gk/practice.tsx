@@ -11,6 +11,7 @@ import { COLORS, SPACING, BORDER_RADIUS } from '../../../constants/theme';
 import { useGKStore } from '../../../stores/gk-store';
 import { useUserStore } from '../../../stores/user-store';
 import { useGameAudio } from '../../../utils/sound-manager';
+import { useTapFeedback } from '../../../utils/useTapFeedback';
 
 export default function PracticeScreen() {
   const router = useRouter();
@@ -34,6 +35,7 @@ export default function PracticeScreen() {
   const [showResult, setShowResult] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [correctIndex, setCorrectIndex] = useState(0);
+  const { triggerTap } = useTapFeedback();
 
   useEffect(() => {
     startQuiz('practice');
@@ -49,8 +51,7 @@ export default function PracticeScreen() {
   const handleAnswer = (index: number) => {
     if (showResult) return;
     
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    playTap();
+    triggerTap('medium');
     setSelectedAnswer(index);
     
     const result = answerQuestion(index);
@@ -68,14 +69,14 @@ export default function PracticeScreen() {
   };
 
   const handleNext = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    playTap();
+    triggerTap();
     setSelectedAnswer(null);
     setShowResult(false);
     nextQuestion();
   };
 
   const handleEnd = () => {
+    triggerTap();
     stopMusic();
     router.back();
   };

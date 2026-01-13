@@ -19,6 +19,7 @@ import { isValidWord } from '../../data/wordle-words';
 import HowToPlayModal from '../../components/games/HowToPlayModal';
 import ShareButton from '../../components/games/ShareResults';
 import { useGameAudio } from '../../utils/sound-manager';
+import { useTapFeedback } from '../../utils/useTapFeedback';
 
 const KEYBOARD_ROWS = [
   ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
@@ -55,6 +56,7 @@ export default function WordleScreen() {
   const [showResult, setShowResult] = useState(false);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
   const shakeX = useSharedValue(0);
+  const { triggerTap } = useTapFeedback();
 
   useEffect(() => {
     initGame();
@@ -120,10 +122,13 @@ export default function WordleScreen() {
       if (result.won) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         stopMusic();
-        playWin();
         addXP(100);
         addWeaponShards(50); // Award shards for winning
-        setTimeout(() => setShowResult(true), 500);
+        // Play win sound when showing result (delayed)
+        setTimeout(() => {
+          playWin();
+          setShowResult(true);
+        }, 500);
       } else if (result.lost) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         stopMusic();
@@ -163,11 +168,11 @@ export default function WordleScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable onPress={() => { triggerTap(); router.back(); }} style={styles.backButton}>
           <Ionicons name="close" size={28} color={COLORS.text} />
         </Pressable>
         <Text style={styles.title}>Mythology Wordle</Text>
-        <Pressable onPress={() => setShowHowToPlay(true)} style={styles.helpButton}>
+        <Pressable onPress={() => { triggerTap(); setShowHowToPlay(true); }} style={styles.helpButton}>
           <Ionicons name="help-circle-outline" size={28} color={COLORS.text} />
         </Pressable>
       </View>
@@ -252,9 +257,9 @@ export default function WordleScreen() {
           style={styles.resultOverlay}
         >
           <MotiView
-            from={{ scale: 0.8, opacity: 0 }}
+            from={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: 'spring' }}
+            transition={{ type: 'timing', duration: 250 }}
             style={styles.resultCard}
           >
             <Text style={styles.resultEmoji}>
@@ -306,7 +311,7 @@ export default function WordleScreen() {
 
             <Pressable 
               style={styles.closeButton}
-              onPress={() => router.back()}
+              onPress={() => { triggerTap(); router.back(); }}
             >
               <Text style={styles.closeButtonText}>Close</Text>
             </Pressable>

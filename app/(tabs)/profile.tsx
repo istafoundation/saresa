@@ -11,6 +11,7 @@ import { useUserStore } from '../../stores/user-store';
 import { useWordleStore } from '../../stores/wordle-store';
 import { useGKStore } from '../../stores/gk-store';
 import { getLevelForXP, getXPProgressToNextLevel, LEVELS } from '../../constants/levels';
+import { useTapFeedback } from '../../utils/useTapFeedback';
 
 export default function ProfileScreen() {
   const { 
@@ -24,8 +25,10 @@ export default function ProfileScreen() {
   
   const levelInfo = getLevelForXP(xp);
   const xpProgress = getXPProgressToNextLevel(xp);
+  const { triggerTap, triggerSelection } = useTapFeedback();
   
   const handleReset = () => {
+    triggerTap('heavy');
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     Alert.alert(
       'Reset Progress',
@@ -45,7 +48,7 @@ export default function ProfileScreen() {
   };
 
   const handleMascotToggle = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerSelection();
     setMascot(mascot === 'male' ? 'female' : 'male');
   };
 
@@ -240,7 +243,7 @@ export default function ProfileScreen() {
               <Switch
                 value={soundEnabled}
                 onValueChange={(value) => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  triggerSelection();
                   setSoundEnabled(value);
                 }}
                 trackColor={{ false: COLORS.backgroundCard, true: COLORS.primary + '60' }}
@@ -275,7 +278,7 @@ export default function ProfileScreen() {
               <Switch
                 value={musicEnabled}
                 onValueChange={(value) => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  triggerSelection();
                   setMusicEnabled(value);
                 }}
                 trackColor={{ false: COLORS.backgroundCard, true: COLORS.accent + '60' }}

@@ -10,19 +10,21 @@ import * as Haptics from 'expo-haptics';
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../constants/theme';
 import { useUserStore, type MascotType } from '../stores/user-store';
 import SparkleBackground from '../components/animations/SparkleBackground';
+import { useTapFeedback } from '../utils/useTapFeedback';
 
 type Step = 'welcome' | 'name' | 'mascot';
 
 export default function OnboardingScreen() {
   const router = useRouter();
   const { setName, setMascot, completeOnboarding } = useUserStore();
+  const { triggerTap, triggerSelection } = useTapFeedback();
   
   const [step, setStep] = useState<Step>('welcome');
   const [userName, setUserName] = useState('');
   const [selectedMascot, setSelectedMascot] = useState<MascotType>('male');
 
   const handleNext = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    triggerTap('medium');
     if (step === 'welcome') {
       setStep('name');
     } else if (step === 'name') {
@@ -37,7 +39,7 @@ export default function OnboardingScreen() {
   };
 
   const handleMascotSelect = (mascot: MascotType) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerSelection();
     setSelectedMascot(mascot);
   };
 
