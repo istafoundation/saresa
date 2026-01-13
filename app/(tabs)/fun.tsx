@@ -1,5 +1,5 @@
 // Games Hub - GK Quiz and Wordle access
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView } from 'moti';
@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants/theme';
 import { useGKStore } from '../../stores/gk-store';
 import { useWordleStore } from '../../stores/wordle-store';
+import { useWordFinderStore } from '../../stores/word-finder-store';
 import { useUserStore } from '../../stores/user-store';
 import { useTapFeedback } from '../../utils/useTapFeedback';
 
@@ -17,6 +18,9 @@ export default function FunScreen() {
   const { triggerTap } = useTapFeedback();
   const canPlayCompetitive = useGKStore(state => state.canPlayCompetitiveToday());
   const canPlayWordle = useWordleStore(state => state.canPlayToday());
+  const canPlayWordFinderEasy = useWordFinderStore(state => state.canPlayEasyToday());
+  const canPlayWordFinderHard = useWordFinderStore(state => state.canPlayHardToday());
+  
   
   const handleGamePress = (route: string) => {
     triggerTap('medium');
@@ -25,7 +29,7 @@ export default function FunScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>Fun Zone</Text>
@@ -177,7 +181,106 @@ export default function FunScreen() {
             </View>
           </Pressable>
         </MotiView>
-      </View>
+
+        {/* Word Finder Card */}
+        <MotiView
+          from={{ opacity: 0, translateY: 20 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: 'spring', delay: 400 }}
+        >
+          <View style={styles.gameCard}>
+            <LinearGradient
+              colors={[COLORS.rainbow2, COLORS.rainbow6]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.gameCardHeader}
+            >
+              <Text style={styles.gameCardEmoji}>🔍</Text>
+              <View style={styles.gameCardTitleContainer}>
+                <Text style={styles.gameCardTitle}>Word Finder</Text>
+                <Text style={styles.gameCardDesc}>Find hidden words in the grid</Text>
+              </View>
+            </LinearGradient>
+            
+            <View style={styles.gameCardContent}>
+              {/* Easy Mode */}
+              <Pressable 
+                style={[
+                  styles.modeButton,
+                  !canPlayWordFinderEasy && styles.modeButtonDisabled
+                ]}
+                onPress={() => canPlayWordFinderEasy && handleGamePress('/games/word-finder')}
+                disabled={!canPlayWordFinderEasy}
+              >
+                <View style={styles.modeButtonContent}>
+                  <Ionicons 
+                    name="star-outline" 
+                    size={24} 
+                    color={canPlayWordFinderEasy ? COLORS.rainbow6 : COLORS.textMuted} 
+                  />
+                  <View style={styles.modeButtonText}>
+                    <Text style={[
+                      styles.modeButtonTitle,
+                      !canPlayWordFinderEasy && styles.modeButtonTitleDisabled
+                    ]}>Easy Mode</Text>
+                    <Text style={styles.modeButtonDesc}>
+                      {canPlayWordFinderEasy 
+                        ? 'Find 5 words • 10 min • 1x daily' 
+                        : 'Come back tomorrow!'}
+                    </Text>
+                  </View>
+                </View>
+                {canPlayWordFinderEasy ? (
+                  <View style={styles.xpBadge}>
+                    <Text style={styles.xpBadgeText}>+200 XP</Text>
+                  </View>
+                ) : (
+                  <Ionicons name="lock-closed" size={20} color={COLORS.textMuted} />
+                )}
+              </Pressable>
+
+              {/* Hard Mode */}
+              <Pressable 
+                style={[
+                  styles.modeButton,
+                  !canPlayWordFinderHard && styles.modeButtonDisabled
+                ]}
+                onPress={() => canPlayWordFinderHard && handleGamePress('/games/word-finder')}
+                disabled={!canPlayWordFinderHard}
+              >
+                <View style={styles.modeButtonContent}>
+                  <Ionicons 
+                    name="flash" 
+                    size={24} 
+                    color={canPlayWordFinderHard ? COLORS.accentGold : COLORS.textMuted} 
+                  />
+                  <View style={styles.modeButtonText}>
+                    <Text style={[
+                      styles.modeButtonTitle,
+                      !canPlayWordFinderHard && styles.modeButtonTitleDisabled
+                    ]}>Hard Mode</Text>
+                    <Text style={styles.modeButtonDesc}>
+                      {canPlayWordFinderHard 
+                        ? 'Answer questions • Hints -50% XP • 2x daily' 
+                        : 'No attempts left today!'}
+                    </Text>
+                  </View>
+                </View>
+                {canPlayWordFinderHard ? (
+                  <View style={[styles.xpBadge, { backgroundColor: COLORS.accentGold + '30' }]}>
+                    <Text style={styles.xpBadgeText}>+400 XP</Text>
+                  </View>
+                ) : (
+                  <Ionicons name="lock-closed" size={20} color={COLORS.textMuted} />
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </MotiView>
+        
+        {/* Bottom spacing */}
+        <View style={{ height: SPACING.xl }} />
+      </ScrollView>
     </SafeAreaView>
   );
 }

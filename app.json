@@ -1,13 +1,13 @@
 {
   "expo": {
-    "name": "Detective Mythology",
-    "slug": "detective-mythology",
+    "name": "Saresa",
+    "slug": "saresa",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
-    "scheme": "detective-mythology",
+    "scheme": "saresa",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -15,14 +15,14 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.detectivemythology.app"
+      "bundleIdentifier": "in.istafoundation.saresa"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1A0A2E"
       },
-      "package": "com.detectivemythology.app"
+      "package": "in.istafoundation.saresa"
     },
     "web": {
       "favicon": "./assets/favicon.png",
