@@ -1,10 +1,11 @@
 // Profile Screen - User stats and settings
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import Slider from '@react-native-community/slider';
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants/theme';
 import { useUserStore } from '../../stores/user-store';
 import { useWordleStore } from '../../stores/wordle-store';
@@ -12,7 +13,12 @@ import { useGKStore } from '../../stores/gk-store';
 import { getLevelForXP, getXPProgressToNextLevel, LEVELS } from '../../constants/levels';
 
 export default function ProfileScreen() {
-  const { name, mascot, xp, streak, unlockedArtifacts, unlockedWeapons, resetProgress, setMascot } = useUserStore();
+  const { 
+    name, mascot, xp, streak, unlockedArtifacts, unlockedWeapons, 
+    resetProgress, setMascot,
+    soundEnabled, musicEnabled, sfxVolume, musicVolume,
+    setSoundEnabled, setMusicEnabled, setSfxVolume, setMusicVolume
+  } = useUserStore();
   const wordleStats = useWordleStore(state => state.stats);
   const { practiceTotal, practiceCorrect } = useGKStore();
   
@@ -222,7 +228,86 @@ export default function ProfileScreen() {
           animate={{ opacity: 1, translateY: 0 }}
           transition={{ type: 'spring', delay: 500 }}
         >
-          <Text style={styles.sectionTitle}>Settings</Text>
+          <Text style={styles.sectionTitle}>Sound Settings</Text>
+          
+          {/* Sound Effects Toggle */}
+          <View style={styles.soundSettingCard}>
+            <View style={styles.soundSettingRow}>
+              <View style={styles.soundSettingLabel}>
+                <Ionicons name="volume-high" size={22} color={COLORS.primary} />
+                <Text style={styles.settingText}>Sound Effects</Text>
+              </View>
+              <Switch
+                value={soundEnabled}
+                onValueChange={(value) => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setSoundEnabled(value);
+                }}
+                trackColor={{ false: COLORS.backgroundCard, true: COLORS.primary + '60' }}
+                thumbColor={soundEnabled ? COLORS.primary : COLORS.textMuted}
+              />
+            </View>
+            {soundEnabled && (
+              <View style={styles.sliderContainer}>
+                <Ionicons name="volume-low" size={16} color={COLORS.textSecondary} />
+                <Slider
+                  style={styles.slider}
+                  minimumValue={0}
+                  maximumValue={1}
+                  value={sfxVolume}
+                  onValueChange={setSfxVolume}
+                  minimumTrackTintColor={COLORS.primary}
+                  maximumTrackTintColor={COLORS.backgroundCard}
+                  thumbTintColor={COLORS.primary}
+                />
+                <Text style={styles.volumePercent}>{Math.round(sfxVolume * 100)}%</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Music Toggle */}
+          <View style={styles.soundSettingCard}>
+            <View style={styles.soundSettingRow}>
+              <View style={styles.soundSettingLabel}>
+                <Ionicons name="musical-notes" size={22} color={COLORS.accent} />
+                <Text style={styles.settingText}>Background Music</Text>
+              </View>
+              <Switch
+                value={musicEnabled}
+                onValueChange={(value) => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setMusicEnabled(value);
+                }}
+                trackColor={{ false: COLORS.backgroundCard, true: COLORS.accent + '60' }}
+                thumbColor={musicEnabled ? COLORS.accent : COLORS.textMuted}
+              />
+            </View>
+            {musicEnabled && (
+              <View style={styles.sliderContainer}>
+                <Ionicons name="volume-low" size={16} color={COLORS.textSecondary} />
+                <Slider
+                  style={styles.slider}
+                  minimumValue={0}
+                  maximumValue={1}
+                  value={musicVolume}
+                  onValueChange={setMusicVolume}
+                  minimumTrackTintColor={COLORS.accent}
+                  maximumTrackTintColor={COLORS.backgroundCard}
+                  thumbTintColor={COLORS.accent}
+                />
+                <Text style={styles.volumePercent}>{Math.round(musicVolume * 100)}%</Text>
+              </View>
+            )}
+          </View>
+        </MotiView>
+
+        {/* Danger Zone */}
+        <MotiView
+          from={{ opacity: 0, translateY: 20 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: 'spring', delay: 550 }}
+        >
+          <Text style={styles.sectionTitle}>Danger Zone</Text>
           
           <Pressable style={styles.settingItem} onPress={handleReset}>
             <View style={styles.settingContent}>
@@ -461,5 +546,42 @@ const styles = StyleSheet.create({
   settingText: {
     fontSize: 16,
     fontWeight: '500',
+    color: COLORS.text,
+  },
+  soundSettingCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.md,
+  },
+  soundSettingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  soundSettingLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  sliderContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: SPACING.md,
+    paddingTop: SPACING.md,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.backgroundCard,
+  },
+  slider: {
+    flex: 1,
+    height: 40,
+    marginHorizontal: SPACING.sm,
+  },
+  volumePercent: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    width: 45,
+    textAlign: 'right',
   },
 });

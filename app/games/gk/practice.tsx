@@ -10,6 +10,7 @@ import * as Haptics from 'expo-haptics';
 import { COLORS, SPACING, BORDER_RADIUS } from '../../../constants/theme';
 import { useGKStore } from '../../../stores/gk-store';
 import { useUserStore } from '../../../stores/user-store';
+import { useGameAudio } from '../../../utils/sound-manager';
 
 export default function PracticeScreen() {
   const router = useRouter();
@@ -25,6 +26,9 @@ export default function PracticeScreen() {
     practiceTotal,
     practiceCorrect,
   } = useGKStore();
+  
+  // Sound effects and music
+  const { playTap, playCorrect, playWrong, startMusic, stopMusic } = useGameAudio();
 
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [showResult, setShowResult] = useState(false);
@@ -33,7 +37,11 @@ export default function PracticeScreen() {
 
   useEffect(() => {
     startQuiz('practice');
-    return () => resetQuiz();
+    startMusic(); // Start background music
+    return () => {
+      resetQuiz();
+      stopMusic(); // Stop music on exit
+    };
   }, []);
 
   const currentQuestion = questions[currentQuestionIndex];
@@ -42,6 +50,7 @@ export default function PracticeScreen() {
     if (showResult) return;
     
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    playTap();
     setSelectedAnswer(index);
     
     const result = answerQuestion(index);
@@ -51,19 +60,23 @@ export default function PracticeScreen() {
     
     if (result.correct) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      playCorrect();
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      playWrong();
     }
   };
 
   const handleNext = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    playTap();
     setSelectedAnswer(null);
     setShowResult(false);
     nextQuestion();
   };
 
   const handleEnd = () => {
+    stopMusic();
     router.back();
   };
 

@@ -18,13 +18,14 @@ import * as Haptics from 'expo-haptics';
 import { COLORS, SPACING, BORDER_RADIUS } from '../../../constants/theme';
 import { useGKStore } from '../../../stores/gk-store';
 import { useUserStore } from '../../../stores/user-store';
+import { useGameAudio } from '../../../utils/sound-manager';
 
 const TIME_LIMIT = 30;
 const TOTAL_QUESTIONS = 10;
 
 export default function CompetitiveScreen() {
   const router = useRouter();
-  const { addXP, mascot } = useUserStore();
+  const { addXP, addWeaponShards, mascot } = useUserStore();
   const {
     quizState,
     currentQuestionIndex,
@@ -35,6 +36,9 @@ export default function CompetitiveScreen() {
     finishQuiz,
     resetQuiz,
   } = useGKStore();
+  
+  // Sound effects and music
+  const { playTap, playCorrect, playWrong, playWin, startMusic, stopMusic } = useGameAudio();
 
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [showResult, setShowResult] = useState(false);
@@ -46,6 +50,7 @@ export default function CompetitiveScreen() {
     correct: number;
     total: number;
     xpEarned: number;
+    shardsEarned: number;
   } | null>(null);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -57,8 +62,10 @@ export default function CompetitiveScreen() {
       router.back();
       return;
     }
+    startMusic(); // Start background music
     return () => {
       resetQuiz();
+      stopMusic(); // Stop music on exit
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, []);
@@ -96,6 +103,7 @@ export default function CompetitiveScreen() {
   const handleTimeUp = () => {
     if (timerRef.current) clearInterval(timerRef.current);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    playWrong();
     
     // Auto-select wrong answer
     const result = answerQuestion(-1); // Invalid answer
@@ -109,6 +117,7 @@ export default function CompetitiveScreen() {
     if (timerRef.current) clearInterval(timerRef.current);
     
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    playTap();
     setSelectedAnswer(index);
     
     const result = answerQuestion(index);
@@ -118,25 +127,38 @@ export default function CompetitiveScreen() {
     
     if (result.correct) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      playCorrect();
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      playWrong();
     }
   };
 
   const handleNext = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    playTap();
     setSelectedAnswer(null);
     setShowResult(false);
     timerProgress.value = 1;
     
     if (currentQuestionIndex >= TOTAL_QUESTIONS - 1) {
-      // Quiz finished
+      // Quiz finished - stop music and play result sound
+      stopMusic();
       const result = finishQuiz();
-      setFinalResult(result);
+      const shardsEarned = result.correct * 5; // 5 shards per correct answer
+      setFinalResult({ ...result, shardsEarned });
       setGameEnded(true);
+      
+      // Play win sound for good performance
+      if (result.correct >= 5) {
+        playWin();
+      }
       
       if (result.xpEarned > 0) {
         addXP(result.xpEarned);
+      }
+      if (shardsEarned > 0) {
+        addWeaponShards(shardsEarned);
       }
     } else {
       nextQuestion();
@@ -171,8 +193,15 @@ export default function CompetitiveScreen() {
             <Text style={styles.scoreLabel}>Correct Answers</Text>
           </View>
 
-          <View style={styles.xpEarnedBig}>
-            <Text style={styles.xpEarnedBigText}>+{finalResult.xpEarned} XP</Text>
+          <View style={styles.rewardsRow}>
+            <View style={styles.xpEarnedBig}>
+              <Text style={styles.xpEarnedBigText}>+{finalResult.xpEarned} XP</Text>
+            </View>
+            {finalResult.shardsEarned > 0 && (
+              <View style={styles.shardsEarnedBig}>
+                <Text style={styles.shardsEarnedBigText}>+{finalResult.shardsEarned} 💎</Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.mascotResult}>
@@ -527,12 +556,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.xl,
     paddingVertical: SPACING.md,
     borderRadius: BORDER_RADIUS.full,
-    marginBottom: SPACING.xl,
   },
   xpEarnedBigText: {
     fontSize: 24,
     fontWeight: '700',
     color: COLORS.accentGold,
+  },
+  // Rewards row for XP + Shards
+  rewardsRow: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+    marginBottom: SPACING.xl,
+  },
+  shardsEarnedBig: {
+    backgroundColor: COLORS.primary + '30',
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.full,
+  },
+  shardsEarnedBigText: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: COLORS.primary,
   },
   mascotResult: {
     flexDirection: 'row',

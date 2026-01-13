@@ -24,8 +24,20 @@ const RARITY_COLORS: Record<Rarity, string> = {
 export default function ArtifactsScreen() {
   const [activeTab, setActiveTab] = useState<TabType>('artifacts');
   const [showPackOpening, setShowPackOpening] = useState(false);
-  const { unlockedArtifacts, unlockedWeapons, xp, unlockWeapon } = useUserStore();
+  const { 
+    unlockedArtifacts, 
+    unlockedWeapons, 
+    xp, 
+    unlockWeapon,
+    weaponShards,
+    addWeaponShards,
+    spendWeaponShards,
+    addWeaponDuplicate,
+    canAffordPack,
+  } = useUserStore();
   const currentLevel = getLevelForXP(xp).level;
+  const PACK_COST = 100;
+  const DUPLICATE_BONUS = 25;
   
   const handleTabChange = (tab: TabType) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -33,12 +45,20 @@ export default function ArtifactsScreen() {
   };
 
   const handleOpenPack = () => {
+    if (!canAffordPack()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    spendWeaponShards(PACK_COST);
     setShowPackOpening(true);
   };
 
-  const handlePackComplete = (weapon: Weapon) => {
-    unlockWeapon(weapon.id);
+  const handlePackComplete = (weapon: Weapon, isDuplicate: boolean) => {
+    if (isDuplicate) {
+      // Award bonus shards for duplicates
+      addWeaponShards(DUPLICATE_BONUS);
+      addWeaponDuplicate(weapon.id);
+    } else {
+      unlockWeapon(weapon.id);
+    }
     setShowPackOpening(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
@@ -82,16 +102,32 @@ export default function ArtifactsScreen() {
           />
         ) : (
           <>
+            {/* Shards Balance */}
+            <View style={styles.shardsContainer}>
+              <View style={styles.shardsInfo}>
+                <Text style={styles.shardsIcon}>💎</Text>
+                <Text style={styles.shardsValue}>{weaponShards}</Text>
+                <Text style={styles.shardsLabel}>Shards</Text>
+              </View>
+              <Text style={styles.shardsHint}>Earn shards from games!</Text>
+            </View>
+
             {/* Open Pack Button */}
-            <Pressable style={styles.openPackButton} onPress={handleOpenPack}>
+            <Pressable 
+              style={[styles.openPackButton, !canAffordPack() && styles.openPackButtonDisabled]} 
+              onPress={handleOpenPack}
+              disabled={!canAffordPack()}
+            >
               <LinearGradient
-                colors={[COLORS.accentGold, COLORS.accent]}
+                colors={canAffordPack() ? [COLORS.accentGold, COLORS.accent] : ['#888', '#666']}
                 style={styles.openPackGradient}
               >
                 <Text style={styles.openPackIcon}>🎴</Text>
                 <View style={styles.openPackText}>
                   <Text style={styles.openPackTitle}>Open Weapon Pack</Text>
-                  <Text style={styles.openPackDesc}>Discover a random weapon!</Text>
+                  <Text style={styles.openPackDesc}>
+                    {canAffordPack() ? `Cost: ${PACK_COST} 💎` : `Need ${PACK_COST - weaponShards} more shards`}
+                  </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={24} color={COLORS.background} />
               </LinearGradient>
@@ -116,6 +152,7 @@ export default function ArtifactsScreen() {
         <WeaponPackOpening
           onComplete={handlePackComplete}
           onCancel={() => setShowPackOpening(false)}
+          ownedWeapons={unlockedWeapons}
         />
       )}
     </SafeAreaView>
@@ -362,6 +399,43 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.background + 'CC',
     marginTop: 2,
+  },
+  openPackButtonDisabled: {
+    opacity: 0.7,
+  },
+  // Shards display
+  shardsContainer: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.lg,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.primaryLight + '40',
+  },
+  shardsInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  shardsIcon: {
+    fontSize: 28,
+  },
+  shardsValue: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+  shardsLabel: {
+    fontSize: 16,
+    color: COLORS.textSecondary,
+    marginLeft: SPACING.xs,
+  },
+  shardsHint: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: SPACING.xs,
+    fontStyle: 'italic',
   },
   collectionStats: {
     alignItems: 'center',

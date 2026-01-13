@@ -18,6 +18,7 @@ import { useUserStore } from '../../stores/user-store';
 import { isValidWord } from '../../data/wordle-words';
 import HowToPlayModal from '../../components/games/HowToPlayModal';
 import ShareButton from '../../components/games/ShareResults';
+import { useGameAudio } from '../../utils/sound-manager';
 
 const KEYBOARD_ROWS = [
   ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
@@ -34,7 +35,7 @@ const LETTER_COLORS: Record<LetterState, string> = {
 
 export default function WordleScreen() {
   const router = useRouter();
-  const { addXP } = useUserStore();
+  const { addXP, addWeaponShards } = useUserStore();
   const {
     targetWord,
     currentGuess,
@@ -48,16 +49,23 @@ export default function WordleScreen() {
     initGame,
   } = useWordleStore();
   
+  // Sound effects and music
+  const { playKey, playSubmit, playWin, playWrong, startMusic, stopMusic } = useGameAudio();
+  
   const [showResult, setShowResult] = useState(false);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
   const shakeX = useSharedValue(0);
 
   useEffect(() => {
     initGame();
+    startMusic(); // Start background music
     // Show how-to-play on first visit
     if (stats.gamesPlayed === 0) {
       setShowHowToPlay(true);
     }
+    return () => {
+      stopMusic(); // Stop music on exit
+    };
   }, []);
 
   const handleKeyPress = (key: string) => {
@@ -65,11 +73,13 @@ export default function WordleScreen() {
     
     if (key === '⌫') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      playKey();
       removeLetter();
     } else if (key === 'ENTER') {
       handleSubmit();
     } else {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      playKey();
       addLetter(key);
     }
   };
@@ -77,6 +87,7 @@ export default function WordleScreen() {
   const handleSubmit = () => {
     if (currentGuess.length !== 5) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      playWrong();
       shakeX.value = withSequence(
         withTiming(-10, { duration: 50 }),
         withTiming(10, { duration: 100 }),
@@ -89,6 +100,7 @@ export default function WordleScreen() {
 
     if (!isValidWord(currentGuess)) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      playWrong();
       Alert.alert('Not in word list', 'Try another word');
       shakeX.value = withSequence(
         withTiming(-10, { duration: 50 }),
@@ -100,16 +112,21 @@ export default function WordleScreen() {
       return;
     }
 
+    playSubmit();
     const result = submitGuess();
     if (result.valid) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       
       if (result.won) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        stopMusic();
+        playWin();
         addXP(100);
+        addWeaponShards(50); // Award shards for winning
         setTimeout(() => setShowResult(true), 500);
       } else if (result.lost) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        stopMusic();
         setTimeout(() => setShowResult(true), 500);
       }
     }
@@ -251,8 +268,13 @@ export default function WordleScreen() {
             </Text>
             
             {gameState === 'won' && (
-              <View style={styles.xpEarned}>
-                <Text style={styles.xpEarnedText}>+100 XP</Text>
+              <View style={styles.rewardsContainer}>
+                <View style={styles.xpEarned}>
+                  <Text style={styles.xpEarnedText}>+100 XP</Text>
+                </View>
+                <View style={styles.shardsEarned}>
+                  <Text style={styles.shardsEarnedText}>+50 💎</Text>
+                </View>
               </View>
             )}
 
@@ -437,6 +459,23 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: COLORS.accentGold,
+  },
+  // Rewards container for XP + Shards
+  rewardsContainer: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+    marginBottom: SPACING.lg,
+  },
+  shardsEarned: {
+    backgroundColor: COLORS.primary + '30',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.full,
+  },
+  shardsEarnedText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.primary,
   },
   statsRow: {
     flexDirection: 'row',

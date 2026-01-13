@@ -35,6 +35,16 @@ export interface UserState {
   unlockedArtifacts: string[];
   unlockedWeapons: string[];
   
+  // Weapon Pack Currency
+  weaponShards: number;
+  weaponDuplicates: Record<string, number>; // Track duplicate counts for each weapon
+  
+  // Sound Settings
+  soundEnabled: boolean;
+  musicEnabled: boolean;
+  sfxVolume: number; // 0-1
+  musicVolume: number; // 0-1
+  
   // Computed (not persisted)
   level: number;
   levelTitle: string;
@@ -48,6 +58,18 @@ export interface UserState {
   unlockWeapon: (weaponId: string) => void;
   updateStreak: () => void;
   resetProgress: () => void;
+  
+  // Weapon Shards Actions
+  addWeaponShards: (amount: number) => void;
+  spendWeaponShards: (amount: number) => boolean; // Returns false if not enough shards
+  addWeaponDuplicate: (weaponId: string) => void;
+  canAffordPack: () => boolean;
+  
+  // Sound Actions
+  setSoundEnabled: (enabled: boolean) => void;
+  setMusicEnabled: (enabled: boolean) => void;
+  setSfxVolume: (volume: number) => void;
+  setMusicVolume: (volume: number) => void;
 }
 
 export const useUserStore = create<UserState>()(
@@ -62,6 +84,16 @@ export const useUserStore = create<UserState>()(
       lastLoginDate: null,
       unlockedArtifacts: [],
       unlockedWeapons: [],
+      
+      // Weapon Pack Currency (initial)
+      weaponShards: 100, // Start with enough for 1 pack
+      weaponDuplicates: {},
+      
+      // Sound Settings (defaults)
+      soundEnabled: true,
+      musicEnabled: true,
+      sfxVolume: 0.7,
+      musicVolume: 0.3,
       
       // Computed properties
       get level() {
@@ -142,7 +174,47 @@ export const useUserStore = create<UserState>()(
         lastLoginDate: null,
         unlockedArtifacts: [],
         unlockedWeapons: [],
+        weaponShards: 100,
+        weaponDuplicates: {},
+        soundEnabled: true,
+        musicEnabled: true,
+        sfxVolume: 0.7,
+        musicVolume: 0.3,
       }),
+      
+      // Weapon Shards Actions
+      addWeaponShards: (amount) => {
+        set({ weaponShards: get().weaponShards + amount });
+      },
+      
+      spendWeaponShards: (amount) => {
+        const current = get().weaponShards;
+        if (current >= amount) {
+          set({ weaponShards: current - amount });
+          return true;
+        }
+        return false;
+      },
+      
+      addWeaponDuplicate: (weaponId) => {
+        const current = get().weaponDuplicates;
+        set({
+          weaponDuplicates: {
+            ...current,
+            [weaponId]: (current[weaponId] || 0) + 1,
+          },
+        });
+      },
+      
+      canAffordPack: () => {
+        return get().weaponShards >= 100; // PACK_COST
+      },
+      
+      // Sound Actions
+      setSoundEnabled: (enabled) => set({ soundEnabled: enabled }),
+      setMusicEnabled: (enabled) => set({ musicEnabled: enabled }),
+      setSfxVolume: (volume) => set({ sfxVolume: Math.max(0, Math.min(1, volume)) }),
+      setMusicVolume: (volume) => set({ musicVolume: Math.max(0, Math.min(1, volume)) }),
     }),
     {
       name: 'user-storage',
@@ -156,6 +228,12 @@ export const useUserStore = create<UserState>()(
         lastLoginDate: state.lastLoginDate,
         unlockedArtifacts: state.unlockedArtifacts,
         unlockedWeapons: state.unlockedWeapons,
+        weaponShards: state.weaponShards,
+        weaponDuplicates: state.weaponDuplicates,
+        soundEnabled: state.soundEnabled,
+        musicEnabled: state.musicEnabled,
+        sfxVolume: state.sfxVolume,
+        musicVolume: state.musicVolume,
       }),
     }
   )
