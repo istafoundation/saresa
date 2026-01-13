@@ -209,7 +209,7 @@ export default function FunScreen() {
                   styles.modeButton,
                   !canPlayWordFinderEasy && styles.modeButtonDisabled
                 ]}
-                onPress={() => canPlayWordFinderEasy && handleGamePress('/games/word-finder')}
+                onPress={() => canPlayWordFinderEasy && handleGamePress('/games/word-finder?mode=easy')}
                 disabled={!canPlayWordFinderEasy}
               >
                 <View style={styles.modeButtonContent}>
@@ -225,14 +225,14 @@ export default function FunScreen() {
                     ]}>Easy Mode</Text>
                     <Text style={styles.modeButtonDesc}>
                       {canPlayWordFinderEasy 
-                        ? 'Find 5 words • 10 min • 1x daily' 
-                        : 'Come back tomorrow!'}
+                        ? 'Find 5 words • 10 min • 2x daily' 
+                        : 'No attempts left today!'}
                     </Text>
                   </View>
                 </View>
                 {canPlayWordFinderEasy ? (
-                  <View style={styles.xpBadge}>
-                    <Text style={styles.xpBadgeText}>+200 XP</Text>
+                                  <View style={styles.xpBadge}>
+                    <Text style={styles.xpBadgeText}>+50 XP</Text>
                   </View>
                 ) : (
                   <Ionicons name="lock-closed" size={20} color={COLORS.textMuted} />
@@ -245,7 +245,7 @@ export default function FunScreen() {
                   styles.modeButton,
                   !canPlayWordFinderHard && styles.modeButtonDisabled
                 ]}
-                onPress={() => canPlayWordFinderHard && handleGamePress('/games/word-finder')}
+                onPress={() => canPlayWordFinderHard && handleGamePress('/games/word-finder?mode=hard')}
                 disabled={!canPlayWordFinderHard}
               >
                 <View style={styles.modeButtonContent}>
@@ -261,14 +261,14 @@ export default function FunScreen() {
                     ]}>Hard Mode</Text>
                     <Text style={styles.modeButtonDesc}>
                       {canPlayWordFinderHard 
-                        ? 'Answer questions • Hints -50% XP • 2x daily' 
-                        : 'No attempts left today!'}
+                        ? 'Answer questions • Hints -50% XP • 1x daily' 
+                        : 'Come back tomorrow!'}
                     </Text>
                   </View>
                 </View>
                 {canPlayWordFinderHard ? (
-                  <View style={[styles.xpBadge, { backgroundColor: COLORS.accentGold + '30' }]}>
-                    <Text style={styles.xpBadgeText}>+400 XP</Text>
+                                    <View style={[styles.xpBadge, { backgroundColor: COLORS.accentGold + '30' }]}>
+                    <Text style={styles.xpBadgeText}>+200 XP</Text>
                   </View>
                 ) : (
                   <Ionicons name="lock-closed" size={20} color={COLORS.textMuted} />
@@ -278,8 +278,8 @@ export default function FunScreen() {
           </View>
         </MotiView>
         
-        {/* Bottom spacing */}
-        <View style={{ height: SPACING.xl }} />
+        {/* Bottom spacing to account for tab bar */}
+        <View style={{ height: 100 }} />
       </ScrollView>
     </SafeAreaView>
   );

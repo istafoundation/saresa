@@ -1,12 +1,12 @@
 // Word Finder Game Screen - 8x8 grid word search with swipe mechanics
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, Dimensions } from 'react-native';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { View, Text, StyleSheet, Pressable, Dimensions, PanResponder } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView } from 'moti';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants/theme';
 import { useWordFinderStore, type GameMode, type CellPosition } from '../../stores/word-finder-store';
 import { useUserStore } from '../../stores/user-store';
@@ -16,10 +16,14 @@ import { useTapFeedback } from '../../utils/useTapFeedback';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GRID_SIZE = 8;
 const GRID_PADDING = SPACING.md;
-const CELL_SIZE = (SCREEN_WIDTH - GRID_PADDING * 4) / GRID_SIZE;
+// Circular cells with gaps like Android pattern lock
+const CELL_GAP = 8;
+const CELL_SIZE = Math.floor((SCREEN_WIDTH - GRID_PADDING * 2 - CELL_GAP * (GRID_SIZE + 1)) / GRID_SIZE);
+const GRID_WIDTH = CELL_SIZE * GRID_SIZE + CELL_GAP * (GRID_SIZE + 1);
 
 export default function WordFinderScreen() {
   const router = useRouter();
+  const { mode: urlMode } = useLocalSearchParams<{ mode?: string }>();
   const { triggerTap } = useTapFeedback();
   const { playCorrect, playWrong, playWin } = useGameAudio();
   const addXP = useUserStore(state => state.addXP);
@@ -47,15 +51,40 @@ export default function WordFinderScreen() {
     resetGame,
   } = useWordFinderStore();
   
-  const [showModeSelect, setShowModeSelect] = useState(true);
+  // If mode is passed in URL, skip mode selection
+  const [showModeSelect, setShowModeSelect] = useState(!urlMode);
   const [showResult, setShowResult] = useState(false);
   const [lastFoundWord, setLastFoundWord] = useState<string | null>(null);
   const [hintText, setHintText] = useState<string | null>(null);
   const [result, setResult] = useState<{ xpEarned: number; wordsFound: number; total: number } | null>(null);
+  const [autoStarted, setAutoStarted] = useState(false);
+  
+  // Local selection state for smooth updates
+  const [localSelection, setLocalSelection] = useState<CellPosition[]>([]);
+  const selectionDirectionRef = useRef<{ dr: number; dc: number } | null>(null);
+  
+  // Movement tracking for angle-based direction detection
+  const firstCellRef = useRef<CellPosition | null>(null);
+  const firstCellCenterRef = useRef<{ x: number; y: number } | null>(null);
+  const directionLockedRef = useRef(false);
   
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const gridRef = useRef<View>(null);
-  const gridLayoutRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
+  const gridLayoutRef = useRef<{ x: number; y: number } | null>(null);
+  
+  // Auto-start game if mode is passed in URL
+  useEffect(() => {
+    if (urlMode && !autoStarted && gameState === 'idle') {
+      const selectedMode = urlMode as GameMode;
+      if ((selectedMode === 'easy' && canPlayEasyToday()) || 
+          (selectedMode === 'hard' && canPlayHardToday())) {
+        const success = startGame(selectedMode);
+        if (success) {
+          setAutoStarted(true);
+          setShowModeSelect(false);
+        }
+      }
+    }
+  }, [urlMode, autoStarted, gameState, canPlayEasyToday, canPlayHardToday, startGame]);
   
   // Timer effect
   useEffect(() => {
@@ -111,6 +140,7 @@ export default function WordFinderScreen() {
       setResult(null);
       setLastFoundWord(null);
       setHintText(null);
+      setLocalSelection([]);
     }
   };
   
@@ -139,7 +169,7 @@ export default function WordFinderScreen() {
     }
   };
   
-  const handleNextQuestion = () => {
+  const handleNextQuestion = useCallback(() => {
     triggerTap('medium');
     setLastFoundWord(null);
     setHintText(null);
@@ -147,18 +177,42 @@ export default function WordFinderScreen() {
     if (!hasMore) {
       handleGameEnd();
     }
+  }, [triggerTap, nextHardQuestion]);
+  
+  // Helper functions
+  const isAdjacent = (cell1: CellPosition, cell2: CellPosition): boolean => {
+    const rowDiff = Math.abs(cell1.row - cell2.row);
+    const colDiff = Math.abs(cell1.col - cell2.col);
+    return rowDiff <= 1 && colDiff <= 1 && (rowDiff > 0 || colDiff > 0);
   };
   
-  // Calculate cell position from touch coordinates
-  const getCellFromPosition = useCallback((x: number, y: number): CellPosition | null => {
-    if (!gridLayoutRef.current) return null;
-    
-    const { x: gridX, y: gridY } = gridLayoutRef.current;
-    const relX = x - gridX;
-    const relY = y - gridY;
-    
-    const col = Math.floor(relX / CELL_SIZE);
-    const row = Math.floor(relY / CELL_SIZE);
+  const getDirection = (from: CellPosition, to: CellPosition): { dr: number; dc: number } => {
+    return {
+      dr: Math.sign(to.row - from.row),
+      dc: Math.sign(to.col - from.col),
+    };
+  };
+  
+  
+  const isCellInList = (list: CellPosition[], row: number, col: number): number => {
+    return list.findIndex(c => c.row === row && c.col === col);
+  };
+  
+  // Cell stride = cell size + gap
+  const CELL_STRIDE = CELL_SIZE + CELL_GAP;
+  
+  // Get cell center position in grid coordinates
+  const getCellCenter = useCallback((cell: CellPosition): { x: number; y: number } => {
+    return {
+      x: CELL_GAP + cell.col * CELL_STRIDE + CELL_SIZE / 2,
+      y: CELL_GAP + cell.row * CELL_STRIDE + CELL_SIZE / 2,
+    };
+  }, []);
+  
+  // Get cell from grid-relative coordinates
+  const getCellFromRelCoords = useCallback((relX: number, relY: number): CellPosition | null => {
+    const col = Math.floor((relX - CELL_GAP) / CELL_STRIDE);
+    const row = Math.floor((relY - CELL_GAP) / CELL_STRIDE);
     
     if (row >= 0 && row < GRID_SIZE && col >= 0 && col < GRID_SIZE) {
       return { row, col };
@@ -166,51 +220,234 @@ export default function WordFinderScreen() {
     return null;
   }, []);
   
-  // Pan gesture for swiping
-  const panGesture = Gesture.Pan()
-    .onStart((event) => {
-      const cell = getCellFromPosition(event.absoluteX, event.absoluteY);
-      if (cell) {
-        selectCell(cell.row, cell.col);
+  // Convert angle (radians) to one of 8 directions
+  const angleToDirection = useCallback((angle: number): { dr: number; dc: number } => {
+    // Normalize angle to 0-360
+    let degrees = (angle * 180 / Math.PI + 360) % 360;
+    
+    // Snap to nearest 45° and get direction
+    // 0° = right, 45° = down-right, 90° = down, etc.
+    const sector = Math.round(degrees / 45) % 8;
+    
+    const directions: { dr: number; dc: number }[] = [
+      { dr: 0, dc: 1 },   // 0° - right
+      { dr: 1, dc: 1 },   // 45° - down-right
+      { dr: 1, dc: 0 },   // 90° - down
+      { dr: 1, dc: -1 },  // 135° - down-left
+      { dr: 0, dc: -1 },  // 180° - left
+      { dr: -1, dc: -1 }, // 225° - up-left
+      { dr: -1, dc: 0 },  // 270° - up
+      { dr: -1, dc: 1 },  // 315° - up-right
+    ];
+    
+    return directions[sector];
+  }, []);
+  
+  // Get all cells from start to current position in locked direction
+  const getCellsInDirection = useCallback((
+    startCell: CellPosition, 
+    direction: { dr: number; dc: number },
+    endCell: CellPosition
+  ): CellPosition[] => {
+    const cells: CellPosition[] = [startCell];
+    let current = { ...startCell };
+    
+    // Add cells until we reach or pass the end cell
+    while (cells.length < 20) { // Safety limit
+      current = {
+        row: current.row + direction.dr,
+        col: current.col + direction.dc,
+      };
+      
+      // Check bounds
+      if (current.row < 0 || current.row >= GRID_SIZE ||
+          current.col < 0 || current.col >= GRID_SIZE) {
+        break;
       }
-    })
-    .onUpdate((event) => {
-      const cell = getCellFromPosition(event.absoluteX, event.absoluteY);
-      if (cell) {
-        selectCell(cell.row, cell.col);
+      
+      cells.push({ ...current });
+      
+      // Check if we've reached end position
+      if (current.row === endCell.row && current.col === endCell.col) {
+        break;
       }
-    })
-    .onEnd(() => {
-      const { valid, word } = confirmSelection();
-      if (valid && word) {
-        setLastFoundWord(word);
-        playCorrect();
-        triggerTap('heavy');
+      
+      // Check if we've passed end position
+      const distToStart = Math.hypot(
+        current.row - startCell.row,
+        current.col - startCell.col
+      );
+      const endDistToStart = Math.hypot(
+        endCell.row - startCell.row,
+        endCell.col - startCell.col
+      );
+      
+      if (distToStart >= endDistToStart) {
+        break;
+      }
+    }
+    
+    return cells;
+  }, []);
+  
+  // Handle selection end
+  const handleSelectionEnd = useCallback((selection: CellPosition[]) => {
+    if (selection.length === 0) return;
+    
+    // Sync to store
+    clearSelection();
+    selection.forEach(c => selectCell(c.row, c.col));
+    
+    const { valid, word } = confirmSelection();
+    if (valid && word) {
+      setLastFoundWord(word);
+      playCorrect();
+      triggerTap('heavy');
+      
+      if (mode === 'hard') {
+        setTimeout(() => {
+          handleNextQuestion();
+        }, 1000);
+      }
+    } else if (selection.length > 0) {
+      playWrong();
+      triggerTap('light');
+      clearSelection();
+    }
+    
+    setLocalSelection([]);
+    selectionDirectionRef.current = null;
+    firstCellRef.current = null;
+    firstCellCenterRef.current = null;
+    directionLockedRef.current = false;
+  }, [confirmSelection, playCorrect, playWrong, triggerTap, clearSelection, selectCell, mode, handleNextQuestion]);
+  
+  // Store ref for latest localSelection (for panResponder closure)
+  const localSelectionRef = useRef<CellPosition[]>([]);
+  useEffect(() => {
+    localSelectionRef.current = localSelection;
+  }, [localSelection]);
+  
+  // Movement threshold to lock direction (as fraction of cell stride)
+  const DIRECTION_LOCK_THRESHOLD = CELL_STRIDE * 0.4;
+  
+  // PanResponder with angle-based direction detection
+  const panResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    
+    onPanResponderGrant: (evt) => {
+      if (!gridLayoutRef.current) return;
+      
+      const relX = evt.nativeEvent.pageX - gridLayoutRef.current.x;
+      const relY = evt.nativeEvent.pageY - gridLayoutRef.current.y;
+      
+      const cell = getCellFromRelCoords(relX, relY);
+      if (cell) {
+        // Initialize first cell tracking
+        firstCellRef.current = cell;
+        firstCellCenterRef.current = getCellCenter(cell);
+        directionLockedRef.current = false;
+        selectionDirectionRef.current = null;
         
-        // In hard mode, auto-advance to next question after a delay
-        if (mode === 'hard') {
-          setTimeout(() => {
-            handleNextQuestion();
-          }, 1000);
-        }
-      } else if (selectedCells.length > 0) {
-        playWrong();
-        triggerTap('light');
-        clearSelection();
+        setLocalSelection([cell]);
       }
-    });
+    },
+    
+    onPanResponderMove: (evt) => {
+      if (!gridLayoutRef.current || !firstCellRef.current || !firstCellCenterRef.current) return;
+      
+      const relX = evt.nativeEvent.pageX - gridLayoutRef.current.x;
+      const relY = evt.nativeEvent.pageY - gridLayoutRef.current.y;
+      
+      const firstCenter = firstCellCenterRef.current;
+      const dx = relX - firstCenter.x;
+      const dy = relY - firstCenter.y;
+      const distance = Math.hypot(dx, dy);
+      
+      // If direction not locked yet, check if we've moved enough to lock it
+      if (!directionLockedRef.current) {
+        if (distance > DIRECTION_LOCK_THRESHOLD) {
+          // Calculate angle and lock direction
+          const angle = Math.atan2(dy, dx);
+          const direction = angleToDirection(angle);
+          
+          selectionDirectionRef.current = direction;
+          directionLockedRef.current = true;
+          
+          // Start with first cell only
+          setLocalSelection([firstCellRef.current]);
+        }
+        return; // Don't select more cells until direction is locked
+      }
+      
+      // Direction is locked - calculate how many cells along direction
+      const dir = selectionDirectionRef.current;
+      if (!dir) return;
+      
+      // Project movement onto direction vector
+      const dirLength = Math.hypot(dir.dr, dir.dc);
+      const normalizedDr = dir.dr / dirLength;
+      const normalizedDc = dir.dc / dirLength;
+      
+      // Calculate movement in grid cell units
+      const moveInDirRow = dy / CELL_STRIDE;
+      const moveInDirCol = dx / CELL_STRIDE;
+      
+      // Project onto direction
+      const projectedMove = moveInDirRow * normalizedDr + moveInDirCol * normalizedDc;
+      
+      // Calculate number of cells (including first)
+      const numCells = Math.max(1, Math.floor(projectedMove) + 1);
+      
+      // Generate cells along direction
+      const newSelection: CellPosition[] = [];
+      let current = { ...firstCellRef.current };
+      newSelection.push({ ...current });
+      
+      for (let i = 1; i < numCells && i < 10; i++) {
+        current = {
+          row: current.row + dir.dr,
+          col: current.col + dir.dc,
+        };
+        
+        // Check bounds
+        if (current.row < 0 || current.row >= GRID_SIZE ||
+            current.col < 0 || current.col >= GRID_SIZE) {
+          break;
+        }
+        
+        newSelection.push({ ...current });
+      }
+      
+      setLocalSelection(newSelection);
+    },
+    
+    onPanResponderRelease: () => {
+      handleSelectionEnd(localSelectionRef.current);
+    },
+    
+    onPanResponderTerminate: () => {
+      setLocalSelection([]);
+      selectionDirectionRef.current = null;
+      firstCellRef.current = null;
+      firstCellCenterRef.current = null;
+      directionLockedRef.current = false;
+    },
+  }), [getCellFromRelCoords, getCellCenter, angleToDirection, handleSelectionEnd]);
   
   // Check if cell is selected
-  const isCellSelected = (row: number, col: number): boolean => {
-    return selectedCells.some(c => c.row === row && c.col === col);
-  };
+  const isCellSelected = useCallback((row: number, col: number): boolean => {
+    return localSelection.some(c => c.row === row && c.col === col) ||
+           selectedCells.some(c => c.row === row && c.col === col);
+  }, [localSelection, selectedCells]);
   
   // Check if cell is part of a found word
-  const isCellInFoundWord = (row: number, col: number): boolean => {
+  const isCellInFoundWord = useCallback((row: number, col: number): boolean => {
     return wordPlacements.some(
       p => p.found && p.positions.some(pos => pos.row === row && pos.col === col)
     );
-  };
+  }, [wordPlacements]);
   
   // Format timer
   const formatTime = (seconds: number): string => {
@@ -246,7 +483,7 @@ export default function WordFinderScreen() {
             <Text style={styles.descriptionEmoji}>🔍</Text>
             <Text style={styles.descriptionTitle}>Find Hidden Words!</Text>
             <Text style={styles.descriptionText}>
-              Swipe across the 8×8 grid to find words hidden horizontally, vertically, or diagonally.
+              Swipe across the grid to find words. Words can be horizontal →, vertical ↓, or diagonal ↘
             </Text>
           </MotiView>
           
@@ -272,12 +509,12 @@ export default function WordFinderScreen() {
                   <View style={styles.modeCardText}>
                     <Text style={styles.modeCardTitle}>Easy Mode</Text>
                     <Text style={styles.modeCardDesc}>
-                      {canEasy ? 'Find 5 words from the list' : 'Come back tomorrow!'}
+                      {canEasy ? 'Find 5 words from the list' : 'No attempts left today!'}
                     </Text>
                   </View>
                   {canEasy ? (
                     <View style={styles.xpBadge}>
-                      <Text style={styles.xpBadgeText}>+200 XP</Text>
+                      <Text style={styles.xpBadgeText}>+50 XP</Text>
                     </View>
                   ) : (
                     <Ionicons name="lock-closed" size={24} color={COLORS.textMuted} />
@@ -290,7 +527,7 @@ export default function WordFinderScreen() {
                   </View>
                   <View style={styles.infoItem}>
                     <Ionicons name="star" size={16} color={canEasy ? COLORS.accentGold : COLORS.textMuted} />
-                    <Text style={[styles.infoText, !canEasy && styles.infoTextDisabled]}>1x daily</Text>
+                    <Text style={[styles.infoText, !canEasy && styles.infoTextDisabled]}>2x daily</Text>
                   </View>
                 </View>
               </LinearGradient>
@@ -319,12 +556,12 @@ export default function WordFinderScreen() {
                   <View style={styles.modeCardText}>
                     <Text style={styles.modeCardTitle}>Hard Mode</Text>
                     <Text style={styles.modeCardDesc}>
-                      {canHard ? 'Answer questions to find words' : 'No attempts left today!'}
+                      {canHard ? 'Answer questions to find words' : 'Come back tomorrow!'}
                     </Text>
                   </View>
                   {canHard ? (
                     <View style={[styles.xpBadge, styles.xpBadgeGold]}>
-                      <Text style={styles.xpBadgeText}>+400 XP</Text>
+                      <Text style={styles.xpBadgeText}>+200 XP</Text>
                     </View>
                   ) : (
                     <Ionicons name="lock-closed" size={24} color={COLORS.textMuted} />
@@ -341,7 +578,7 @@ export default function WordFinderScreen() {
                   </View>
                   <View style={styles.infoItem}>
                     <Ionicons name="reload" size={16} color={canHard ? COLORS.accentGold : COLORS.textMuted} />
-                    <Text style={[styles.infoText, !canHard && styles.infoTextDisabled]}>2x daily</Text>
+                    <Text style={[styles.infoText, !canHard && styles.infoTextDisabled]}>1x daily</Text>
                   </View>
                 </View>
               </LinearGradient>
@@ -434,11 +671,7 @@ export default function WordFinderScreen() {
         
         {/* Question/Word List */}
         {mode === 'hard' && currentQuestion ? (
-          <MotiView
-            from={{ opacity: 0, translateY: -10 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            style={styles.questionCard}
-          >
+          <View style={styles.questionCard}>
             <Text style={styles.questionText}>{currentQuestion.question}</Text>
             {hintText ? (
               <Text style={styles.hintText}>💡 {hintText}</Text>
@@ -448,20 +681,14 @@ export default function WordFinderScreen() {
                 <Text style={styles.hintButtonText}>Use Hint (-50% XP)</Text>
               </Pressable>
             )}
-          </MotiView>
+          </View>
         ) : mode === 'easy' && currentWordSet ? (
           <View style={styles.wordListContainer}>
             <Text style={styles.wordListTitle}>{currentWordSet.theme}</Text>
             <View style={styles.wordList}>
-              {wordPlacements.map((placement, index) => (
-                <MotiView
+              {wordPlacements.map((placement) => (
+                <View
                   key={placement.word}
-                  from={{ opacity: 0, scale: 0.9 }}
-                  animate={{ 
-                    opacity: 1, 
-                    scale: 1,
-                  }}
-                  transition={{ delay: index * 50 }}
                   style={[
                     styles.wordItem,
                     placement.found && styles.wordItemFound
@@ -474,9 +701,9 @@ export default function WordFinderScreen() {
                     {placement.word}
                   </Text>
                   {placement.found && (
-                    <Ionicons name="checkmark-circle" size={18} color={COLORS.success} />
+                    <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
                   )}
-                </MotiView>
+                </View>
               ))}
             </View>
           </View>
@@ -497,53 +724,52 @@ export default function WordFinderScreen() {
         
         {/* Grid */}
         <View style={styles.gridWrapper}>
-          <GestureDetector gesture={panGesture}>
-            <View 
-              ref={gridRef}
-              style={styles.grid}
-              onLayout={(event) => {
-                gridRef.current?.measureInWindow((x, y, width, height) => {
-                  gridLayoutRef.current = { x, y, width, height };
-                });
-              }}
-            >
-              {grid.map((row, rowIndex) => (
-                <View key={rowIndex} style={styles.gridRow}>
-                  {row.map((letter, colIndex) => {
-                    const isSelected = isCellSelected(rowIndex, colIndex);
-                    const isFound = isCellInFoundWord(rowIndex, colIndex);
-                    
-                    return (
-                      <MotiView
-                        key={`${rowIndex}-${colIndex}`}
-                        animate={{
-                          scale: isSelected ? 1.1 : 1,
-                          backgroundColor: isFound 
-                            ? COLORS.success 
-                            : isSelected 
-                              ? COLORS.primary 
-                              : COLORS.backgroundCard,
-                        }}
-                        transition={{ type: 'timing', duration: 100 }}
-                        style={[
-                          styles.cell,
-                          isSelected && styles.cellSelected,
-                          isFound && styles.cellFound,
-                        ]}
-                      >
-                        <Text style={[
-                          styles.cellText,
-                          (isSelected || isFound) && styles.cellTextHighlight,
-                        ]}>
-                          {letter}
-                        </Text>
-                      </MotiView>
-                    );
-                  })}
-                </View>
-              ))}
-            </View>
-          </GestureDetector>
+          <View 
+            style={styles.grid}
+            onLayout={(event) => {
+              event.target.measure((x, y, width, height, pageX, pageY) => {
+                gridLayoutRef.current = { x: pageX, y: pageY };
+              });
+            }}
+            {...panResponder.panHandlers}
+          >
+            
+            {grid.map((row, rowIndex) => (
+              <View key={rowIndex} style={[styles.gridRow, { marginTop: rowIndex === 0 ? CELL_GAP : 0 }]}>
+                {row.map((letter, colIndex) => {
+                  const isSelected = isCellSelected(rowIndex, colIndex);
+                  const isFound = isCellInFoundWord(rowIndex, colIndex);
+                  
+                  return (
+                    <View
+                      key={`${rowIndex}-${colIndex}`}
+                      style={[
+                        styles.cell,
+                        { marginLeft: colIndex === 0 ? CELL_GAP : 0, marginRight: CELL_GAP, marginBottom: CELL_GAP },
+                        isSelected && styles.cellSelected,
+                        isFound && styles.cellFound,
+                      ]}
+                    >
+                      <Text style={[
+                        styles.cellText,
+                        isSelected && styles.cellTextSelected,
+                        isFound && styles.cellTextFound,
+                      ]}>
+                        {letter}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            ))}
+          </View>
+          
+          {/* Direction hint */}
+          <View style={styles.directionHint}>
+            <Text style={styles.directionHintText}>
+              Swipe: → ↓ ↘
+            </Text>
+          </View>
         </View>
         
         {/* Progress indicator */}
@@ -683,7 +909,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: SPACING.md,
-    paddingTop: SPACING.sm,
+    paddingTop: SPACING.xs,
   },
   timerContainer: {
     flexDirection: 'row',
@@ -720,7 +946,7 @@ const styles = StyleSheet.create({
   questionCard: {
     backgroundColor: COLORS.backgroundCard,
     marginHorizontal: SPACING.md,
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.sm,
     padding: SPACING.md,
     borderRadius: BORDER_RADIUS.lg,
     ...SHADOWS.sm,
@@ -753,36 +979,35 @@ const styles = StyleSheet.create({
   // Word List (Easy mode)
   wordListContainer: {
     marginHorizontal: SPACING.md,
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.sm,
   },
   wordListTitle: {
     fontSize: 14,
     fontWeight: '600',
     color: COLORS.textSecondary,
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.xs,
     textAlign: 'center',
   },
   wordList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: SPACING.sm,
+    gap: SPACING.xs,
   },
   wordItem: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.backgroundCard,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
     borderRadius: BORDER_RADIUS.full,
-    gap: SPACING.xs,
-    ...SHADOWS.sm,
+    gap: 4,
   },
   wordItemFound: {
     backgroundColor: COLORS.success + '20',
   },
   wordItemText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
     color: COLORS.text,
   },
@@ -799,9 +1024,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.success + '20',
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.full,
     marginHorizontal: SPACING.lg,
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.xs,
+    borderRadius: BORDER_RADIUS.full,
     gap: SPACING.xs,
   },
   foundWordText: {
@@ -815,12 +1040,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: GRID_PADDING,
+    paddingHorizontal: GRID_PADDING,
   },
   grid: {
+    width: GRID_WIDTH,
     backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.xs,
+    borderRadius: BORDER_RADIUS.xl,
     ...SHADOWS.md,
   },
   gridRow: {
@@ -829,29 +1054,49 @@ const styles = StyleSheet.create({
   cell: {
     width: CELL_SIZE,
     height: CELL_SIZE,
+    backgroundColor: COLORS.backgroundCard,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: BORDER_RADIUS.sm,
-    margin: 1,
+    borderRadius: CELL_SIZE / 2, // Circular!
+    ...SHADOWS.sm,
   },
   cellSelected: {
     backgroundColor: COLORS.primary,
+    transform: [{ scale: 1.05 }],
   },
   cellFound: {
     backgroundColor: COLORS.success,
   },
   cellText: {
-    fontSize: CELL_SIZE * 0.5,
+    fontSize: CELL_SIZE * 0.45,
     fontWeight: '700',
     color: COLORS.text,
   },
-  cellTextHighlight: {
-    color: COLORS.backgroundCard,
+  cellTextSelected: {
+    color: '#fff',
+  },
+  cellTextFound: {
+    color: '#fff',
+  },
+  
+  // Direction hint
+  directionHint: {
+    marginTop: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    backgroundColor: COLORS.backgroundCard,
+    borderRadius: BORDER_RADIUS.full,
+  },
+  directionHintText: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
   },
   
   // Progress
   progressContainer: {
-    padding: SPACING.md,
+    paddingVertical: SPACING.sm,
+    paddingBottom: 40,
     alignItems: 'center',
   },
   progressText: {
@@ -860,7 +1105,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   
-  // Result
+  // Result Screen
   resultContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -873,6 +1118,7 @@ const styles = StyleSheet.create({
     padding: SPACING.xl,
     alignItems: 'center',
     width: '100%',
+    maxWidth: 340,
     ...SHADOWS.lg,
   },
   resultEmoji: {
@@ -892,7 +1138,7 @@ const styles = StyleSheet.create({
   },
   resultStatItem: {
     alignItems: 'center',
-    paddingHorizontal: SPACING.xl,
+    paddingHorizontal: SPACING.lg,
   },
   resultStatValue: {
     fontSize: 32,
@@ -910,7 +1156,7 @@ const styles = StyleSheet.create({
   resultStatDivider: {
     width: 1,
     height: 40,
-    backgroundColor: COLORS.textMuted + '30',
+    backgroundColor: COLORS.surface,
   },
   resultButtons: {
     flexDirection: 'row',
@@ -922,8 +1168,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.lg,
+    borderRadius: BORDER_RADIUS.full,
     gap: SPACING.sm,
+    ...SHADOWS.sm,
   },
   resultButtonPrimary: {
     backgroundColor: COLORS.primary,

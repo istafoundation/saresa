@@ -71,8 +71,8 @@ export interface WordFinderState {
   
   // Daily tracking
   lastEasyPlayDate: string | null;
+  easyAttemptsToday: number;
   lastHardPlayDate: string | null;
-  hardAttemptsToday: number;
   
   // Statistics
   stats: WordFinderStats;
@@ -274,8 +274,8 @@ export const useWordFinderStore = create<WordFinderState>()(
       hardCorrectAnswers: 0,
       timeRemaining: MAX_TIME,
       lastEasyPlayDate: null,
+      easyAttemptsToday: 0,
       lastHardPlayDate: null,
-      hardAttemptsToday: 0,
       stats: initialStats,
       
       startGame: (mode) => {
@@ -480,13 +480,17 @@ export const useWordFinderStore = create<WordFinderState>()(
           wordsFound = wordPlacements.filter(p => p.found).length;
           total = wordPlacements.length;
           
-          // XP calculation: base 40 per word, time bonus up to 50%
-          const baseXP = wordsFound * 40;
+          // XP calculation: base 10 per word, time bonus up to 50% (max 50 XP per game)
+          const baseXP = wordsFound * 10;
           const timeBonus = 1 + 0.5 * (timeRemaining / MAX_TIME);
-          xpEarned = Math.round(baseXP * timeBonus);
+          xpEarned = Math.min(50, Math.round(baseXP * timeBonus));
+          
+          const { lastEasyPlayDate, easyAttemptsToday } = get();
+          const newAttempts = lastEasyPlayDate === today ? easyAttemptsToday + 1 : 1;
           
           set({ 
             lastEasyPlayDate: today,
+            easyAttemptsToday: newAttempts,
             stats: {
               ...stats,
               easyGamesPlayed: stats.easyGamesPlayed + 1,
@@ -498,18 +502,14 @@ export const useWordFinderStore = create<WordFinderState>()(
           wordsFound = hardCorrectAnswers;
           total = 5; // Max 5 questions
           
-          // XP calculation: base 80 per correct, time bonus, hint penalty
-          const baseXP = hardCorrectAnswers * 80;
+          // XP calculation: base 40 per correct, time bonus, hint penalty (max 200 XP)
+          const baseXP = hardCorrectAnswers * 40;
           const timeBonus = 1 + 0.5 * (timeRemaining / MAX_TIME);
           const hintPenalty = hintUsed ? 0.5 : 1;
-          xpEarned = Math.round(baseXP * timeBonus * hintPenalty);
-          
-          const { lastHardPlayDate, hardAttemptsToday } = get();
-          const newAttempts = lastHardPlayDate === today ? hardAttemptsToday + 1 : 1;
+          xpEarned = Math.min(200, Math.round(baseXP * timeBonus * hintPenalty));
           
           set({ 
             lastHardPlayDate: today,
-            hardAttemptsToday: newAttempts,
             stats: {
               ...stats,
               hardGamesPlayed: stats.hardGamesPlayed + 1,
@@ -526,15 +526,15 @@ export const useWordFinderStore = create<WordFinderState>()(
       
       canPlayEasyToday: () => {
         const today = new Date().toISOString().split('T')[0];
-        return get().lastEasyPlayDate !== today;
+        const { lastEasyPlayDate, easyAttemptsToday } = get();
+        
+        if (lastEasyPlayDate !== today) return true;
+        return easyAttemptsToday < 2; // 2 attempts per day
       },
       
       canPlayHardToday: () => {
         const today = new Date().toISOString().split('T')[0];
-        const { lastHardPlayDate, hardAttemptsToday } = get();
-        
-        if (lastHardPlayDate !== today) return true;
-        return hardAttemptsToday < 2;
+        return get().lastHardPlayDate !== today; // 1 attempt per day
       },
       
       resetGame: () => {
@@ -558,8 +558,8 @@ export const useWordFinderStore = create<WordFinderState>()(
       storage: createJSONStorage(() => zustandStorage),
       partialize: (state) => ({
         lastEasyPlayDate: state.lastEasyPlayDate,
+        easyAttemptsToday: state.easyAttemptsToday,
         lastHardPlayDate: state.lastHardPlayDate,
-        hardAttemptsToday: state.hardAttemptsToday,
         stats: state.stats,
       }),
     }
