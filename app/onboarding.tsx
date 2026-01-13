@@ -11,6 +11,7 @@ import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../constants/theme';
 import { useUserStore, type MascotType } from '../stores/user-store';
 import SparkleBackground from '../components/animations/SparkleBackground';
 import { useTapFeedback } from '../utils/useTapFeedback';
+import Mascot from '../components/Mascot';
 
 type Step = 'welcome' | 'name' | 'mascot';
 
@@ -115,7 +116,7 @@ export default function OnboardingScreen() {
             transition={{ type: 'spring', damping: 15 }}
             style={styles.stepContainer}
           >
-            <Text style={styles.stepEmoji}>🧙‍♀️✨</Text>
+            <Mascot mascotType="female" size="large" animated />
             <Text style={styles.stepTitle}>Pick your hero!</Text>
             <Text style={styles.stepSubtitle}>
               Choose your magical companion for the adventure
@@ -136,7 +137,7 @@ export default function OnboardingScreen() {
                   }}
                   transition={{ type: 'spring', damping: 12 }}
                 >
-                  <Text style={styles.mascotEmoji}>🧙</Text>
+                  <Mascot mascotType="male" size="xlarge" />
                 </MotiView>
                 <Text style={styles.mascotLabel}>Wizard Boy</Text>
               </Pressable>
@@ -155,7 +156,7 @@ export default function OnboardingScreen() {
                   }}
                   transition={{ type: 'spring', damping: 12 }}
                 >
-                  <Text style={styles.mascotEmoji}>🧙‍♀️</Text>
+                  <Mascot mascotType="female" size="xlarge" />
                 </MotiView>
                 <Text style={styles.mascotLabel}>Wizard Girl</Text>
               </Pressable>

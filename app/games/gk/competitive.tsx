@@ -20,6 +20,7 @@ import { useGKStore } from '../../../stores/gk-store';
 import { useUserStore } from '../../../stores/user-store';
 import { useGameAudio } from '../../../utils/sound-manager';
 import { useTapFeedback } from '../../../utils/useTapFeedback';
+import Mascot from '../../../components/Mascot';
 
 const TIME_LIMIT = 30;
 const TOTAL_QUESTIONS = 10;
@@ -206,9 +207,7 @@ export default function CompetitiveScreen() {
           </View>
 
           <View style={styles.mascotResult}>
-            <Text style={styles.mascotEmoji}>
-              {mascot === 'male' ? '🧙' : '🧙‍♀️'}
-            </Text>
+            <Mascot mascotType={mascot} size="medium" />
             <Text style={styles.mascotMessage}>
               {finalResult.correct >= 7 
                 ? "Outstanding detective work!" 

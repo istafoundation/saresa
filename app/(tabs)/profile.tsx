@@ -12,6 +12,7 @@ import { useWordleStore } from '../../stores/wordle-store';
 import { useGKStore } from '../../stores/gk-store';
 import { getLevelForXP, getXPProgressToNextLevel, LEVELS } from '../../constants/levels';
 import { useTapFeedback } from '../../utils/useTapFeedback';
+import Mascot from '../../components/Mascot';
 
 export default function ProfileScreen() {
   const { 
@@ -70,9 +71,7 @@ export default function ProfileScreen() {
             style={styles.profileHeader}
           >
             <Pressable onPress={handleMascotToggle} style={styles.avatarContainer}>
-              <Text style={styles.avatarEmoji}>
-                {mascot === 'male' ? '🧙' : '🧙‍♀️'}
-              </Text>
+              <Mascot mascotType={mascot} size="large" />
               <View style={styles.avatarBadge}>
                 <Ionicons name="swap-horizontal" size={12} color={COLORS.text} />
               </View>

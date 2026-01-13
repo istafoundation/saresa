@@ -12,6 +12,7 @@ import { useGKStore } from '../../../stores/gk-store';
 import { useUserStore } from '../../../stores/user-store';
 import { useGameAudio } from '../../../utils/sound-manager';
 import { useTapFeedback } from '../../../utils/useTapFeedback';
+import Mascot from '../../../components/Mascot';
 
 export default function PracticeScreen() {
   const router = useRouter();
@@ -182,9 +183,7 @@ export default function PracticeScreen() {
             animate={{ opacity: 1, translateY: 0 }}
             style={styles.funFactContainer}
           >
-            <Text style={styles.mascotEmoji}>
-              {mascot === 'male' ? '🧙' : '🧙‍♀️'}
-            </Text>
+            <Mascot mascotType={mascot} size="small" />
             <View style={styles.funFactBubble}>
               <Text style={styles.funFactText}>{currentQuestion.funFact}</Text>
             </View>

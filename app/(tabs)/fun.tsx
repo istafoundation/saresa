@@ -11,6 +11,7 @@ import { useWordleStore } from '../../stores/wordle-store';
 import { useWordFinderStore } from '../../stores/word-finder-store';
 import { useUserStore } from '../../stores/user-store';
 import { useTapFeedback } from '../../utils/useTapFeedback';
+import Mascot from '../../components/Mascot';
 
 export default function FunScreen() {
   const router = useRouter();
@@ -43,9 +44,7 @@ export default function FunScreen() {
           transition={{ type: 'spring', delay: 100 }}
           style={styles.mascotTip}
         >
-          <Text style={styles.mascotEmoji}>
-            {mascot === 'male' ? '🧙' : '🧙‍♀️'}
-          </Text>
+          <Mascot mascotType={mascot} size="small" />
           <Text style={styles.mascotTipText}>
             Tip: Competitive mode gives more XP, but you can only play once per day!
           </Text>

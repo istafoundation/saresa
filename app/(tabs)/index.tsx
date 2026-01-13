@@ -20,6 +20,7 @@ import { getRandomFunFact, getTodaysWordOfTheDay } from '../../data/fun-facts';
 import { Ionicons } from '@expo/vector-icons';
 import { BubbleBackground } from '../../components/animations/SparkleBackground';
 import { useTapFeedback } from '../../utils/useTapFeedback';
+import Mascot from '../../components/Mascot';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -122,9 +123,7 @@ export default function HomeScreen() {
             style={styles.mascotContainer}
           >
             <Animated.View style={[styles.mascot, mascotAnimatedStyle]}>
-              <Text style={styles.mascotEmoji}>
-                {mascot === 'male' ? '🧙' : '🧙‍♀️'}
-              </Text>
+              <Mascot mascotType={mascot} size="medium" />
             </Animated.View>
           </Pressable>
           
