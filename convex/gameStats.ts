@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import type { Id } from "./_generated/dataModel";
 
 // IST timezone helper
 function getISTDate(): string {
@@ -8,20 +9,37 @@ function getISTDate(): string {
   return new Date(now.getTime() + istOffset).toISOString().split("T")[0];
 }
 
+// Helper to get childId from session token
+async function getChildIdFromSession(
+  ctx: any,
+  token: string
+): Promise<Id<"children"> | null> {
+  if (!token) return null;
+
+  const session = await ctx.db
+    .query("childSessions")
+    .withIndex("by_token", (q: any) => q.eq("token", token))
+    .first();
+
+  if (!session || session.expiresAt < Date.now()) return null;
+  return session.childId;
+}
+
 // Update GK stats
 export const updateGKStats = mutation({
   args: {
+    token: v.string(),
     practiceTotal: v.optional(v.number()),
     practiceCorrect: v.optional(v.number()),
     playedCompetitive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    const childId = await getChildIdFromSession(ctx, args.token);
+    if (!childId) throw new Error("Not authenticated");
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .withIndex("by_child_id", (q) => q.eq("childId", childId))
       .first();
 
     if (!user) throw new Error("User not found");
@@ -46,13 +64,14 @@ export const updateGKStats = mutation({
 
 // Check if competitive GK is available today
 export const canPlayGKCompetitive = query({
-  handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return false;
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    const childId = await getChildIdFromSession(ctx, args.token);
+    if (!childId) return false;
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .withIndex("by_child_id", (q) => q.eq("childId", childId))
       .first();
 
     if (!user) return false;
@@ -65,16 +84,17 @@ export const canPlayGKCompetitive = query({
 // Update Wordle stats
 export const updateWordleStats = mutation({
   args: {
+    token: v.string(),
     won: v.boolean(),
     guessCount: v.optional(v.number()), // 1-6 if won
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    const childId = await getChildIdFromSession(ctx, args.token);
+    if (!childId) throw new Error("Not authenticated");
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .withIndex("by_child_id", (q) => q.eq("childId", childId))
       .first();
 
     if (!user) throw new Error("User not found");
@@ -113,13 +133,14 @@ export const updateWordleStats = mutation({
 
 // Check if Wordle is available today
 export const canPlayWordle = query({
-  handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return false;
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    const childId = await getChildIdFromSession(ctx, args.token);
+    if (!childId) return false;
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .withIndex("by_child_id", (q) => q.eq("childId", childId))
       .first();
 
     if (!user) return false;
@@ -132,18 +153,19 @@ export const canPlayWordle = query({
 // Update Word Finder stats
 export const updateWordFinderStats = mutation({
   args: {
+    token: v.string(),
     mode: v.union(v.literal("easy"), v.literal("hard")),
     wordsFound: v.number(),
     xpEarned: v.number(),
     correctAnswers: v.optional(v.number()), // For hard mode
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    const childId = await getChildIdFromSession(ctx, args.token);
+    if (!childId) throw new Error("Not authenticated");
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .withIndex("by_child_id", (q) => q.eq("childId", childId))
       .first();
 
     if (!user) throw new Error("User not found");
@@ -177,14 +199,17 @@ export const updateWordFinderStats = mutation({
 
 // Check Word Finder availability
 export const canPlayWordFinder = query({
-  args: { mode: v.union(v.literal("easy"), v.literal("hard")) },
+  args: {
+    token: v.string(),
+    mode: v.union(v.literal("easy"), v.literal("hard")),
+  },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return false;
+    const childId = await getChildIdFromSession(ctx, args.token);
+    if (!childId) return false;
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .withIndex("by_child_id", (q) => q.eq("childId", childId))
       .first();
 
     if (!user) return false;

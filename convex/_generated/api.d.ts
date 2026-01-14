@@ -8,7 +8,10 @@
  * @module
  */
 
+import type * as childAuth from "../childAuth.js";
 import type * as gameStats from "../gameStats.js";
+import type * as migrations from "../migrations.js";
+import type * as parents from "../parents.js";
 import type * as users from "../users.js";
 
 import type {
@@ -18,7 +21,10 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  childAuth: typeof childAuth;
   gameStats: typeof gameStats;
+  migrations: typeof migrations;
+  parents: typeof parents;
   users: typeof users;
 }>;
 

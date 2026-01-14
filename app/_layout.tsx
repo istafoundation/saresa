@@ -4,12 +4,12 @@ import { Stack, Redirect, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet, View, ActivityIndicator, Text } from 'react-native';
-import { useConvexAuth } from 'convex/react';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../convex/_generated/api';
 import { COLORS } from '../constants/theme';
 import ConvexClientProvider from './ConvexClientProvider';
 import { useConvexSync } from '../utils/useConvexSync';
+import { useChildAuth } from '../utils/childAuth';
 
 // Loading screen while checking auth
 function LoadingScreen() {
@@ -24,21 +24,21 @@ function LoadingScreen() {
 // Separate component for navigation logic
 function InitialLayout() {
   const segments = useSegments();
-  const { isAuthenticated, isLoading } = useConvexAuth();
+  const { isAuthenticated, isLoading, token } = useChildAuth();
   
   // Sync Convex data to Zustand store
   useConvexSync();
   
-  // Check if user exists in database
-  const userCheck = useQuery(api.users.checkUserExists);
+  // Check if user exists in database (has completed mascot selection)
+  const userCheck = useQuery(api.users.checkUserExists, token ? { token } : "skip");
   const updateStreak = useMutation(api.users.updateStreak);
   
   // Update streak when user is authenticated
   useEffect(() => {
-    if (isAuthenticated && userCheck?.exists) {
-      updateStreak();
+    if (isAuthenticated && userCheck?.exists && token) {
+      updateStreak({ token });
     }
-  }, [isAuthenticated, userCheck?.exists]);
+  }, [isAuthenticated, userCheck?.exists, token]);
 
   // Show loading while checking auth
   if (isLoading) {
@@ -48,13 +48,14 @@ function InitialLayout() {
   // Determine current location
   const inOnboarding = segments[0] === 'onboarding';
 
-  // Not authenticated → go to onboarding (will show email/OTP first)
+  // Not authenticated → go to onboarding (login)
   if (!isAuthenticated && !inOnboarding) {
     return <Redirect href="/onboarding" />;
   }
   
-  // Authenticated but no user data yet → still in onboarding (name/mascot steps)
-  if (isAuthenticated && !userCheck?.exists && !inOnboarding) {
+  // Authenticated but no user data yet (needs mascot) → still in onboarding
+  // We need to wait for userCheck to be loaded to know for sure
+  if (isAuthenticated && userCheck !== undefined && !userCheck?.exists && !inOnboarding) {
     return <Redirect href="/onboarding" />;
   }
   

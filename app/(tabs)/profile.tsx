@@ -6,15 +6,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import Slider from '@react-native-community/slider';
-import { useAuth } from '@clerk/clerk-expo';
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants/theme';
 import { useUserStore } from '../../stores/user-store';
 import { getLevelForXP, getXPProgressToNextLevel, LEVELS } from '../../constants/levels';
 import { useTapFeedback } from '../../utils/useTapFeedback';
 import Mascot from '../../components/Mascot';
+import { useChildAuth } from '../../utils/childAuth';
 
 export default function ProfileScreen() {
-  const { signOut } = useAuth();
+  const { logout } = useChildAuth();
   
   const { 
     name, mascot, xp, streak, unlockedArtifacts, unlockedWeapons, 
@@ -40,7 +40,7 @@ export default function ProfileScreen() {
           text: 'Sign Out', 
           style: 'destructive',
           onPress: async () => {
-            await signOut();
+            await logout();
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           }
         },

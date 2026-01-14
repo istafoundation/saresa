@@ -1,0 +1,212 @@
+"use client";
+
+import { useQuery } from "convex/react";
+import { api } from "../../../../../convex/_generated/api";
+import { useParams, useRouter } from "next/navigation";
+import { Id } from "../../../../../convex/_generated/dataModel";
+import { ArrowLeft, Trophy, Flame, Target, BookOpen, Gamepad2, Search } from "lucide-react";
+import { StatCard } from "../../../components/stats/StatCard";
+import { SimpleBarChart, SimplePieChart } from "../../../components/stats/Charts";
+import Link from "next/link";
+
+export default function ChildStatsPage() {
+  const params = useParams();
+  const router = useRouter();
+  const childId = params.childId as Id<"children">;
+  
+  const stats = useQuery(api.parents.getChildStats, { childId });
+
+  if (stats === undefined) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="w-16 h-16 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (stats === null) {
+     return (
+        <div className="text-center py-20">
+           <h2 className="text-2xl font-bold text-slate-800">Child Not Found</h2>
+           <Link href="/dashboard" className="text-indigo-600 hover:underline mt-4 inline-block">Return to Dashboard</Link>
+        </div>
+     )
+  }
+
+  const { child } = stats;
+  // Only destructure stats if they exist
+  const detailedStats = stats.hasPlayed ? stats : null;
+
+
+  return (
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => router.back()}
+            className="p-2 -ml-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
+              {child.name}
+              <span className="text-sm font-medium px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100">
+                Level {detailedStats ? Math.floor((detailedStats.profile?.xp ?? 0) / 100) + 1 : 1}
+              </span>
+            </h1>
+            <p className="text-slate-500 text-sm mt-1 font-mono">@{child.username}</p>
+          </div>
+        </div>
+        
+        <div className="flex gap-3">
+          <div className="text-right hidden md:block">
+            <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">Total XP</p>
+            <p className="text-2xl font-bold text-indigo-600">
+              {detailedStats ? (detailedStats.profile?.xp ?? 0).toLocaleString() : 0}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {!detailedStats ? (
+        <div className="bg-slate-50 rounded-3xl p-12 text-center border-2 border-dashed border-slate-200">
+           <Gamepad2 className="mx-auto text-slate-300 mb-4" size={48} />
+           <h3 className="text-lg font-bold text-slate-900">No Gameplay Data Yet</h3>
+           <p className="text-slate-500">Once {child.name} starts playing games, you'll see their stats here!</p>
+        </div>
+      ) : (
+        <>
+          {/* Key Metrics */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+             <StatCard 
+               label="Current Streak" 
+               value={detailedStats.profile?.streak ?? 0} 
+               icon={Flame} 
+               color="amber"
+             />
+             <StatCard 
+                label="GK Accuracy" 
+                value={`${detailedStats.gkStats?.accuracy ?? 0}%`} 
+                icon={Target} 
+                color="emerald"
+                trend={(detailedStats.gkStats?.accuracy ?? 0) > 80 ? { value: 0, label: "Great job!", positive: true } : undefined}
+             />
+             <StatCard 
+               label="Words Found" 
+               value={(detailedStats.wordFinderStats?.totalXPEarned ?? 0) / 10} 
+               icon={Search} 
+               color="blue" 
+             />
+             <StatCard 
+               label="Artifacts" 
+               value={detailedStats.collections?.artifacts ?? 0} 
+               icon={Trophy} 
+               color="amber"
+             />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* GK Stats */}
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+               <div className="flex items-center justify-between mb-6">
+                 <div>
+                   <h3 className="font-bold text-lg text-slate-900">General Knowledge</h3>
+                   <p className="text-slate-500 text-xs">Practice session accuracy</p>
+                 </div>
+                 <div className="bg-emerald-50 text-emerald-700 font-bold px-3 py-1 rounded-lg text-sm">
+                   {detailedStats.gkStats?.practiceTotal ?? 0} Questions
+                 </div>
+               </div>
+               
+               {(detailedStats.gkStats?.practiceTotal ?? 0) > 0 ? (
+                 <div className="flex items-center justify-center">
+                    <SimplePieChart data={[
+                      { name: "Correct", value: detailedStats.gkStats?.practiceCorrect ?? 0, color: "#10b981" },
+                      { name: "Incorrect", value: (detailedStats.gkStats?.practiceTotal ?? 0) - (detailedStats.gkStats?.practiceCorrect ?? 0), color: "#ef4444" },
+                    ]} />
+                 </div>
+               ) : (
+                 <div className="h-[200px] flex items-center justify-center text-slate-400 bg-slate-50 rounded-2xl">
+                    No data yet
+                 </div>
+               )}
+            </div>
+
+            {/* Wordle Stats */}
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+               <div className="flex items-center justify-between mb-6">
+                 <div>
+                   <h3 className="font-bold text-lg text-slate-900">Wordle</h3>
+                   <p className="text-slate-500 text-xs">Guess distribution</p>
+                 </div>
+                 <div className="flex gap-2">
+                    <div className="bg-slate-100 px-3 py-1 rounded-lg text-xs font-medium text-slate-600">
+                      {detailedStats.wordleStats?.gamesPlayed ?? 0} Played
+                    </div>
+                    <div className="bg-amber-100 text-amber-800 px-3 py-1 rounded-lg text-xs font-bold">
+                      {detailedStats.wordleStats?.maxStreak ?? 0} Max Streak
+                    </div>
+                 </div>
+               </div>
+
+               {(detailedStats.wordleStats?.gamesPlayed ?? 0) > 0 ? (
+                 <SimpleBarChart data={(detailedStats.wordleStats?.wordleGuessDistribution || []).map((value: number, index: number) => ({
+                    name: `${index + 1}`,
+                    value,
+                  }))} color="#f59e0b" />
+               ) : (
+                 <div className="h-[200px] flex items-center justify-center text-slate-400 bg-slate-50 rounded-2xl">
+                    No data yet
+                 </div>
+               )}
+            </div>
+            
+            {/* Gameplay Frequency (Word Finder Focus) */}
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 lg:col-span-2">
+                 <div className="flex items-center justify-between mb-6">
+                    <div>
+                        <h3 className="font-bold text-lg text-slate-900">Word Finder Mastery</h3>
+                        <p className="text-slate-500 text-xs">Difficulty level preference</p>
+                    </div>
+                 </div>
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 items-center">
+                    <div className="space-y-4">
+                       <div className="flex items-center justify-between p-4 bg-blue-50 rounded-2xl border border-blue-100">
+                          <div className="flex items-center gap-3">
+                             <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center font-bold">E</div>
+                             <div>
+                                <h4 className="font-bold text-blue-900">Easy Mode</h4>
+                                <p className="text-blue-600/80 text-xs">Standard Grid</p>
+                             </div>
+                          </div>
+                          <span className="text-2xl font-bold text-blue-700">{detailedStats.wordFinderStats?.easyGamesPlayed ?? 0}</span>
+                       </div>
+                       
+                       <div className="flex items-center justify-between p-4 bg-purple-50 rounded-2xl border border-purple-100">
+                          <div className="flex items-center gap-3">
+                             <div className="w-10 h-10 bg-purple-100 text-purple-600 rounded-xl flex items-center justify-center font-bold">H</div>
+                             <div>
+                                <h4 className="font-bold text-purple-900">Hard Mode</h4>
+                                <p className="text-purple-600/80 text-xs">Complex Grid</p>
+                             </div>
+                          </div>
+                          <span className="text-2xl font-bold text-purple-700">{detailedStats.wordFinderStats?.hardGamesPlayed ?? 0}</span>
+                       </div>
+                    </div>
+                    
+                    <div className="h-[200px]">
+                        <SimpleBarChart data={[
+                            { name: "Easy", value: detailedStats.wordFinderStats?.easyGamesPlayed || 0 },
+                            { name: "Hard", value: detailedStats.wordFinderStats?.hardGamesPlayed || 0 },
+                          ]} color="#8b5cf6" />
+                    </div>
+                 </div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}

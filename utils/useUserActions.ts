@@ -2,6 +2,7 @@
 // Updated with comprehensive error handling and logging
 import { useMutation } from 'convex/react';
 import { api } from '../convex/_generated/api';
+import { useChildAuth } from './childAuth';
 
 // Enable/disable debug logging
 const DEBUG_SYNC = __DEV__ || true;
@@ -17,6 +18,7 @@ function logError(action: string, error: any) {
 }
 
 export function useUserActions() {
+  const { token } = useChildAuth();
   const addXPMutation = useMutation(api.users.addXP);
   const updateShardsMutation = useMutation(api.users.updateShards);
   const unlockWeaponMutation = useMutation(api.users.unlockWeapon);
@@ -24,11 +26,22 @@ export function useUserActions() {
   const addWeaponDuplicateMutation = useMutation(api.users.addWeaponDuplicate);
   const syncProgressionMutation = useMutation(api.users.syncProgression);
 
+  const getAuthToken = () => {
+    if (!token) {
+      logError('Auth', 'No token available');
+      return null;
+    }
+    return token;
+  };
+
   return {
     addXP: async (amount: number): Promise<{ success: boolean; newXP?: number }> => {
       logSync('addXP', { amount });
+      const authToken = getAuthToken();
+      if (!authToken) return { success: false };
+
       try {
-        const result = await addXPMutation({ amount });
+        const result = await addXPMutation({ amount, token: authToken });
         logSync('addXP SUCCESS', { newXP: result.newXP });
         return { success: true, newXP: result.newXP };
       } catch (error) {
@@ -39,8 +52,11 @@ export function useUserActions() {
     
     addWeaponShards: async (amount: number): Promise<{ success: boolean; newShards?: number }> => {
       logSync('addWeaponShards', { amount });
+      const authToken = getAuthToken();
+      if (!authToken) return { success: false };
+
       try {
-        const result = await updateShardsMutation({ amount, operation: 'add' });
+        const result = await updateShardsMutation({ amount, operation: 'add', token: authToken });
         logSync('addWeaponShards SUCCESS', { newShards: result.newShards });
         return { success: true, newShards: result.newShards };
       } catch (error) {
@@ -51,8 +67,11 @@ export function useUserActions() {
     
     spendWeaponShards: async (amount: number): Promise<boolean> => {
       logSync('spendWeaponShards', { amount });
+      const authToken = getAuthToken();
+      if (!authToken) return false;
+
       try {
-        const result = await updateShardsMutation({ amount, operation: 'spend' });
+        const result = await updateShardsMutation({ amount, operation: 'spend', token: authToken });
         logSync('spendWeaponShards SUCCESS', { newShards: result.newShards });
         return true;
       } catch (error) {
@@ -63,8 +82,11 @@ export function useUserActions() {
     
     unlockWeapon: async (weaponId: string): Promise<boolean> => {
       logSync('unlockWeapon', { weaponId });
+      const authToken = getAuthToken();
+      if (!authToken) return false;
+
       try {
-        await unlockWeaponMutation({ weaponId });
+        await unlockWeaponMutation({ weaponId, token: authToken });
         logSync('unlockWeapon SUCCESS', { weaponId });
         return true;
       } catch (error) {
@@ -75,8 +97,11 @@ export function useUserActions() {
     
     unlockArtifact: async (artifactId: string): Promise<boolean> => {
       logSync('unlockArtifact', { artifactId });
+      const authToken = getAuthToken();
+      if (!authToken) return false;
+
       try {
-        await unlockArtifactMutation({ artifactId });
+        await unlockArtifactMutation({ artifactId, token: authToken });
         logSync('unlockArtifact SUCCESS', { artifactId });
         return true;
       } catch (error) {
@@ -87,8 +112,11 @@ export function useUserActions() {
     
     addWeaponDuplicate: async (weaponId: string): Promise<boolean> => {
       logSync('addWeaponDuplicate', { weaponId });
+      const authToken = getAuthToken();
+      if (!authToken) return false;
+
       try {
-        await addWeaponDuplicateMutation({ weaponId });
+        await addWeaponDuplicateMutation({ weaponId, token: authToken });
         logSync('addWeaponDuplicate SUCCESS', { weaponId });
         return true;
       } catch (error) {
@@ -98,12 +126,11 @@ export function useUserActions() {
     },
 
     syncProgression: async (): Promise<boolean> => {
-      // Internal mutation - no log params
+      const authToken = getAuthToken();
+      if (!authToken) return false;
+
       try {
-        // We dynamically import the mutation here or if it confuses TS, we just assume it's bound
-        // Actually, we need to bind the mutation at top level.
-        // Re-writing this file to include the top-level hook binding is safer.
-        await syncProgressionMutation();
+        await syncProgressionMutation({ token: authToken });
         logSync('syncProgression CHECK COMPLETE');
         return true;
       } catch (error) {
@@ -116,9 +143,18 @@ export function useUserActions() {
 
 // Game stats actions
 export function useGameStatsActions() {
+  const { token } = useChildAuth();
   const updateGKStatsMutation = useMutation(api.gameStats.updateGKStats);
   const updateWordleStatsMutation = useMutation(api.gameStats.updateWordleStats);
   const updateWordFinderStatsMutation = useMutation(api.gameStats.updateWordFinderStats);
+
+  const getAuthToken = () => {
+    if (!token) {
+      logError('Auth', 'No token available');
+      return null;
+    }
+    return token;
+  };
 
   return {
     updateGKStats: async (data: {
@@ -127,8 +163,11 @@ export function useGameStatsActions() {
       playedCompetitive?: boolean;
     }): Promise<boolean> => {
       logSync('updateGKStats', data);
+      const authToken = getAuthToken();
+      if (!authToken) return false;
+
       try {
-        await updateGKStatsMutation(data);
+        await updateGKStatsMutation({ ...data, token: authToken });
         logSync('updateGKStats SUCCESS');
         return true;
       } catch (error) {
@@ -151,8 +190,11 @@ export function useGameStatsActions() {
       };
     }> => {
       logSync('updateWordleStats', data);
+      const authToken = getAuthToken();
+      if (!authToken) return { success: false };
+
       try {
-        const result = await updateWordleStatsMutation(data);
+        const result = await updateWordleStatsMutation({ ...data, token: authToken });
         logSync('updateWordleStats SUCCESS', result);
         return { success: true, stats: result };
       } catch (error) {
@@ -168,8 +210,11 @@ export function useGameStatsActions() {
       correctAnswers?: number;
     }): Promise<boolean> => {
       logSync('updateWordFinderStats', data);
+      const authToken = getAuthToken();
+      if (!authToken) return false;
+
       try {
-        await updateWordFinderStatsMutation(data);
+        await updateWordFinderStatsMutation({ ...data, token: authToken });
         logSync('updateWordFinderStats SUCCESS');
         return true;
       } catch (error) {

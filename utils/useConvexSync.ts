@@ -2,9 +2,9 @@
 // Now also syncs game stats from Convex!
 import { useEffect } from 'react';
 import { useQuery } from 'convex/react';
-import { useConvexAuth } from 'convex/react';
 import { api } from '../convex/_generated/api';
 import { useUserStore, type SyncedUserData } from '../stores/user-store';
+import { useChildAuth } from './childAuth';
 
 // Enable/disable debug logging
 const DEBUG_SYNC = __DEV__ || true;
@@ -42,10 +42,10 @@ export interface SyncedGameStats {
 }
 
 export function useConvexSync() {
-  const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
+  const { isAuthenticated, isLoading: authLoading, token } = useChildAuth();
   const userData = useQuery(
     api.users.getMyData,
-    isAuthenticated ? {} : "skip"
+    isAuthenticated && token ? { token } : "skip"
   );
   const { setSyncedData, setLoading, setSyncedGameStats } = useUserStore();
 
@@ -61,8 +61,11 @@ export function useConvexSync() {
     }
 
     if (userData === undefined) {
-      logSync('Loading user data from Convex...');
-      setLoading(true);
+      // Loading state when we have a token but no data yet
+      if (token) {
+        logSync('Loading user data from Convex...');
+        setLoading(true);
+      }
       return;
     }
 
@@ -133,7 +136,7 @@ export function useConvexSync() {
     setSyncedData(syncedData);
     if (setSyncedGameStats) setSyncedGameStats(gameStats);
     setLoading(false);
-  }, [isAuthenticated, authLoading, userData, setSyncedData, setLoading, setSyncedGameStats]);
+  }, [isAuthenticated, authLoading, userData, setSyncedData, setLoading, setSyncedGameStats, token]);
 
   return {
     isAuthenticated,

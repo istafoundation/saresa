@@ -2,9 +2,40 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
-  users: defineTable({
+  // Parent accounts (authenticated via Clerk on web dashboard)
+  parents: defineTable({
     clerkId: v.string(),
     email: v.string(),
+    name: v.string(),
+    createdAt: v.number(),
+  }).index("by_clerk_id", ["clerkId"]),
+
+  // Child accounts (created by parents, login with username/password)
+  children: defineTable({
+    parentId: v.id("parents"),
+    username: v.string(),        // Unique, parent-chosen
+    password: v.string(),        // Parent-chosen (plaintext for parent visibility)
+    name: v.string(),            // Child's display name
+    role: v.string(),            // "user" (future: "admin", "premium")
+    createdAt: v.number(),
+    lastLoginAt: v.optional(v.number()),
+  })
+    .index("by_parent", ["parentId"])
+    .index("by_username", ["username"]),
+
+  // Child login sessions (for mobile app auth)
+  childSessions: defineTable({
+    childId: v.id("children"),
+    token: v.string(),           // Random session token
+    expiresAt: v.number(),       // Timestamp when session expires
+    createdAt: v.number(),
+  })
+    .index("by_token", ["token"])
+    .index("by_child", ["childId"]),
+
+  // User game data (linked to child account)
+  users: defineTable({
+    childId: v.id("children"),   // Link to children table
     
     // Profile
     name: v.string(),
@@ -46,5 +77,5 @@ export default defineSchema({
     wfLastEasyDate: v.optional(v.string()),
     wfLastHardDate: v.optional(v.string()),
     wfEasyAttemptsToday: v.number(),
-  }).index("by_clerk_id", ["clerkId"]),
+  }).index("by_child_id", ["childId"]),
 });
