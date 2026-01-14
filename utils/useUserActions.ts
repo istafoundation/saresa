@@ -140,15 +140,24 @@ export function useGameStatsActions() {
     updateWordleStats: async (data: {
       won: boolean;
       guessCount?: number;
-    }): Promise<boolean> => {
+    }): Promise<{
+      success: boolean;
+      stats?: {
+        gamesPlayed: number;
+        gamesWon: number;
+        currentStreak: number;
+        maxStreak: number;
+        guessDistribution: number[];
+      };
+    }> => {
       logSync('updateWordleStats', data);
       try {
-        await updateWordleStatsMutation(data);
-        logSync('updateWordleStats SUCCESS');
-        return true;
+        const result = await updateWordleStatsMutation(data);
+        logSync('updateWordleStats SUCCESS', result);
+        return { success: true, stats: result };
       } catch (error) {
         logError('updateWordleStats', error);
-        return false;
+        return { success: false };
       }
     },
     

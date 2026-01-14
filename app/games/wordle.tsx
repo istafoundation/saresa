@@ -54,7 +54,7 @@ export default function WordleScreen() {
     initGame,
   } = useWordleStore();
   
-  // Get stats from Convex-synced store (source of truth)
+  // Get stats from Convex-synced store (for initial how-to-play check)
   const { wordleStats } = useUserStore();
   
   // Sound effects and music
@@ -62,6 +62,14 @@ export default function WordleScreen() {
   
   const [showResult, setShowResult] = useState(false);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
+  // Stats from mutation result - used in modal to avoid race condition
+  const [displayStats, setDisplayStats] = useState<{
+    gamesPlayed: number;
+    gamesWon: number;
+    currentStreak: number;
+    maxStreak: number;
+    guessDistribution: number[];
+  } | null>(null);
   const shakeX = useSharedValue(0);
   const { triggerTap } = useTapFeedback();
 
@@ -132,8 +140,12 @@ export default function WordleScreen() {
         // Save rewards and stats to Convex
         await addXP(100);
         await addWeaponShards(50);
-        await updateWordleStats({ won: true, guessCount: guesses.length + 1 });
-        // Play win sound when showing result (delayed)
+        const statsResult = await updateWordleStats({ won: true, guessCount: guesses.length + 1 });
+        // Use returned stats directly to avoid race condition
+        if (statsResult.success && statsResult.stats) {
+          setDisplayStats(statsResult.stats);
+        }
+        // Play win sound when showing result (delayed for animation)
         setTimeout(() => {
           playWin();
           setShowResult(true);
@@ -142,7 +154,11 @@ export default function WordleScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         stopMusic();
         // Save stats to Convex (loss)
-        await updateWordleStats({ won: false });
+        const statsResult = await updateWordleStats({ won: false });
+        // Use returned stats directly to avoid race condition
+        if (statsResult.success && statsResult.stats) {
+          setDisplayStats(statsResult.stats);
+        }
         setTimeout(() => setShowResult(true), 500);
       }
     }
@@ -296,19 +312,26 @@ export default function WordleScreen() {
 
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
-                <Text style={styles.statValue}>{wordleStats.gamesPlayed}</Text>
+                <Text style={styles.statValue}>
+                  {displayStats?.gamesPlayed ?? wordleStats.gamesPlayed}
+                </Text>
                 <Text style={styles.statLabel}>Played</Text>
               </View>
               <View style={styles.statItem}>
                 <Text style={styles.statValue}>
-                  {wordleStats.gamesPlayed > 0 
-                    ? Math.round((wordleStats.gamesWon / wordleStats.gamesPlayed) * 100) 
+                  {(displayStats?.gamesPlayed ?? wordleStats.gamesPlayed) > 0 
+                    ? Math.round(
+                        ((displayStats?.gamesWon ?? wordleStats.gamesWon) / 
+                         (displayStats?.gamesPlayed ?? wordleStats.gamesPlayed)) * 100
+                      ) 
                     : 0}%
                 </Text>
                 <Text style={styles.statLabel}>Win %</Text>
               </View>
               <View style={styles.statItem}>
-                <Text style={styles.statValue}>{wordleStats.currentStreak}</Text>
+                <Text style={styles.statValue}>
+                  {displayStats?.currentStreak ?? wordleStats.currentStreak}
+                </Text>
                 <Text style={styles.statLabel}>Streak</Text>
               </View>
             </View>

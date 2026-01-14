@@ -5,7 +5,7 @@ import { v } from "convex/values";
 function getISTDate(): string {
   const now = new Date();
   const istOffset = 5.5 * 60 * 60 * 1000;
-  return new Date(now.getTime() + istOffset).toISOString().split('T')[0];
+  return new Date(now.getTime() + istOffset).toISOString().split("T")[0];
 }
 
 // Update GK stats
@@ -18,16 +18,16 @@ export const updateGKStats = mutation({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
-    
+
     const user = await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
       .first();
-    
+
     if (!user) throw new Error("User not found");
-    
+
     const updates: Record<string, any> = {};
-    
+
     if (args.practiceTotal !== undefined) {
       updates.gkPracticeTotal = user.gkPracticeTotal + args.practiceTotal;
     }
@@ -37,7 +37,7 @@ export const updateGKStats = mutation({
     if (args.playedCompetitive) {
       updates.gkLastCompetitiveDate = getISTDate();
     }
-    
+
     if (Object.keys(updates).length > 0) {
       await ctx.db.patch(user._id, updates);
     }
@@ -49,14 +49,14 @@ export const canPlayGKCompetitive = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return false;
-    
+
     const user = await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
       .first();
-    
+
     if (!user) return false;
-    
+
     const today = getISTDate();
     return user.gkLastCompetitiveDate !== today;
   },
@@ -71,31 +71,43 @@ export const updateWordleStats = mutation({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
-    
+
     const user = await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
       .first();
-    
+
     if (!user) throw new Error("User not found");
-    
+
     const today = getISTDate();
     const distribution = [...user.wordleGuessDistribution];
-    
+
     if (args.won && args.guessCount) {
       distribution[args.guessCount - 1]++;
     }
-    
-    await ctx.db.patch(user._id, {
-      wordleGamesPlayed: user.wordleGamesPlayed + 1,
-      wordleGamesWon: args.won ? user.wordleGamesWon + 1 : user.wordleGamesWon,
-      wordleCurrentStreak: args.won ? user.wordleCurrentStreak + 1 : 0,
-      wordleMaxStreak: args.won 
+
+    // Calculate the new stats values
+    const newStats = {
+      gamesPlayed: user.wordleGamesPlayed + 1,
+      gamesWon: args.won ? user.wordleGamesWon + 1 : user.wordleGamesWon,
+      currentStreak: args.won ? user.wordleCurrentStreak + 1 : 0,
+      maxStreak: args.won
         ? Math.max(user.wordleMaxStreak, user.wordleCurrentStreak + 1)
         : user.wordleMaxStreak,
+      guessDistribution: distribution,
+    };
+
+    await ctx.db.patch(user._id, {
+      wordleGamesPlayed: newStats.gamesPlayed,
+      wordleGamesWon: newStats.gamesWon,
+      wordleCurrentStreak: newStats.currentStreak,
+      wordleMaxStreak: newStats.maxStreak,
       wordleGuessDistribution: distribution,
       wordleLastPlayedDate: today,
     });
+
+    // Return updated stats for immediate client use (avoids race condition)
+    return newStats;
   },
 });
 
@@ -104,14 +116,14 @@ export const canPlayWordle = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return false;
-    
+
     const user = await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
       .first();
-    
+
     if (!user) return false;
-    
+
     const today = getISTDate();
     return user.wordleLastPlayedDate !== today;
   },
@@ -128,24 +140,24 @@ export const updateWordFinderStats = mutation({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
-    
+
     const user = await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
       .first();
-    
+
     if (!user) throw new Error("User not found");
-    
+
     const today = getISTDate();
     const updates: Record<string, any> = {
       wfTotalXPEarned: user.wfTotalXPEarned + args.xpEarned,
     };
-    
+
     if (args.mode === "easy") {
       updates.wfEasyGamesPlayed = user.wfEasyGamesPlayed + 1;
       updates.wfEasyWordsFound = user.wfEasyWordsFound + args.wordsFound;
       updates.wfLastEasyDate = today;
-      
+
       // Reset or increment today's attempts
       if (user.wfLastEasyDate === today) {
         updates.wfEasyAttemptsToday = user.wfEasyAttemptsToday + 1;
@@ -154,10 +166,11 @@ export const updateWordFinderStats = mutation({
       }
     } else {
       updates.wfHardGamesPlayed = user.wfHardGamesPlayed + 1;
-      updates.wfHardCorrectAnswers = user.wfHardCorrectAnswers + (args.correctAnswers || 0);
+      updates.wfHardCorrectAnswers =
+        user.wfHardCorrectAnswers + (args.correctAnswers || 0);
       updates.wfLastHardDate = today;
     }
-    
+
     await ctx.db.patch(user._id, updates);
   },
 });
@@ -168,16 +181,16 @@ export const canPlayWordFinder = query({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return false;
-    
+
     const user = await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
       .first();
-    
+
     if (!user) return false;
-    
+
     const today = getISTDate();
-    
+
     if (args.mode === "easy") {
       if (user.wfLastEasyDate !== today) return true;
       return user.wfEasyAttemptsToday < 2; // 2 attempts per day
