@@ -85,7 +85,7 @@ function OmSymbol() {
 
   useEffect(() => {
     scale.value = withSequence(
-      withDelay(500, withTiming(1.2, { duration: 800, easing: Easing.out(Easing.back) })),
+      withDelay(500, withTiming(1.2, { duration: 800, easing: Easing.out(Easing.back(1.5)) })),
       withTiming(1, { duration: 300 })
     );
     rotation.value = withDelay(

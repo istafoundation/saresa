@@ -2,12 +2,13 @@
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { COLORS, SPACING, BORDER_RADIUS } from '../../constants/theme';
 import { useUserStore } from '../../stores/user-store';
+import { useUserActions } from '../../utils/useUserActions';
 import { ARTIFACTS } from '../../data/artifacts';
 import { WEAPONS, type Rarity, type Weapon } from '../../data/weapons';
 import { getLevelForXP } from '../../constants/levels';
@@ -25,17 +26,14 @@ const RARITY_COLORS: Record<Rarity, string> = {
 export default function ArtifactsScreen() {
   const [activeTab, setActiveTab] = useState<TabType>('artifacts');
   const [showPackOpening, setShowPackOpening] = useState(false);
-  const { 
-    unlockedArtifacts, 
-    unlockedWeapons, 
-    xp, 
-    unlockWeapon,
-    weaponShards,
-    addWeaponShards,
-    spendWeaponShards,
-    addWeaponDuplicate,
-    canAffordPack,
-  } = useUserStore();
+  const { unlockedArtifacts, unlockedWeapons, xp, weaponShards, canAffordPack } = useUserStore();
+  const { unlockWeapon, addWeaponShards, spendWeaponShards, addWeaponDuplicate, syncProgression } = useUserActions();
+  
+  // Auto-healing: Check for unlocked artifacts that might be missing from the list
+  useEffect(() => {
+    syncProgression();
+  }, []);
+
   const currentLevel = getLevelForXP(xp).level;
   const PACK_COST = 100;
   const DUPLICATE_BONUS = 25;
@@ -46,20 +44,20 @@ export default function ArtifactsScreen() {
     setActiveTab(tab);
   };
 
-  const handleOpenPack = () => {
+  const handleOpenPack = async () => {
     if (!canAffordPack()) return;
     triggerTap('heavy');
-    spendWeaponShards(PACK_COST);
+    await spendWeaponShards(PACK_COST);
     setShowPackOpening(true);
   };
 
-  const handlePackComplete = (weapon: Weapon, isDuplicate: boolean) => {
+  const handlePackComplete = async (weapon: Weapon, isDuplicate: boolean) => {
     if (isDuplicate) {
       // Award bonus shards for duplicates
-      addWeaponShards(DUPLICATE_BONUS);
-      addWeaponDuplicate(weapon.id);
+      await addWeaponShards(DUPLICATE_BONUS);
+      await addWeaponDuplicate(weapon.id);
     } else {
-      unlockWeapon(weapon.id);
+      await unlockWeapon(weapon.id);
     }
     setShowPackOpening(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

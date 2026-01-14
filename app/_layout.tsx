@@ -3,30 +3,63 @@ import { useEffect } from 'react';
 import { Stack, Redirect, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { StyleSheet, View, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, ActivityIndicator, Text } from 'react-native';
+import { useConvexAuth } from 'convex/react';
+import { useQuery, useMutation } from 'convex/react';
+import { api } from '../convex/_generated/api';
 import { COLORS } from '../constants/theme';
-import { useUserStore } from '../stores/user-store';
+import ConvexClientProvider from './ConvexClientProvider';
+import { useConvexSync } from '../utils/useConvexSync';
+
+// Loading screen while checking auth
+function LoadingScreen() {
+  return (
+    <View style={styles.loadingContainer}>
+      <ActivityIndicator size="large" color={COLORS.primary} />
+      <Text style={styles.loadingText}>Loading...</Text>
+    </View>
+  );
+}
 
 // Separate component for navigation logic
 function InitialLayout() {
   const segments = useSegments();
-  const { onboardingComplete, updateStreak } = useUserStore();
+  const { isAuthenticated, isLoading } = useConvexAuth();
   
+  // Sync Convex data to Zustand store
+  useConvexSync();
+  
+  // Check if user exists in database
+  const userCheck = useQuery(api.users.checkUserExists);
+  const updateStreak = useMutation(api.users.updateStreak);
+  
+  // Update streak when user is authenticated
   useEffect(() => {
-    // Update streak on app open (safe to call here since layout is mounted)
-    updateStreak();
-  }, []);
+    if (isAuthenticated && userCheck?.exists) {
+      updateStreak();
+    }
+  }, [isAuthenticated, userCheck?.exists]);
+
+  // Show loading while checking auth
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
 
   // Determine current location
   const inOnboarding = segments[0] === 'onboarding';
-  const inTabs = segments[0] === '(tabs)';
 
-  // Handle redirects based on onboarding status
-  if (!onboardingComplete && !inOnboarding) {
+  // Not authenticated → go to onboarding (will show email/OTP first)
+  if (!isAuthenticated && !inOnboarding) {
     return <Redirect href="/onboarding" />;
   }
   
-  if (onboardingComplete && inOnboarding) {
+  // Authenticated but no user data yet → still in onboarding (name/mascot steps)
+  if (isAuthenticated && !userCheck?.exists && !inOnboarding) {
+    return <Redirect href="/onboarding" />;
+  }
+  
+  // Authenticated and has user data → go to main app
+  if (isAuthenticated && userCheck?.exists && inOnboarding) {
     return <Redirect href="/(tabs)" />;
   }
 
@@ -68,10 +101,12 @@ function InitialLayout() {
 
 export default function RootLayout() {
   return (
-    <GestureHandlerRootView style={styles.container}>
-      <StatusBar style="dark" />
-      <InitialLayout />
-    </GestureHandlerRootView>
+    <ConvexClientProvider>
+      <GestureHandlerRootView style={styles.container}>
+        <StatusBar style="dark" />
+        <InitialLayout />
+      </GestureHandlerRootView>
+    </ConvexClientProvider>
   );
 }
 
@@ -80,5 +115,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: COLORS.textSecondary,
+  },
 });
-

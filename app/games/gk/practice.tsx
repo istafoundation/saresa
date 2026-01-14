@@ -1,8 +1,9 @@
 // GK Practice Mode - Infinite questions, no XP
+// Stats are synced via Convex (useGameStatsActions)
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,13 +11,15 @@ import * as Haptics from 'expo-haptics';
 import { COLORS, SPACING, BORDER_RADIUS } from '../../../constants/theme';
 import { useGKStore } from '../../../stores/gk-store';
 import { useUserStore } from '../../../stores/user-store';
+import { useGameStatsActions } from '../../../utils/useUserActions';
 import { useGameAudio } from '../../../utils/sound-manager';
 import { useTapFeedback } from '../../../utils/useTapFeedback';
 import Mascot from '../../../components/Mascot';
 
 export default function PracticeScreen() {
   const router = useRouter();
-  const { mascot } = useUserStore();
+  const { mascot, gkStats } = useUserStore();
+  const { updateGKStats } = useGameStatsActions();
   const {
     quizState,
     currentQuestionIndex,
@@ -25,8 +28,6 @@ export default function PracticeScreen() {
     answerQuestion,
     nextQuestion,
     resetQuiz,
-    practiceTotal,
-    practiceCorrect,
   } = useGKStore();
   
   // Sound effects and music
@@ -37,6 +38,12 @@ export default function PracticeScreen() {
   const [isCorrect, setIsCorrect] = useState(false);
   const [correctIndex, setCorrectIndex] = useState(0);
   const { triggerTap } = useTapFeedback();
+  
+  // Track session stats locally for immediate UI feedback
+  // (Convex will sync eventually, but this gives instant updates)
+  const sessionStats = useRef({ total: 0, correct: 0 });
+  const [sessionTotal, setSessionTotal] = useState(0);
+  const [sessionCorrect, setSessionCorrect] = useState(0);
 
   useEffect(() => {
     startQuiz('practice');
@@ -49,7 +56,7 @@ export default function PracticeScreen() {
 
   const currentQuestion = questions[currentQuestionIndex];
 
-  const handleAnswer = (index: number) => {
+  const handleAnswer = async (index: number) => {
     if (showResult) return;
     
     triggerTap('medium');
@@ -59,6 +66,18 @@ export default function PracticeScreen() {
     setIsCorrect(result.correct);
     setCorrectIndex(result.correctIndex);
     setShowResult(true);
+    
+    // Update session stats for immediate UI feedback
+    setSessionTotal(prev => prev + 1);
+    if (result.correct) {
+      setSessionCorrect(prev => prev + 1);
+    }
+    
+    // Sync to Convex (fire and forget)
+    updateGKStats({
+      practiceTotal: 1,
+      practiceCorrect: result.correct ? 1 : 0,
+    });
     
     if (result.correct) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -92,8 +111,11 @@ export default function PracticeScreen() {
     );
   }
 
-  const accuracy = practiceTotal > 0 
-    ? Math.round((practiceCorrect / practiceTotal) * 100) 
+  // Combine Convex stats + session stats for display
+  const totalAnswered = gkStats.practiceTotal + sessionTotal;
+  const totalCorrect = gkStats.practiceCorrect + sessionCorrect;
+  const accuracy = totalAnswered > 0 
+    ? Math.round((totalCorrect / totalAnswered) * 100) 
     : 0;
 
   return (
@@ -106,7 +128,7 @@ export default function PracticeScreen() {
         <View style={styles.statsHeader}>
           <Text style={styles.statsText}>Accuracy: {accuracy}%</Text>
           <Text style={styles.statsText}>•</Text>
-          <Text style={styles.statsText}>{practiceTotal} answered</Text>
+          <Text style={styles.statsText}>{totalAnswered} answered</Text>
         </View>
       </View>
 

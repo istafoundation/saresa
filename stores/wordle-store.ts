@@ -1,4 +1,5 @@
-// Wordle game store
+// Wordle game store - LOCAL STATE ONLY
+// Stats are stored in Convex and synced via useConvexSync -> user-store.ts
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { storage } from '../utils/storage';
@@ -21,16 +22,18 @@ const zustandStorage = {
 export type LetterState = 'correct' | 'present' | 'absent' | 'unused';
 export type GameState = 'playing' | 'won' | 'lost';
 
+// NOTE: Stats are now in Convex! Use useUserStore().wordleStats instead.
+// This interface is kept for backwards compatibility but should not be used.
 export interface WordleStats {
   gamesPlayed: number;
   gamesWon: number;
   currentStreak: number;
   maxStreak: number;
-  guessDistribution: number[]; // Index 0-5 for guesses 1-6
+  guessDistribution: number[];
 }
 
 export interface WordleState {
-  // Current game state
+  // Current game state (local only - for active game session)
   targetWord: string;
   currentGuess: string;
   guesses: string[];
@@ -39,11 +42,8 @@ export interface WordleState {
   // Keyboard state
   letterStates: Record<string, LetterState>;
   
-  // Persistence
+  // Persistence - local fast-check (Convex is source of truth)
   lastPlayedDate: string | null;
-  
-  // Statistics
-  stats: WordleStats;
   
   // Actions
   addLetter: (letter: string) => void;
@@ -57,25 +57,16 @@ export interface WordleState {
 const WORD_LENGTH = 5;
 const MAX_GUESSES = 6;
 
-const initialStats: WordleStats = {
-  gamesPlayed: 0,
-  gamesWon: 0,
-  currentStreak: 0,
-  maxStreak: 0,
-  guessDistribution: [0, 0, 0, 0, 0, 0],
-};
-
 export const useWordleStore = create<WordleState>()(
   persist(
     (set, get) => ({
-      // Initial state
+      // Initial state - game session only
       targetWord: '',
       currentGuess: '',
       guesses: [],
       gameState: 'playing',
       letterStates: {},
       lastPlayedDate: null,
-      stats: initialStats,
       
       addLetter: (letter) => {
         const { currentGuess, gameState } = get();
@@ -92,7 +83,7 @@ export const useWordleStore = create<WordleState>()(
       },
       
       submitGuess: () => {
-        const { currentGuess, targetWord, guesses, letterStates, stats, gameState } = get();
+        const { currentGuess, targetWord, guesses, letterStates, gameState } = get();
         
         if (gameState !== 'playing') {
           return { valid: false };
@@ -141,29 +132,16 @@ export const useWordleStore = create<WordleState>()(
         const won = currentGuess === targetWord;
         const lost = !won && newGuesses.length >= MAX_GUESSES;
         
-        // Update stats if game ended
-        let newStats = stats;
+        // Update game state if ended
+        // NOTE: Stats are updated in Convex via useGameStatsActions().updateWordleStats()
         if (won || lost) {
           const today = new Date().toISOString().split('T')[0];
-          newStats = {
-            gamesPlayed: stats.gamesPlayed + 1,
-            gamesWon: won ? stats.gamesWon + 1 : stats.gamesWon,
-            currentStreak: won ? stats.currentStreak + 1 : 0,
-            maxStreak: won 
-              ? Math.max(stats.maxStreak, stats.currentStreak + 1) 
-              : stats.maxStreak,
-            guessDistribution: won 
-              ? stats.guessDistribution.map((v, i) => i === newGuesses.length - 1 ? v + 1 : v)
-              : stats.guessDistribution,
-          };
-          
           set({
             guesses: newGuesses,
             currentGuess: '',
             letterStates: newLetterStates,
             gameState: won ? 'won' : 'lost',
             lastPlayedDate: today,
-            stats: newStats,
           });
         } else {
           set({
@@ -212,6 +190,7 @@ export const useWordleStore = create<WordleState>()(
     {
       name: 'wordle-storage',
       storage: createJSONStorage(() => zustandStorage),
+      // Only persist game session state, NOT stats (stats are in Convex)
       partialize: (state) => ({
         targetWord: state.targetWord,
         currentGuess: state.currentGuess,
@@ -219,7 +198,6 @@ export const useWordleStore = create<WordleState>()(
         gameState: state.gameState,
         letterStates: state.letterStates,
         lastPlayedDate: state.lastPlayedDate,
-        stats: state.stats,
       }),
     }
   )

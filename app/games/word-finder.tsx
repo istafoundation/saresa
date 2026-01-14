@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants/theme';
 import { useWordFinderStore, type GameMode, type CellPosition } from '../../stores/word-finder-store';
-import { useUserStore } from '../../stores/user-store';
+import { useUserActions, useGameStatsActions } from '../../utils/useUserActions';
 import { useGameAudio } from '../../utils/sound-manager';
 import { useTapFeedback } from '../../utils/useTapFeedback';
 
@@ -26,7 +26,8 @@ export default function WordFinderScreen() {
   const { mode: urlMode } = useLocalSearchParams<{ mode?: string }>();
   const { triggerTap } = useTapFeedback();
   const { playCorrect, playWrong, playWin } = useGameAudio();
-  const addXP = useUserStore(state => state.addXP);
+  const { addXP } = useUserActions();
+  const { updateWordFinderStats } = useGameStatsActions();
   
   const {
     mode,
@@ -120,13 +121,20 @@ export default function WordFinderScreen() {
     handleGameEnd();
   };
   
-  const handleGameEnd = () => {
+  const handleGameEnd = async () => {
     const gameResult = finishGame();
     setResult(gameResult);
     setShowResult(true);
     
     if (gameResult.xpEarned > 0) {
-      addXP(gameResult.xpEarned);
+      // Save rewards and stats to Convex
+      await addXP(gameResult.xpEarned);
+      await updateWordFinderStats({
+        mode: mode,
+        wordsFound: gameResult.wordsFound,
+        xpEarned: gameResult.xpEarned,
+        correctAnswers: mode === 'hard' ? gameResult.wordsFound : undefined,
+      });
       playWin();
     }
   };

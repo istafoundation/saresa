@@ -1,4 +1,5 @@
 // Wordle Game Screen - Updated with How-To-Play and Share
+// Stats are read from Convex via useUserStore (synced by useConvexSync)
 import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
@@ -15,6 +16,7 @@ import * as Haptics from 'expo-haptics';
 import { COLORS, SPACING, BORDER_RADIUS } from '../../constants/theme';
 import { useWordleStore, type LetterState } from '../../stores/wordle-store';
 import { useUserStore } from '../../stores/user-store';
+import { useUserActions, useGameStatsActions } from '../../utils/useUserActions';
 import { isValidWord } from '../../data/wordle-words';
 import HowToPlayModal from '../../components/games/HowToPlayModal';
 import ShareButton from '../../components/games/ShareResults';
@@ -36,19 +38,24 @@ const LETTER_COLORS: Record<LetterState, string> = {
 
 export default function WordleScreen() {
   const router = useRouter();
-  const { addXP, addWeaponShards } = useUserStore();
+  const { addXP, addWeaponShards } = useUserActions();
+  const { updateWordleStats } = useGameStatsActions();
+  
+  // Get game session state from local store
   const {
     targetWord,
     currentGuess,
     guesses,
     gameState,
     letterStates,
-    stats,
     addLetter,
     removeLetter,
     submitGuess,
     initGame,
   } = useWordleStore();
+  
+  // Get stats from Convex-synced store (source of truth)
+  const { wordleStats } = useUserStore();
   
   // Sound effects and music
   const { playKey, playSubmit, playWin, playWrong, startMusic, stopMusic } = useGameAudio();
@@ -61,8 +68,8 @@ export default function WordleScreen() {
   useEffect(() => {
     initGame();
     startMusic(); // Start background music
-    // Show how-to-play on first visit
-    if (stats.gamesPlayed === 0) {
+    // Show how-to-play on first visit (check Convex stats)
+    if (wordleStats.gamesPlayed === 0) {
       setShowHowToPlay(true);
     }
     return () => {
@@ -86,7 +93,7 @@ export default function WordleScreen() {
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (currentGuess.length !== 5) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       playWrong();
@@ -122,8 +129,10 @@ export default function WordleScreen() {
       if (result.won) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         stopMusic();
-        addXP(100);
-        addWeaponShards(50); // Award shards for winning
+        // Save rewards and stats to Convex
+        await addXP(100);
+        await addWeaponShards(50);
+        await updateWordleStats({ won: true, guessCount: guesses.length + 1 });
         // Play win sound when showing result (delayed)
         setTimeout(() => {
           playWin();
@@ -132,6 +141,8 @@ export default function WordleScreen() {
       } else if (result.lost) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         stopMusic();
+        // Save stats to Convex (loss)
+        await updateWordleStats({ won: false });
         setTimeout(() => setShowResult(true), 500);
       }
     }
@@ -285,19 +296,19 @@ export default function WordleScreen() {
 
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
-                <Text style={styles.statValue}>{stats.gamesPlayed}</Text>
+                <Text style={styles.statValue}>{wordleStats.gamesPlayed}</Text>
                 <Text style={styles.statLabel}>Played</Text>
               </View>
               <View style={styles.statItem}>
                 <Text style={styles.statValue}>
-                  {stats.gamesPlayed > 0 
-                    ? Math.round((stats.gamesWon / stats.gamesPlayed) * 100) 
+                  {wordleStats.gamesPlayed > 0 
+                    ? Math.round((wordleStats.gamesWon / wordleStats.gamesPlayed) * 100) 
                     : 0}%
                 </Text>
                 <Text style={styles.statLabel}>Win %</Text>
               </View>
               <View style={styles.statItem}>
-                <Text style={styles.statValue}>{stats.currentStreak}</Text>
+                <Text style={styles.statValue}>{wordleStats.currentStreak}</Text>
                 <Text style={styles.statLabel}>Streak</Text>
               </View>
             </View>

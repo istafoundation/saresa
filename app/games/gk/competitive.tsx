@@ -18,6 +18,7 @@ import * as Haptics from 'expo-haptics';
 import { COLORS, SPACING, BORDER_RADIUS } from '../../../constants/theme';
 import { useGKStore } from '../../../stores/gk-store';
 import { useUserStore } from '../../../stores/user-store';
+import { useUserActions, useGameStatsActions } from '../../../utils/useUserActions';
 import { useGameAudio } from '../../../utils/sound-manager';
 import { useTapFeedback } from '../../../utils/useTapFeedback';
 import Mascot from '../../../components/Mascot';
@@ -27,7 +28,9 @@ const TOTAL_QUESTIONS = 10;
 
 export default function CompetitiveScreen() {
   const router = useRouter();
-  const { addXP, addWeaponShards, mascot } = useUserStore();
+  const { mascot } = useUserStore();
+  const { addXP, addWeaponShards } = useUserActions();
+  const { updateGKStats } = useGameStatsActions();
   const {
     quizState,
     currentQuestionIndex,
@@ -137,7 +140,7 @@ export default function CompetitiveScreen() {
     }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     triggerTap();
     setSelectedAnswer(null);
     setShowResult(false);
@@ -156,12 +159,15 @@ export default function CompetitiveScreen() {
         playWin();
       }
       
+      // Save rewards and stats to Convex
       if (result.xpEarned > 0) {
-        addXP(result.xpEarned);
+        await addXP(result.xpEarned);
       }
       if (shardsEarned > 0) {
-        addWeaponShards(shardsEarned);
+        await addWeaponShards(shardsEarned);
       }
+      // Mark competitive as played today in Convex
+      await updateGKStats({ playedCompetitive: true });
     } else {
       nextQuestion();
     }

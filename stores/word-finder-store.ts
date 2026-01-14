@@ -1,4 +1,5 @@
 // Word Finder game store - Grid generation, game logic, and persistence
+// Stats are stored in Convex and synced via useConvexSync -> user-store.ts
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { storage } from '../utils/storage';
@@ -38,6 +39,8 @@ export interface WordPlacement {
   found: boolean;
 }
 
+// NOTE: Stats are now in Convex! Use useUserStore().wfStats instead.
+// This interface is kept for backwards compatibility but should not be used.
 export interface WordFinderStats {
   easyGamesPlayed: number;
   easyWordsFound: number;
@@ -69,13 +72,10 @@ export interface WordFinderState {
   // Timer
   timeRemaining: number; // seconds (600 = 10 min)
   
-  // Daily tracking
+  // Daily tracking - local fast-check (Convex is source of truth)
   lastEasyPlayDate: string | null;
   easyAttemptsToday: number;
   lastHardPlayDate: string | null;
-  
-  // Statistics
-  stats: WordFinderStats;
   
   // Actions
   startGame: (mode: GameMode) => boolean;
@@ -93,14 +93,6 @@ export interface WordFinderState {
 
 const GRID_SIZE = 8;
 const MAX_TIME = 600; // 10 minutes in seconds
-
-const initialStats: WordFinderStats = {
-  easyGamesPlayed: 0,
-  easyWordsFound: 0,
-  hardGamesPlayed: 0,
-  hardCorrectAnswers: 0,
-  totalXPEarned: 0,
-};
 
 // Grid generation helpers
 const DIRECTIONS = [
@@ -260,7 +252,7 @@ function positionsMatch(pos1: CellPosition[], pos2: CellPosition[]): boolean {
 export const useWordFinderStore = create<WordFinderState>()(
   persist(
     (set, get) => ({
-      // Initial state
+      // Initial state - game session only
       mode: 'easy',
       gameState: 'idle',
       grid: [],
@@ -276,7 +268,6 @@ export const useWordFinderStore = create<WordFinderState>()(
       lastEasyPlayDate: null,
       easyAttemptsToday: 0,
       lastHardPlayDate: null,
-      stats: initialStats,
       
       startGame: (mode) => {
         const today = new Date().toISOString().split('T')[0];
@@ -469,7 +460,7 @@ export const useWordFinderStore = create<WordFinderState>()(
       },
       
       finishGame: () => {
-        const { mode, wordPlacements, hintUsed, hardCorrectAnswers, timeRemaining, stats } = get();
+        const { mode, wordPlacements, hintUsed, hardCorrectAnswers, timeRemaining } = get();
         const today = new Date().toISOString().split('T')[0];
         
         let xpEarned = 0;
@@ -488,15 +479,10 @@ export const useWordFinderStore = create<WordFinderState>()(
           const { lastEasyPlayDate, easyAttemptsToday } = get();
           const newAttempts = lastEasyPlayDate === today ? easyAttemptsToday + 1 : 1;
           
+          // NOTE: Stats are updated in Convex via useGameStatsActions().updateWordFinderStats()
           set({ 
             lastEasyPlayDate: today,
             easyAttemptsToday: newAttempts,
-            stats: {
-              ...stats,
-              easyGamesPlayed: stats.easyGamesPlayed + 1,
-              easyWordsFound: stats.easyWordsFound + wordsFound,
-              totalXPEarned: stats.totalXPEarned + xpEarned,
-            },
           });
         } else {
           wordsFound = hardCorrectAnswers;
@@ -508,14 +494,9 @@ export const useWordFinderStore = create<WordFinderState>()(
           const hintPenalty = hintUsed ? 0.5 : 1;
           xpEarned = Math.min(200, Math.round(baseXP * timeBonus * hintPenalty));
           
+          // NOTE: Stats are updated in Convex via useGameStatsActions().updateWordFinderStats()
           set({ 
             lastHardPlayDate: today,
-            stats: {
-              ...stats,
-              hardGamesPlayed: stats.hardGamesPlayed + 1,
-              hardCorrectAnswers: stats.hardCorrectAnswers + hardCorrectAnswers,
-              totalXPEarned: stats.totalXPEarned + xpEarned,
-            },
           });
         }
         
@@ -556,11 +537,11 @@ export const useWordFinderStore = create<WordFinderState>()(
     {
       name: 'word-finder-storage',
       storage: createJSONStorage(() => zustandStorage),
+      // Only persist daily tracking, NOT stats (stats are in Convex)
       partialize: (state) => ({
         lastEasyPlayDate: state.lastEasyPlayDate,
         easyAttemptsToday: state.easyAttemptsToday,
         lastHardPlayDate: state.lastHardPlayDate,
-        stats: state.stats,
       }),
     }
   )

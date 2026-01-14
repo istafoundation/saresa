@@ -1,4 +1,4 @@
-// Profile Screen - User stats and settings
+// Profile Screen - User stats and settings - Now reads from Convex!
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
@@ -6,51 +6,46 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import Slider from '@react-native-community/slider';
+import { useAuth } from '@clerk/clerk-expo';
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants/theme';
 import { useUserStore } from '../../stores/user-store';
-import { useWordleStore } from '../../stores/wordle-store';
-import { useGKStore } from '../../stores/gk-store';
 import { getLevelForXP, getXPProgressToNextLevel, LEVELS } from '../../constants/levels';
 import { useTapFeedback } from '../../utils/useTapFeedback';
 import Mascot from '../../components/Mascot';
 
 export default function ProfileScreen() {
+  const { signOut } = useAuth();
+  
   const { 
     name, mascot, xp, streak, unlockedArtifacts, unlockedWeapons, 
-    resetProgress, setMascot,
     soundEnabled, musicEnabled, sfxVolume, musicVolume,
-    setSoundEnabled, setMusicEnabled, setSfxVolume, setMusicVolume
+    setSoundEnabled, setMusicEnabled, setSfxVolume, setMusicVolume,
+    // Now reading game stats from Convex-synced data!
+    wordleStats, gkStats
   } = useUserStore();
-  const wordleStats = useWordleStore(state => state.stats);
-  const { practiceTotal, practiceCorrect } = useGKStore();
   
   const levelInfo = getLevelForXP(xp);
   const xpProgress = getXPProgressToNextLevel(xp);
   const { triggerTap, triggerSelection } = useTapFeedback();
   
-  const handleReset = () => {
+  const handleSignOut = () => {
     triggerTap('heavy');
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     Alert.alert(
-      'Reset Progress',
-      'This will delete all your progress, XP, and unlocked items. Are you sure?',
+      'Sign Out',
+      'You will need to sign in again to access your progress. Are you sure?',
       [
         { text: 'Cancel', style: 'cancel' },
         { 
-          text: 'Reset', 
+          text: 'Sign Out', 
           style: 'destructive',
-          onPress: () => {
-            resetProgress();
+          onPress: async () => {
+            await signOut();
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           }
         },
       ]
     );
-  };
-
-  const handleMascotToggle = () => {
-    triggerSelection();
-    setMascot(mascot === 'male' ? 'female' : 'male');
   };
 
   return (
@@ -70,12 +65,9 @@ export default function ProfileScreen() {
             colors={[COLORS.primary, COLORS.primaryDark]}
             style={styles.profileHeader}
           >
-            <Pressable onPress={handleMascotToggle} style={styles.avatarContainer}>
+            <View style={styles.avatarContainer}>
               <Mascot mascotType={mascot} size="large" />
-              <View style={styles.avatarBadge}>
-                <Ionicons name="swap-horizontal" size={12} color={COLORS.text} />
-              </View>
-            </Pressable>
+            </View>
             
             <Text style={styles.profileName}>{name || 'Detective'}</Text>
             <Text style={styles.profileTitle}>{levelInfo.title}</Text>
@@ -164,13 +156,13 @@ export default function ProfileScreen() {
             </View>
             <View style={styles.gameStatGrid}>
               <View style={styles.gameStatItem}>
-                <Text style={styles.gameStatValue}>{practiceTotal}</Text>
+                <Text style={styles.gameStatValue}>{gkStats.practiceTotal}</Text>
                 <Text style={styles.gameStatLabel}>Questions</Text>
               </View>
               <View style={styles.gameStatItem}>
                 <Text style={styles.gameStatValue}>
-                  {practiceTotal > 0 
-                    ? Math.round((practiceCorrect / practiceTotal) * 100) 
+                  {gkStats.practiceTotal > 0 
+                    ? Math.round((gkStats.practiceCorrect / gkStats.practiceTotal) * 100) 
                     : 0}%
                 </Text>
                 <Text style={styles.gameStatLabel}>Accuracy</Text>
@@ -303,19 +295,19 @@ export default function ProfileScreen() {
           </View>
         </MotiView>
 
-        {/* Danger Zone */}
+        {/* Account Actions */}
         <MotiView
           from={{ opacity: 0, translateY: 20 }}
           animate={{ opacity: 1, translateY: 0 }}
           transition={{ type: 'spring', delay: 550 }}
         >
-          <Text style={styles.sectionTitle}>Danger Zone</Text>
+          <Text style={styles.sectionTitle}>Account</Text>
           
-          <Pressable style={styles.settingItem} onPress={handleReset}>
+          <Pressable style={styles.settingItem} onPress={handleSignOut}>
             <View style={styles.settingContent}>
-              <Ionicons name="refresh" size={22} color={COLORS.error} />
+              <Ionicons name="log-out" size={22} color={COLORS.error} />
               <Text style={[styles.settingText, { color: COLORS.error }]}>
-                Reset All Progress
+                Sign Out
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={COLORS.error} />

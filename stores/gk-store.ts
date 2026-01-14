@@ -1,4 +1,5 @@
-// GK Quiz store
+// GK Quiz store - LOCAL STATE ONLY
+// Stats are stored in Convex and synced via useConvexSync -> user-store.ts
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { storage } from '../utils/storage';
@@ -29,7 +30,7 @@ export interface QuizResult {
 }
 
 export interface GKState {
-  // Current game state
+  // Current game state (local only - for active game session)
   mode: GameMode;
   quizState: QuizState;
   currentQuestionIndex: number;
@@ -37,11 +38,7 @@ export interface GKState {
   answers: (number | null)[];
   timePerQuestion: number[]; // seconds spent per question
   
-  // Practice mode tracking
-  practiceTotal: number;
-  practiceCorrect: number;
-  
-  // Competitive tracking
+  // Competitive tracking - local fast-check (Convex is source of truth)
   lastCompetitiveDate: string | null;
   
   // Timer state
@@ -62,15 +59,13 @@ const TIME_LIMIT_SECONDS = 30;
 export const useGKStore = create<GKState>()(
   persist(
     (set, get) => ({
-      // Initial state
+      // Initial state - game session only
       mode: 'practice',
       quizState: 'idle',
       currentQuestionIndex: 0,
       questions: [],
       answers: [],
       timePerQuestion: [],
-      practiceTotal: 0,
-      practiceCorrect: 0,
       lastCompetitiveDate: null,
       questionStartTime: 0,
       
@@ -96,7 +91,7 @@ export const useGKStore = create<GKState>()(
       },
       
       answerQuestion: (answerIndex) => {
-        const { currentQuestionIndex, questions, answers, timePerQuestion, questionStartTime, mode } = get();
+        const { currentQuestionIndex, questions, answers, timePerQuestion, questionStartTime } = get();
         const question = questions[currentQuestionIndex];
         const correct = answerIndex === question.correctIndex;
         
@@ -110,13 +105,8 @@ export const useGKStore = create<GKState>()(
         
         const newTimePerQuestion = [...timePerQuestion, clampedTime];
         
-        // Update practice stats
-        if (mode === 'practice') {
-          set({
-            practiceTotal: get().practiceTotal + 1,
-            practiceCorrect: get().practiceCorrect + (correct ? 1 : 0),
-          });
-        }
+        // NOTE: Practice stats are updated in Convex via useGameStatsActions().updateGKStats()
+        // We no longer track them locally
         
         set({
           answers: newAnswers,
@@ -201,9 +191,8 @@ export const useGKStore = create<GKState>()(
     {
       name: 'gk-storage',
       storage: createJSONStorage(() => zustandStorage),
+      // Only persist game session state, NOT stats (stats are in Convex)
       partialize: (state) => ({
-        practiceTotal: state.practiceTotal,
-        practiceCorrect: state.practiceCorrect,
         lastCompetitiveDate: state.lastCompetitiveDate,
       }),
     }
