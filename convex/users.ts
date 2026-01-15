@@ -1,20 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-
-// IST timezone offset (UTC+5:30)
-function getISTDate(): string {
-  const now = new Date();
-  const istOffset = 5.5 * 60 * 60 * 1000;
-  return new Date(now.getTime() + istOffset).toISOString().split('T')[0];
-}
-
-function getYesterdayIST(): string {
-  const now = new Date();
-  const istOffset = 5.5 * 60 * 60 * 1000;
-  const yesterday = new Date(now.getTime() + istOffset - 24 * 60 * 60 * 1000);
-  return yesterday.toISOString().split('T')[0];
-}
+import { getISTDate, getYesterdayIST } from "./lib/dates";
 
 // Helper to get childId from session token
 async function getChildIdFromSession(
@@ -180,6 +167,7 @@ export const updateStreak = mutation({
   },
 });
 
+// Level thresholds with artifact unlocks - sync with constants/levels.ts
 const LEVELS = [
   { level: 1, xpRequired: 0, artifactId: null },
   { level: 2, xpRequired: 100, artifactId: "ganesha-wisdom" },
@@ -191,6 +179,16 @@ const LEVELS = [
   { level: 8, xpRequired: 1900, artifactId: "rama-arrow" },
   { level: 9, xpRequired: 2500, artifactId: "vishnu-chakra" },
   { level: 10, xpRequired: 3200, artifactId: "lakshmi-lotus" },
+  { level: 11, xpRequired: 4000, artifactId: null },
+  { level: 12, xpRequired: 5000, artifactId: null },
+  { level: 13, xpRequired: 6200, artifactId: null },
+  { level: 14, xpRequired: 7600, artifactId: null },
+  { level: 15, xpRequired: 9200, artifactId: null },
+  { level: 16, xpRequired: 11000, artifactId: null },
+  { level: 17, xpRequired: 13000, artifactId: null },
+  { level: 18, xpRequired: 15500, artifactId: null },
+  { level: 19, xpRequired: 18500, artifactId: null },
+  { level: 20, xpRequired: 22000, artifactId: null },
 ];
 
 // Add XP and check for level-ups/unlocks

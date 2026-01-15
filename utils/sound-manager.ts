@@ -1,5 +1,5 @@
 // Sound Manager - Handles SFX and background music
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAudioPlayer, AudioPlayer } from 'expo-audio';
 import { AppState, AppStateStatus } from 'react-native';
 import { useUserStore } from '../stores/user-store';
@@ -18,24 +18,14 @@ const MUSIC_ASSET = require('../assets/sounds/questions_music.m4a');
 
 export type SoundType = keyof typeof SOUND_ASSETS;
 
-// Preloaded sound players for instant playback
-let preloadedPlayers: Map<SoundType, AudioPlayer> = new Map();
-let musicPlayer: AudioPlayer | null = null;
-let isPreloaded = false;
-
 /**
  * Preload all sound effects for instant playback
- * Call this once on app startup
+ * Note: expo-audio handles preloading internally with useAudioPlayer
+ * This function is kept for API compatibility but is essentially a no-op
  */
 export async function preloadSounds(): Promise<void> {
-  if (isPreloaded) return;
-  
-  try {
-    // Note: expo-audio handles preloading internally with useAudioPlayer
-    isPreloaded = true;
-  } catch (error) {
-    console.error('Failed to preload sounds:', error);
-  }
+  // expo-audio handles preloading internally with useAudioPlayer hooks
+  // No manual preloading needed
 }
 
 /**
@@ -53,14 +43,16 @@ export function useSoundEffects() {
   const keyPlayer = useAudioPlayer(SOUND_ASSETS.key);
   const submitPlayer = useAudioPlayer(SOUND_ASSETS.submit);
   
-  const players: Record<SoundType, AudioPlayer> = {
+  // Memoize players object to prevent recreation on every render
+  // This fixes a potential memory leak where stale references were used in callbacks
+  const players = useMemo<Record<SoundType, AudioPlayer>>(() => ({
     correct: correctPlayer,
     wrong: wrongPlayer,
     win: winPlayer,
     tap: tapPlayer,
     key: keyPlayer,
     submit: submitPlayer,
-  };
+  }), [correctPlayer, wrongPlayer, winPlayer, tapPlayer, keyPlayer, submitPlayer]);
   
   // Track unmount state
   useEffect(() => {
@@ -81,7 +73,7 @@ export function useSoundEffects() {
         // Player may have been released
       }
     });
-  }, [sfxVolume]);
+  }, [sfxVolume, players]);
   
   const playSound = useCallback((type: SoundType) => {
     if (!soundEnabled || isUnmountedRef.current) return;

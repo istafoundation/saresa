@@ -145,3 +145,18 @@ export const STORAGE_KEYS = {
   LAST_LOGIN_DATE: 'last_login_date',
   DAILY_FACT_INDEX: 'daily_fact_index',
 };
+
+// Zustand persist storage adapter for MMKV
+// Use this in all Zustand stores instead of duplicating the adapter
+export const zustandStorage = {
+  getItem: (name: string) => {
+    const value = storage.getString(name);
+    return value ?? null;
+  },
+  setItem: (name: string, value: string) => {
+    storage.set(name, value);
+  },
+  removeItem: (name: string) => {
+    storage.delete(name);
+  },
+};

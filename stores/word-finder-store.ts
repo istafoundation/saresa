@@ -2,27 +2,14 @@
 // Stats are stored in Convex and synced via useConvexSync -> user-store.ts
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { storage } from '../utils/storage';
+import { zustandStorage } from '../utils/storage';
+import { getISTDate } from '../utils/dates';
 import { 
   getRandomWordSet, 
   getRandomQuestion, 
   type WordSet, 
   type HardQuestion 
 } from '../data/word-finder-data';
-
-// Zustand persist storage adapter for MMKV
-const zustandStorage = {
-  getItem: (name: string) => {
-    const value = storage.getString(name);
-    return value ?? null;
-  },
-  setItem: (name: string, value: string) => {
-    storage.set(name, value);
-  },
-  removeItem: (name: string) => {
-    storage.delete(name);
-  },
-};
 
 // Types
 export type GameMode = 'easy' | 'hard';

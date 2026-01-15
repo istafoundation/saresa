@@ -11,6 +11,7 @@
 import type * as childAuth from "../childAuth.js";
 import type * as crons from "../crons.js";
 import type * as gameStats from "../gameStats.js";
+import type * as lib_dates from "../lib/dates.js";
 import type * as migrations from "../migrations.js";
 import type * as parents from "../parents.js";
 import type * as users from "../users.js";
@@ -25,6 +26,7 @@ declare const fullApi: ApiFromModules<{
   childAuth: typeof childAuth;
   crons: typeof crons;
   gameStats: typeof gameStats;
+  "lib/dates": typeof lib_dates;
   migrations: typeof migrations;
   parents: typeof parents;
   users: typeof users;

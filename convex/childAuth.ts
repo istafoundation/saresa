@@ -124,12 +124,14 @@ export const logout = mutation({
 });
 
 // Clean up expired sessions (called by cron job)
+// Uses by_expires_at index for efficient O(log n) queries
 export const cleanupExpiredSessions = internalMutation({
   handler: async (ctx) => {
     const now = Date.now();
+    // Use index for efficient querying of expired sessions
     const expiredSessions = await ctx.db
       .query("childSessions")
-      .filter((q) => q.lt(q.field("expiresAt"), now))
+      .withIndex("by_expires_at", (q) => q.lt("expiresAt", now))
       .collect();
 
     for (const session of expiredSessions) {

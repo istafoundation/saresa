@@ -54,7 +54,7 @@ export default function Dashboard() {
             </div>
             <div className="flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm text-white rounded-full text-sm font-medium border border-white/20">
               <Calendar size={16} />
-              <span>{new Date().toLocaleDateString('en-IN', { weekday: 'long', month: 'short', day: 'numeric' })}</span>
+              <span>{new Date().toLocaleDateString('en-IN', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'Asia/Kolkata' })}</span>
             </div>
           </div>
           

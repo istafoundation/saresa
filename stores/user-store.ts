@@ -1,23 +1,9 @@
 // User store - Local sound settings + Convex sync for user data AND game stats
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { storage } from '../utils/storage';
+import { zustandStorage } from '../utils/storage';
 import { getLevelForXP } from '../constants/levels';
 import type { SyncedGameStats } from '../utils/useConvexSync';
-
-// Zustand persist storage adapter for MMKV (for LOCAL settings only)
-const zustandStorage = {
-  getItem: (name: string) => {
-    const value = storage.getString(name);
-    return value ?? null;
-  },
-  setItem: (name: string, value: string) => {
-    storage.set(name, value);
-  },
-  removeItem: (name: string) => {
-    storage.delete(name);
-  },
-};
 
 export type MascotType = 'male' | 'female';
 

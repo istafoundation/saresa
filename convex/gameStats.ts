@@ -1,13 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-
-// IST timezone helper
-function getISTDate(): string {
-  const now = new Date();
-  const istOffset = 5.5 * 60 * 60 * 1000;
-  return new Date(now.getTime() + istOffset).toISOString().split("T")[0];
-}
+import { getISTDate } from "./lib/dates";
 
 // Helper to get childId from session token
 async function getChildIdFromSession(

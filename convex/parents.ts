@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { getISTDate } from "./lib/dates";
 
 // Level thresholds matching constants/levels.ts
 const LEVELS = [
@@ -32,13 +33,6 @@ function getLevelForXP(xp: number): number {
     }
   }
   return 1;
-}
-
-// IST timezone helper for consistent date handling
-function getISTDate(): string {
-  const now = new Date();
-  const istOffset = 5.5 * 60 * 60 * 1000;
-  return new Date(now.getTime() + istOffset).toISOString().split("T")[0];
 }
 
 // Get or create parent account after Clerk login

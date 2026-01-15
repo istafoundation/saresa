@@ -16,6 +16,7 @@ import * as Haptics from 'expo-haptics';
 import { useQuery } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { COLORS, SPACING, BORDER_RADIUS } from '../../constants/theme';
+import { WORDLE_REWARDS } from '../../constants/rewards';
 import { useWordleStore, type LetterState } from '../../stores/wordle-store';
 import { useUserStore } from '../../stores/user-store';
 import { useUserActions, useGameStatsActions } from '../../utils/useUserActions';
@@ -39,11 +40,8 @@ const LETTER_COLORS: Record<LetterState, string> = {
   unused: COLORS.surface,
 };
 
-// XP and shard rewards
-const XP_FULL = 100;
-const XP_WITH_HINT = 50;
-const SHARDS_FULL = 50;
-const SHARDS_WITH_HINT = 25;
+// Use centralized rewards
+const { XP_FULL, XP_WITH_HINT, SHARDS_FULL, SHARDS_WITH_HINT } = WORDLE_REWARDS;
 
 export default function WordleScreen() {
   const router = useRouter();

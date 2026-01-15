@@ -29,9 +29,15 @@ export default defineSchema({
     token: v.string(),           // Random session token
     expiresAt: v.number(),       // Timestamp when session expires
     createdAt: v.number(),
+    // Device fingerprinting (optional for backward compatibility)
+    deviceId: v.optional(v.string()),     // Unique device identifier
+    deviceName: v.optional(v.string()),   // e.g., "iPhone 14", "Pixel 7"
+    platform: v.optional(v.string()),     // e.g., "ios", "android"
   })
     .index("by_token", ["token"])
-    .index("by_child", ["childId"]),
+    .index("by_child", ["childId"])
+    .index("by_expires_at", ["expiresAt"]),  // For efficient cleanup queries
+
 
   // User game data (linked to child account)
   users: defineTable({

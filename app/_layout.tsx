@@ -37,10 +37,21 @@ function InitialLayout() {
   
   // Update streak when user is authenticated (with debouncing to prevent duplicate calls)
   useEffect(() => {
-    if (isAuthenticated && userCheck?.exists && token && !streakUpdatedRef.current) {
-      streakUpdatedRef.current = true;
-      updateStreak({ token });
-    }
+    const updateUserStreak = async () => {
+      if (isAuthenticated && userCheck?.exists && token && !streakUpdatedRef.current) {
+        streakUpdatedRef.current = true;
+        try {
+          await updateStreak({ token });
+        } catch (error) {
+          console.error('[Layout] Failed to update streak:', error);
+          // Reset ref so it can retry on next mount
+          streakUpdatedRef.current = false;
+        }
+      }
+    };
+    
+    updateUserStreak();
+    
     // Reset ref when user logs out
     if (!isAuthenticated) {
       streakUpdatedRef.current = false;

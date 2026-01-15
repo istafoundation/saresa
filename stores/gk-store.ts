@@ -2,29 +2,9 @@
 // Stats are stored in Convex and synced via useConvexSync -> user-store.ts
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { storage } from '../utils/storage';
+import { zustandStorage } from '../utils/storage';
+import { getISTDate } from '../utils/dates';
 import { getRandomQuestions, type Question } from '../data/gk-questions';
-
-// Zustand persist storage adapter for MMKV
-const zustandStorage = {
-  getItem: (name: string) => {
-    const value = storage.getString(name);
-    return value ?? null;
-  },
-  setItem: (name: string, value: string) => {
-    storage.set(name, value);
-  },
-  removeItem: (name: string) => {
-    storage.delete(name);
-  },
-};
-
-// IST timezone helper - matches server-side calculation
-function getISTDate(): string {
-  const now = new Date();
-  const istOffset = 5.5 * 60 * 60 * 1000;
-  return new Date(now.getTime() + istOffset).toISOString().split('T')[0];
-}
 
 export type GameMode = 'practice' | 'competitive';
 export type QuizState = 'idle' | 'playing' | 'finished';
