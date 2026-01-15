@@ -7,11 +7,14 @@ import { MotiView } from 'moti';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useQuery } from 'convex/react';
+import { api } from '../../convex/_generated/api';
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants/theme';
 import { useWordFinderStore, type GameMode, type CellPosition } from '../../stores/word-finder-store';
 import { useUserActions, useGameStatsActions } from '../../utils/useUserActions';
 import { useGameAudio } from '../../utils/sound-manager';
 import { useTapFeedback } from '../../utils/useTapFeedback';
+import { useChildAuth } from '../../utils/childAuth';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GRID_SIZE = 8;
@@ -45,12 +48,26 @@ export default function WordFinderScreen() {
     clearSelection,
     useHint,
     nextHardQuestion,
+    skipHardQuestion,
     updateTimer,
     finishGame,
-    canPlayEasyToday,
-    canPlayHardToday,
     resetGame,
   } = useWordFinderStore();
+  
+  // Get auth token for Convex queries
+  const { token } = useChildAuth();
+  
+  // CONVEX IS SOURCE OF TRUTH for daily play limits
+  const canPlayEasyFromServer = useQuery(api.gameStats.canPlayWordFinder,
+    token ? { token, mode: 'easy' as const } : 'skip'
+  );
+  const canPlayHardFromServer = useQuery(api.gameStats.canPlayWordFinder,
+    token ? { token, mode: 'hard' as const } : 'skip'
+  );
+  
+  // Fall back to true while loading (will be blocked by server check anyway)
+  const canPlayEasyToday = canPlayEasyFromServer ?? true;
+  const canPlayHardToday = canPlayHardFromServer ?? true;
   
   // If mode is passed in URL, skip mode selection
   const [showModeSelect, setShowModeSelect] = useState(!urlMode);
@@ -95,9 +112,12 @@ export default function WordFinderScreen() {
       const currentState = useWordFinderStore.getState();
       if (currentState.gameState === 'idle') {
         const selectedMode = urlMode as GameMode;
-        if ((selectedMode === 'easy' && canPlayEasyToday()) || 
-            (selectedMode === 'hard' && canPlayHardToday())) {
+        if ((selectedMode === 'easy' && canPlayEasyToday) || 
+            (selectedMode === 'hard' && canPlayHardToday)) {
           startGame(selectedMode);
+        } else {
+          // Can't play - go back to games tab
+          router.back();
         }
       }
     } else if (prevUrlModeRef.current !== undefined) {
@@ -105,7 +125,7 @@ export default function WordFinderScreen() {
       prevUrlModeRef.current = undefined;
       setShowModeSelect(true);
     }
-  }, [urlMode, canPlayEasyToday, canPlayHardToday, startGame, resetGame]);
+  }, [urlMode, canPlayEasyToday, canPlayHardToday, startGame, resetGame, router]);
   
   // Timer effect
   useEffect(() => {
@@ -146,15 +166,17 @@ export default function WordFinderScreen() {
     setResult(gameResult);
     setShowResult(true);
     
+    // ALWAYS Save stats to Convex to record the attempt (even if 0 XP)
+    // This ensures daily limits work correctly
+    await updateWordFinderStats({
+      mode: mode,
+      wordsFound: gameResult.wordsFound,
+      xpEarned: gameResult.xpEarned,
+      correctAnswers: mode === 'hard' ? gameResult.wordsFound : undefined,
+    });
+
     if (gameResult.xpEarned > 0) {
-      // Save rewards and stats to Convex
       await addXP(gameResult.xpEarned);
-      await updateWordFinderStats({
-        mode: mode,
-        wordsFound: gameResult.wordsFound,
-        xpEarned: gameResult.xpEarned,
-        correctAnswers: mode === 'hard' ? gameResult.wordsFound : undefined,
-      });
       playWin();
     }
   };
@@ -206,6 +228,17 @@ export default function WordFinderScreen() {
       handleGameEnd();
     }
   }, [triggerTap, nextHardQuestion]);
+  
+  const handleSkipQuestion = useCallback(() => {
+    triggerTap('light');
+    setLastFoundWord(null);
+    setHintText(null);
+    setLocalSelection([]);
+    const hasMore = skipHardQuestion();
+    if (!hasMore) {
+      handleGameEnd();
+    }
+  }, [triggerTap, skipHardQuestion]);
   
   // Helper functions
   const isAdjacent = (cell1: CellPosition, cell2: CellPosition): boolean => {
@@ -486,8 +519,8 @@ export default function WordFinderScreen() {
   
   // Render mode selection
   if (showModeSelect) {
-    const canEasy = canPlayEasyToday();
-    const canHard = canPlayHardToday();
+    const canEasy = canPlayEasyToday;
+    const canHard = canPlayHardToday;
     
     return (
       <SafeAreaView style={styles.container}>
@@ -648,10 +681,18 @@ export default function WordFinderScreen() {
             </View>
             
             <View style={styles.resultButtons}>
-              <Pressable style={styles.resultButton} onPress={handlePlayAgain}>
-                <Ionicons name="refresh" size={20} color={COLORS.text} />
-                <Text style={styles.resultButtonText}>Play Again</Text>
-              </Pressable>
+              {mode === 'easy' && (
+                <Pressable style={styles.resultButton} onPress={handlePlayAgain}>
+                  <Ionicons name="refresh" size={20} color={COLORS.text} />
+                  <Text style={styles.resultButtonText}>Play Again</Text>
+                </Pressable>
+              )}
+              {mode === 'hard' && (
+                <View style={styles.resultInfoBadge}>
+                  <Ionicons name="time" size={16} color={COLORS.textSecondary} />
+                  <Text style={styles.resultInfoText}>Come back tomorrow!</Text>
+                </View>
+              )}
               <Pressable 
                 style={[styles.resultButton, styles.resultButtonPrimary]} 
                 onPress={handleBack}
@@ -701,14 +742,20 @@ export default function WordFinderScreen() {
         {mode === 'hard' && currentQuestion ? (
           <View style={styles.questionCard}>
             <Text style={styles.questionText}>{currentQuestion.question}</Text>
-            {hintText ? (
-              <Text style={styles.hintText}>💡 {hintText}</Text>
-            ) : (
-              <Pressable style={styles.hintButton} onPress={handleUseHint}>
-                <Ionicons name="bulb-outline" size={16} color={COLORS.warning} />
-                <Text style={styles.hintButtonText}>Use Hint (-50% XP)</Text>
+            <View style={styles.questionCardActions}>
+              {hintText ? (
+                <Text style={styles.hintText}>💡 {hintText}</Text>
+              ) : (
+                <Pressable style={styles.hintButton} onPress={handleUseHint}>
+                  <Ionicons name="bulb-outline" size={16} color={COLORS.warning} />
+                  <Text style={styles.hintButtonText}>Use Hint (-50% XP)</Text>
+                </Pressable>
+              )}
+              <Pressable style={styles.skipQuestionButton} onPress={handleSkipQuestion}>
+                <Ionicons name="play-skip-forward" size={16} color={COLORS.textMuted} />
+                <Text style={styles.skipQuestionButtonText}>Skip</Text>
               </Pressable>
-            )}
+            </View>
           </View>
         ) : mode === 'easy' && currentWordSet ? (
           <View style={styles.wordListContainer}>
@@ -1003,6 +1050,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.warning,
   },
+  questionCardActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.lg,
+  },
+  skipQuestionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.full,
+    backgroundColor: COLORS.surface,
+  },
+  skipQuestionButtonText: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    fontWeight: '500',
+  },
   
   // Word List (Easy mode)
   wordListContainer: {
@@ -1207,5 +1274,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: COLORS.text,
+  },
+  resultInfoBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.full,
+    gap: SPACING.xs,
+  },
+  resultInfoText: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
   },
 });

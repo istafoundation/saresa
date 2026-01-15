@@ -101,6 +101,12 @@ export default function PracticeScreen() {
     router.back();
   };
 
+  const handleSkip = () => {
+    triggerTap('light');
+    // Just move to next question without recording any stats
+    nextQuestion();
+  };
+
   if (!currentQuestion) {
     return (
       <SafeAreaView style={styles.container}>
@@ -212,6 +218,16 @@ export default function PracticeScreen() {
           </MotiView>
         )}
       </MotiView>
+
+      {/* Skip Button - shows before answering */}
+      {!showResult && (
+        <View style={styles.skipButtonContainer}>
+          <Pressable style={styles.skipButton} onPress={handleSkip}>
+            <Ionicons name="play-skip-forward" size={18} color={COLORS.textMuted} />
+            <Text style={styles.skipButtonText}>Skip</Text>
+          </Pressable>
+        </View>
+      )}
 
       {/* Next Button */}
       {showResult && (
@@ -394,5 +410,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: COLORS.text,
+  },
+  skipButtonContainer: {
+    padding: SPACING.lg,
+    alignItems: 'center',
+  },
+  skipButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.full,
+    backgroundColor: COLORS.surface,
+  },
+  skipButtonText: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+    fontWeight: '500',
   },
 });

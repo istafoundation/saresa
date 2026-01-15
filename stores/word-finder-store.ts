@@ -71,6 +71,7 @@ export interface WordFinderState {
   clearSelection: () => void;
   useHint: () => string | null;
   nextHardQuestion: () => boolean;
+  skipHardQuestion: () => boolean;
   updateTimer: (seconds: number) => void;
   finishGame: () => { xpEarned: number; wordsFound: number; total: number };
   canPlayEasyToday: () => boolean;
@@ -430,6 +431,50 @@ export const useWordFinderStore = create<WordFinderState>()(
           currentQuestion: question,
           answeredQuestionIds: [...answeredQuestionIds, question.id],
           hintUsed: false,
+        });
+        
+        return true;
+      },
+      
+      skipHardQuestion: () => {
+        const { answeredQuestionIds, hardQuestionsAnswered, timeRemaining, currentQuestion } = get();
+        
+        // Increment questions answered (but NOT correct answers - no XP for skip)
+        const newQuestionsAnswered = hardQuestionsAnswered + 1;
+        
+        // Max 5 questions per hard mode session
+        if (newQuestionsAnswered >= 5 || timeRemaining <= 0) {
+          set({ 
+            hardQuestionsAnswered: newQuestionsAnswered,
+            gameState: 'finished' 
+          });
+          return false;
+        }
+        
+        // Add current question to answered list if not already there
+        const updatedAnsweredIds = currentQuestion && !answeredQuestionIds.includes(currentQuestion.id)
+          ? [...answeredQuestionIds, currentQuestion.id]
+          : answeredQuestionIds;
+        
+        const question = getRandomQuestion(updatedAnsweredIds);
+        if (!question) {
+          set({ 
+            hardQuestionsAnswered: newQuestionsAnswered,
+            gameState: 'finished' 
+          });
+          return false;
+        }
+        
+        const { grid, placements } = generateGrid([question.answer]);
+        
+        set({
+          grid,
+          wordPlacements: placements,
+          selectedCells: [],
+          currentQuestion: question,
+          answeredQuestionIds: [...updatedAnsweredIds, question.id],
+          hintUsed: false,
+          hardQuestionsAnswered: newQuestionsAnswered,
         });
         
         return true;

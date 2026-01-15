@@ -118,6 +118,17 @@ export default function CompetitiveScreen() {
     setShowResult(true);
   };
 
+  const handleSkip = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    triggerTap('light');
+    
+    // Record as skipped (no XP for this question)
+    const result = answerQuestion(-1); // Invalid answer
+    setIsCorrect(false);
+    setCorrectIndex(result.correctIndex);
+    setShowResult(true);
+  };
+
   const handleAnswer = (index: number) => {
     if (showResult) return;
     if (timerRef.current) clearInterval(timerRef.current);
@@ -354,6 +365,16 @@ export default function CompetitiveScreen() {
           })}
         </View>
       </MotiView>
+
+      {/* Skip Button - shows before answering */}
+      {!showResult && (
+        <View style={styles.skipButtonContainer}>
+          <Pressable style={styles.skipButton} onPress={handleSkip}>
+            <Ionicons name="play-skip-forward" size={18} color={COLORS.textMuted} />
+            <Text style={styles.skipButtonText}>Skip (0 XP)</Text>
+          </Pressable>
+        </View>
+      )}
 
       {/* Next Button */}
       {showResult && (
@@ -617,5 +638,23 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: COLORS.text,
+  },
+  skipButtonContainer: {
+    padding: SPACING.lg,
+    alignItems: 'center',
+  },
+  skipButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.full,
+    backgroundColor: COLORS.surface,
+  },
+  skipButtonText: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+    fontWeight: '500',
   },
 });
