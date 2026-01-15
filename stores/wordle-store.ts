@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { storage } from '../utils/storage';
-import { getTodaysWord, isValidWord } from '../data/wordle-words';
+import { getTodaysWord, getTodaysHint, isValidWord } from '../data/wordle-words';
 
 // Zustand persist storage adapter for MMKV
 const zustandStorage = {
@@ -42,6 +42,7 @@ export interface WordleStats {
 export interface WordleState {
   // Current game state (local only - for active game session)
   targetWord: string;
+  targetHint: string;
   currentGuess: string;
   guesses: string[];
   gameState: GameState;
@@ -49,8 +50,15 @@ export interface WordleState {
   // Keyboard state
   letterStates: Record<string, LetterState>;
   
-  // Persistence - local fast-check (Convex is source of truth)
+  // Persistence - tracks when game was completed
   lastPlayedDate: string | null;
+  
+  // NEW: Track when game was started (for preserving in-progress games)
+  gameStartedDate: string | null;
+  
+  // Hint state
+  hintUsed: boolean;      // Did user use hint today? (persisted)
+  hintRevealed: boolean;  // Is hint currently shown? (UI state)
   
   // Actions
   addLetter: (letter: string) => void;
@@ -59,6 +67,8 @@ export interface WordleState {
   initGame: () => void;
   canPlayToday: () => boolean;
   resetGame: () => void;
+  useHint: () => void;                           // Mark hint as used (local)
+  setHintUsedFromServer: (used: boolean) => void; // Sync hint state from Convex
 }
 
 const WORD_LENGTH = 5;
@@ -69,11 +79,15 @@ export const useWordleStore = create<WordleState>()(
     (set, get) => ({
       // Initial state - game session only
       targetWord: '',
+      targetHint: '',
       currentGuess: '',
       guesses: [],
       gameState: 'playing',
       letterStates: {},
       lastPlayedDate: null,
+      gameStartedDate: null,
+      hintUsed: false,
+      hintRevealed: false,
       
       addLetter: (letter) => {
         const { currentGuess, gameState } = get();
@@ -90,7 +104,7 @@ export const useWordleStore = create<WordleState>()(
       },
       
       submitGuess: () => {
-        const { currentGuess, targetWord, guesses, letterStates, gameState } = get();
+        const { currentGuess, targetWord, guesses, letterStates, gameState, gameStartedDate } = get();
         
         if (gameState !== 'playing') {
           return { valid: false };
@@ -143,23 +157,29 @@ export const useWordleStore = create<WordleState>()(
         const newGuesses = [...guesses, currentGuess];
         const won = currentGuess === targetWord;
         const lost = !won && newGuesses.length >= MAX_GUESSES;
+        const today = getISTDate();
+        
+        // Mark game as started if this is the first guess
+        const shouldMarkStarted = !gameStartedDate || gameStartedDate !== today;
         
         // Update game state if ended
         // NOTE: Stats are updated in Convex via useGameStatsActions().updateWordleStats()
         if (won || lost) {
-          const today = getISTDate();
           set({
             guesses: newGuesses,
             currentGuess: '',
             letterStates: newLetterStates,
             gameState: won ? 'won' : 'lost',
             lastPlayedDate: today,
+            gameStartedDate: today,
           });
         } else {
           set({
             guesses: newGuesses,
             currentGuess: '',
             letterStates: newLetterStates,
+            // Mark that we started today's game (so it persists if user leaves)
+            ...(shouldMarkStarted ? { gameStartedDate: today } : {}),
           });
         }
         
@@ -168,18 +188,30 @@ export const useWordleStore = create<WordleState>()(
       
       initGame: () => {
         const today = getISTDate();
-        const { lastPlayedDate } = get();
+        const { lastPlayedDate, gameStartedDate, targetWord } = get();
         
-        // If already played today, keep current state
+        // If already completed today's game, keep current state
         if (lastPlayedDate === today) return;
         
-        // Start new game
+        // If game was started today (has guesses), preserve the state
+        // Also verify we're playing today's word to handle new day rollover
+        const todaysWord = getTodaysWord();
+        if (gameStartedDate === today && targetWord === todaysWord) {
+          // Game in progress for today - don't reset!
+          return;
+        }
+        
+        // Start new game - reset for new day
         set({
-          targetWord: getTodaysWord(),
+          targetWord: todaysWord,
+          targetHint: getTodaysHint(),
           currentGuess: '',
           guesses: [],
           gameState: 'playing',
           letterStates: {},
+          gameStartedDate: null,
+          hintUsed: false,
+          hintRevealed: false,
         });
       },
       
@@ -191,25 +223,45 @@ export const useWordleStore = create<WordleState>()(
       resetGame: () => {
         set({
           targetWord: getTodaysWord(),
+          targetHint: getTodaysHint(),
           currentGuess: '',
           guesses: [],
           gameState: 'playing',
           letterStates: {},
           lastPlayedDate: null,
+          gameStartedDate: null,
+          hintUsed: false,
+          hintRevealed: false,
         });
+      },
+      
+      useHint: () => {
+        set({ hintUsed: true, hintRevealed: true });
+      },
+      
+      setHintUsedFromServer: (used: boolean) => {
+        // Sync hint state from Convex (called after fetching didUseWordleHint)
+        // Only update if the server says hint was used and we haven't locally
+        if (used) {
+          set({ hintUsed: true, hintRevealed: true });
+        }
       },
     }),
     {
       name: 'wordle-storage',
       storage: createJSONStorage(() => zustandStorage),
-      // Only persist game session state, NOT stats (stats are in Convex)
+      // Persist game session state for resuming in-progress games
       partialize: (state) => ({
         targetWord: state.targetWord,
+        targetHint: state.targetHint,
         currentGuess: state.currentGuess,
         guesses: state.guesses,
         gameState: state.gameState,
         letterStates: state.letterStates,
         lastPlayedDate: state.lastPlayedDate,
+        gameStartedDate: state.gameStartedDate,
+        hintUsed: state.hintUsed,
+        hintRevealed: state.hintRevealed,
       }),
     }
   )

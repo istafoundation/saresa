@@ -5,22 +5,41 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView } from 'moti';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useQuery } from 'convex/react';
+import { api } from '../../convex/_generated/api';
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants/theme';
-import { useGKStore } from '../../stores/gk-store';
-import { useWordleStore } from '../../stores/wordle-store';
-import { useWordFinderStore } from '../../stores/word-finder-store';
 import { useUserStore } from '../../stores/user-store';
+import { useChildAuth } from '../../utils/childAuth';
 import { useTapFeedback } from '../../utils/useTapFeedback';
 import Mascot from '../../components/Mascot';
 
 export default function FunScreen() {
   const router = useRouter();
+  const { token } = useChildAuth();
   const { mascot } = useUserStore();
   const { triggerTap } = useTapFeedback();
-  const canPlayCompetitive = useGKStore(state => state.canPlayCompetitiveToday());
-  const canPlayWordle = useWordleStore(state => state.canPlayToday());
-  const canPlayWordFinderEasy = useWordFinderStore(state => state.canPlayEasyToday());
-  const canPlayWordFinderHard = useWordFinderStore(state => state.canPlayHardToday());
+  
+  // CONVEX IS SOURCE OF TRUTH for all daily games
+  const canPlayCompetitiveFromServer = useQuery(api.gameStats.canPlayGKCompetitive,
+    token ? { token } : 'skip'
+  );
+  const canPlayCompetitive = canPlayCompetitiveFromServer ?? true;
+  
+  const canPlayWordleFromServer = useQuery(api.gameStats.canPlayWordle,
+    token ? { token } : 'skip'
+  );
+  const canPlayWordle = canPlayWordleFromServer ?? true;
+  
+  const canPlayWordFinderEasyFromServer = useQuery(api.gameStats.canPlayWordFinder,
+    token ? { token, mode: 'easy' as const } : 'skip'
+  );
+  const canPlayWordFinderEasy = canPlayWordFinderEasyFromServer ?? true;
+  
+  const canPlayWordFinderHardFromServer = useQuery(api.gameStats.canPlayWordFinder,
+    token ? { token, mode: 'hard' as const } : 'skip'
+  );
+  const canPlayWordFinderHard = canPlayWordFinderHardFromServer ?? true;
+  
   
   
   const handleGamePress = (route: string) => {
@@ -136,9 +155,10 @@ export default function FunScreen() {
           <Pressable
             style={[
               styles.gameCard, 
-              !canPlayWordle && styles.gameCardPlayed
+              !canPlayWordle && styles.gameCardDisabled
             ]}
-            onPress={() => handleGamePress('/games/wordle')}
+            onPress={() => canPlayWordle && handleGamePress('/games/wordle')}
+            disabled={!canPlayWordle}
           >
             <LinearGradient
               colors={canPlayWordle 
@@ -150,11 +170,14 @@ export default function FunScreen() {
             >
               <Text style={styles.gameCardEmoji}>📝</Text>
               <View style={styles.gameCardTitleContainer}>
-                <Text style={styles.gameCardTitle}>Wordle</Text>
+                <Text style={[
+                  styles.gameCardTitle,
+                  !canPlayWordle && styles.gameCardTitleDisabled
+                ]}>Wordle</Text>
                 <Text style={styles.gameCardDesc}>
                   {canPlayWordle 
                     ? 'Guess the 5-letter word!' 
-                    : 'You\'ve played today\'s word'}
+                    : 'Come back tomorrow!'}
                 </Text>
               </View>
               {canPlayWordle ? (
@@ -173,7 +196,7 @@ export default function FunScreen() {
                   <Text style={styles.wordleInfoText}>6 attempts</Text>
                 </View>
                 <View style={styles.wordleInfoItem}>
-                  <Ionicons name="star" size={18} color={COLORS.accentGold} />
+                  <Ionicons name="star" size={18} color={canPlayWordle ? COLORS.accentGold : COLORS.textMuted} />
                   <Text style={styles.wordleInfoText}>+100 XP on win</Text>
                 </View>
               </View>
@@ -335,6 +358,12 @@ const styles = StyleSheet.create({
   },
   gameCardPlayed: {
     opacity: 0.8,
+  },
+  gameCardDisabled: {
+    opacity: 0.7,
+  },
+  gameCardTitleDisabled: {
+    color: COLORS.textMuted,
   },
   gameCardHeader: {
     flexDirection: 'row',

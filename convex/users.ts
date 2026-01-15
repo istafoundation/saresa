@@ -129,6 +129,7 @@ export const createUser = mutation({
       wordleMaxStreak: 0,
       wordleGuessDistribution: [0, 0, 0, 0, 0, 0],
       wordleLastPlayedDate: undefined,
+      wordleHintUsedDate: undefined,
 
       // Word Finder stats
       wfEasyGamesPlayed: 0,

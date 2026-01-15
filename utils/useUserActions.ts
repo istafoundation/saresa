@@ -147,6 +147,7 @@ export function useGameStatsActions() {
   const updateGKStatsMutation = useMutation(api.gameStats.updateGKStats);
   const updateWordleStatsMutation = useMutation(api.gameStats.updateWordleStats);
   const updateWordFinderStatsMutation = useMutation(api.gameStats.updateWordFinderStats);
+  const useWordleHintMutation = useMutation(api.gameStats.useWordleHint);
 
   const getAuthToken = () => {
     if (!token) {
@@ -179,6 +180,7 @@ export function useGameStatsActions() {
     updateWordleStats: async (data: {
       won: boolean;
       guessCount?: number;
+      usedHint?: boolean;
     }): Promise<{
       success: boolean;
       stats?: {
@@ -187,6 +189,7 @@ export function useGameStatsActions() {
         currentStreak: number;
         maxStreak: number;
         guessDistribution: number[];
+        usedHint: boolean;
       };
     }> => {
       logSync('updateWordleStats', data);
@@ -222,5 +225,22 @@ export function useGameStatsActions() {
         return false;
       }
     },
+
+    // Mark hint as used for today's Wordle (persists to Convex)
+    markWordleHintUsed: async (): Promise<boolean> => {
+      logSync('markWordleHintUsed');
+      const authToken = getAuthToken();
+      if (!authToken) return false;
+
+      try {
+        await useWordleHintMutation({ token: authToken });
+        logSync('markWordleHintUsed SUCCESS');
+        return true;
+      } catch (error) {
+        logError('markWordleHintUsed', error);
+        return false;
+      }
+    },
   };
 }
+

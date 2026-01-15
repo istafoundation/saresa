@@ -1,4 +1,4 @@
-// Wordle Game Screen - Updated with How-To-Play and Share
+// Wordle Game Screen - Updated with How-To-Play, Share, and Hints
 // Stats are read from Convex via useUserStore (synced by useConvexSync)
 import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,10 +13,13 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
+import { useQuery } from 'convex/react';
+import { api } from '../../convex/_generated/api';
 import { COLORS, SPACING, BORDER_RADIUS } from '../../constants/theme';
 import { useWordleStore, type LetterState } from '../../stores/wordle-store';
 import { useUserStore } from '../../stores/user-store';
 import { useUserActions, useGameStatsActions } from '../../utils/useUserActions';
+import { useChildAuth } from '../../utils/childAuth';
 import { isValidWord } from '../../data/wordle-words';
 import HowToPlayModal from '../../components/games/HowToPlayModal';
 import ShareButton from '../../components/games/ShareResults';
@@ -36,32 +39,56 @@ const LETTER_COLORS: Record<LetterState, string> = {
   unused: COLORS.surface,
 };
 
+// XP and shard rewards
+const XP_FULL = 100;
+const XP_WITH_HINT = 50;
+const SHARDS_FULL = 50;
+const SHARDS_WITH_HINT = 25;
+
 export default function WordleScreen() {
   const router = useRouter();
+  const { token } = useChildAuth();
   const { addXP, addWeaponShards } = useUserActions();
-  const { updateWordleStats } = useGameStatsActions();
+  const { updateWordleStats, markWordleHintUsed } = useGameStatsActions();
   
   // Get game session state from local store
   const {
     targetWord,
+    targetHint,
     currentGuess,
     guesses,
     gameState,
     letterStates,
+    hintUsed,
+    hintRevealed,
     addLetter,
     removeLetter,
     submitGuess,
     initGame,
+    useHint,
+    setHintUsedFromServer,
   } = useWordleStore();
   
   // Get stats from Convex-synced store (for initial how-to-play check)
   const { wordleStats } = useUserStore();
+  
+  // CONVEX IS SOURCE OF TRUTH - Check if user can play today
+  const canPlayTodayFromServer = useQuery(api.gameStats.canPlayWordle,
+    token ? { token } : 'skip'
+  );
+  
+  // Check if hint was used today (from Convex - for restoring state after app restart)
+  const didUseHintToday = useQuery(api.gameStats.didUseWordleHint, 
+    token ? { token } : 'skip'
+  );
   
   // Sound effects and music
   const { playKey, playSubmit, playWin, playWrong, startMusic, stopMusic } = useGameAudio();
   
   const [showResult, setShowResult] = useState(false);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
+  const [showHintConfirm, setShowHintConfirm] = useState(false);
+  const [alreadyPlayedToday, setAlreadyPlayedToday] = useState(false);
   // Stats from mutation result - used in modal to avoid race condition
   const [displayStats, setDisplayStats] = useState<{
     gamesPlayed: number;
@@ -73,9 +100,10 @@ export default function WordleScreen() {
   const shakeX = useSharedValue(0);
   const { triggerTap } = useTapFeedback();
 
+  // Initialize game - but defer to Convex for source of truth
   useEffect(() => {
     initGame();
-    startMusic(); // Start background music
+    // Don't start music yet - wait for Convex check
     // Show how-to-play on first visit (check Convex stats)
     if (wordleStats.gamesPlayed === 0) {
       setShowHowToPlay(true);
@@ -84,6 +112,26 @@ export default function WordleScreen() {
       stopMusic(); // Stop music on exit
     };
   }, []);
+
+  // SYNC WITH CONVEX: Handle game availability and music
+  useEffect(() => {
+    if (canPlayTodayFromServer === false) {
+      // User already played today according to Convex
+      setAlreadyPlayedToday(true);
+      stopMusic(); // Ensure music is stopped
+    } else if (canPlayTodayFromServer === true) {
+      // User can play
+      setAlreadyPlayedToday(false);
+      startMusic(); // Start music only when we confirm we can play
+    }
+  }, [canPlayTodayFromServer]);
+
+  // Sync hint state from Convex on load
+  useEffect(() => {
+    if (didUseHintToday === true) {
+      setHintUsedFromServer(true);
+    }
+  }, [didUseHintToday]);
 
   const handleKeyPress = (key: string) => {
     if (gameState !== 'playing') return;
@@ -99,6 +147,18 @@ export default function WordleScreen() {
       playKey();
       addLetter(key);
     }
+  };
+
+  const handleUseHint = () => {
+    if (hintUsed || hintRevealed) return;
+    setShowHintConfirm(true);
+  };
+
+  const confirmUseHint = async () => {
+    setShowHintConfirm(false);
+    useHint(); // Update local state
+    await markWordleHintUsed(); // Persist to Convex
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   const handleSubmit = async () => {
@@ -137,10 +197,17 @@ export default function WordleScreen() {
       if (result.won) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         stopMusic();
+        // Calculate rewards based on hint usage
+        const xpReward = hintUsed ? XP_WITH_HINT : XP_FULL;
+        const shardReward = hintUsed ? SHARDS_WITH_HINT : SHARDS_FULL;
         // Save rewards and stats to Convex
-        await addXP(100);
-        await addWeaponShards(50);
-        const statsResult = await updateWordleStats({ won: true, guessCount: guesses.length + 1 });
+        await addXP(xpReward);
+        await addWeaponShards(shardReward);
+        const statsResult = await updateWordleStats({ 
+          won: true, 
+          guessCount: guesses.length + 1,
+          usedHint: hintUsed,
+        });
         // Use returned stats directly to avoid race condition
         if (statsResult.success && statsResult.stats) {
           setDisplayStats(statsResult.stats);
@@ -154,7 +221,7 @@ export default function WordleScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         stopMusic();
         // Save stats to Convex (loss)
-        const statsResult = await updateWordleStats({ won: false });
+        const statsResult = await updateWordleStats({ won: false, usedHint: hintUsed });
         // Use returned stats directly to avoid race condition
         if (statsResult.success && statsResult.stats) {
           setDisplayStats(statsResult.stats);
@@ -191,6 +258,58 @@ export default function WordleScreen() {
     return '';
   };
 
+  // Calculate reward amounts for display
+  const xpReward = hintUsed ? XP_WITH_HINT : XP_FULL;
+  const shardReward = hintUsed ? SHARDS_WITH_HINT : SHARDS_FULL;
+
+  // If server confirms already played, show the overlay
+  if (alreadyPlayedToday && gameState === 'playing') {
+    return (
+      <SafeAreaView style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Pressable onPress={() => { triggerTap(); router.back(); }} style={styles.backButton}>
+            <Ionicons name="close" size={28} color={COLORS.text} />
+          </Pressable>
+          <Text style={styles.title}>Wordle</Text>
+          <View style={styles.headerRight}>
+            <Pressable onPress={() => { triggerTap(); setShowHowToPlay(true); }} style={styles.helpButton}>
+              <Ionicons name="help-circle-outline" size={28} color={COLORS.text} />
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Already Played Message */}
+        <View style={styles.alreadyPlayedContainer}>
+          <MotiView
+            from={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', damping: 15 }}
+            style={styles.alreadyPlayedCard}
+          >
+            <Text style={styles.alreadyPlayedEmoji}>✅</Text>
+            <Text style={styles.alreadyPlayedTitle}>Already Played Today!</Text>
+            <Text style={styles.alreadyPlayedSubtitle}>
+              Come back tomorrow for a new word
+            </Text>
+            <Pressable
+              style={styles.alreadyPlayedButton}
+              onPress={() => { triggerTap(); router.back(); }}
+            >
+              <Text style={styles.alreadyPlayedButtonText}>Go Back</Text>
+            </Pressable>
+          </MotiView>
+        </View>
+
+        {/* How To Play Modal */}
+        <HowToPlayModal
+          visible={showHowToPlay}
+          onClose={() => setShowHowToPlay(false)}
+        />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -198,11 +317,32 @@ export default function WordleScreen() {
         <Pressable onPress={() => { triggerTap(); router.back(); }} style={styles.backButton}>
           <Ionicons name="close" size={28} color={COLORS.text} />
         </Pressable>
-        <Text style={styles.title}>Mythology Wordle</Text>
-        <Pressable onPress={() => { triggerTap(); setShowHowToPlay(true); }} style={styles.helpButton}>
-          <Ionicons name="help-circle-outline" size={28} color={COLORS.text} />
-        </Pressable>
+        <Text style={styles.title}>Wordle</Text>
+        <View style={styles.headerRight}>
+          {/* Hint button - only show if playing and hint not yet used */}
+          {gameState === 'playing' && !hintRevealed && !alreadyPlayedToday && (
+            <Pressable onPress={() => { triggerTap(); handleUseHint(); }} style={styles.hintButton}>
+              <Ionicons name="bulb-outline" size={24} color={COLORS.accentGold} />
+            </Pressable>
+          )}
+          <Pressable onPress={() => { triggerTap(); setShowHowToPlay(true); }} style={styles.helpButton}>
+            <Ionicons name="help-circle-outline" size={28} color={COLORS.text} />
+          </Pressable>
+        </View>
       </View>
+
+      {/* Hint Banner - shown when hint is revealed */}
+      {hintRevealed && (
+        <MotiView
+          from={{ opacity: 0, translateY: -20 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: 'spring', damping: 15 }}
+          style={styles.hintBanner}
+        >
+          <Ionicons name="bulb" size={18} color={COLORS.accentGold} />
+          <Text style={styles.hintText}>{targetHint}</Text>
+        </MotiView>
+      )}
 
       {/* Grid */}
       <Animated.View style={[styles.gridContainer, shakeStyle]}>
@@ -301,13 +441,19 @@ export default function WordleScreen() {
             
             {gameState === 'won' && (
               <View style={styles.rewardsContainer}>
-                <View style={styles.xpEarned}>
-                  <Text style={styles.xpEarnedText}>+100 XP</Text>
+                <View style={[styles.xpEarned, hintUsed && styles.reducedReward]}>
+                  <Text style={styles.xpEarnedText}>+{xpReward} XP</Text>
                 </View>
-                <View style={styles.shardsEarned}>
-                  <Text style={styles.shardsEarnedText}>+50 💎</Text>
+                <View style={[styles.shardsEarned, hintUsed && styles.reducedReward]}>
+                  <Text style={styles.shardsEarnedText}>+{shardReward} 💎</Text>
                 </View>
               </View>
+            )}
+
+            {gameState === 'won' && hintUsed && (
+              <Text style={styles.hintUsedNote}>
+                💡 Rewards reduced (hint used)
+              </Text>
             )}
 
             <View style={styles.statsRow}>
@@ -353,6 +499,79 @@ export default function WordleScreen() {
         </MotiView>
       )}
 
+      {/* Hint Confirmation Modal */}
+      {showHintConfirm && (
+        <MotiView
+          from={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          style={styles.resultOverlay}
+        >
+          <MotiView
+            from={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', damping: 15 }}
+            style={styles.hintConfirmCard}
+          >
+            {/* Icon */}
+            <View style={styles.hintConfirmIcon}>
+              <Ionicons name="bulb" size={40} color={COLORS.accentGold} />
+            </View>
+            
+            <Text style={styles.hintConfirmTitle}>Need a Hint?</Text>
+            <Text style={styles.hintConfirmSubtitle}>
+              Using a hint will reduce your rewards
+            </Text>
+
+            {/* Reward Comparison */}
+            <View style={styles.rewardComparison}>
+              {/* Without Hint */}
+              <View style={styles.rewardColumn}>
+                <Text style={styles.rewardColumnLabel}>Without Hint</Text>
+                <View style={styles.rewardBadgeFull}>
+                  <Text style={styles.rewardBadgeText}>{XP_FULL} XP</Text>
+                </View>
+                <View style={[styles.rewardBadgeFull, styles.shardBadge]}>
+                  <Text style={styles.rewardBadgeText}>{SHARDS_FULL} 💎</Text>
+                </View>
+              </View>
+
+              {/* Arrow */}
+              <View style={styles.rewardArrow}>
+                <Ionicons name="arrow-forward" size={24} color={COLORS.textMuted} />
+              </View>
+
+              {/* With Hint */}
+              <View style={styles.rewardColumn}>
+                <Text style={styles.rewardColumnLabel}>With Hint</Text>
+                <View style={styles.rewardBadgeReduced}>
+                  <Text style={styles.rewardBadgeTextReduced}>{XP_WITH_HINT} XP</Text>
+                </View>
+                <View style={[styles.rewardBadgeReduced, styles.shardBadgeReduced]}>
+                  <Text style={styles.rewardBadgeTextReduced}>{SHARDS_WITH_HINT} 💎</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Buttons */}
+            <View style={styles.hintConfirmButtons}>
+              <Pressable
+                style={styles.hintCancelButton}
+                onPress={() => { triggerTap(); setShowHintConfirm(false); }}
+              >
+                <Text style={styles.hintCancelButtonText}>Keep Trying</Text>
+              </Pressable>
+              <Pressable
+                style={styles.hintConfirmButton}
+                onPress={() => { triggerTap(); confirmUseHint(); }}
+              >
+                <Ionicons name="bulb" size={18} color="#000" />
+                <Text style={styles.hintConfirmButtonText}>Show Hint</Text>
+              </Pressable>
+            </View>
+          </MotiView>
+        </MotiView>
+      )}
+
       {/* How To Play Modal */}
       <HowToPlayModal
         visible={showHowToPlay}
@@ -380,6 +599,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  hintButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   helpButton: {
     width: 44,
     height: 44,
@@ -390,6 +619,22 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: COLORS.text,
+  },
+  hintBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.accentGold + '20',
+    marginHorizontal: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.md,
+    gap: SPACING.sm,
+  },
+  hintText: {
+    flex: 1,
+    fontSize: 14,
+    color: COLORS.accentGold,
+    fontWeight: '500',
   },
   gridContainer: {
     alignItems: 'center',
@@ -492,7 +737,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.sm,
     borderRadius: BORDER_RADIUS.full,
-    marginBottom: SPACING.lg,
   },
   xpEarnedText: {
     fontSize: 18,
@@ -503,7 +747,7 @@ const styles = StyleSheet.create({
   rewardsContainer: {
     flexDirection: 'row',
     gap: SPACING.md,
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.sm,
   },
   shardsEarned: {
     backgroundColor: COLORS.primary + '30',
@@ -515,6 +759,14 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: COLORS.primary,
+  },
+  reducedReward: {
+    opacity: 0.7,
+  },
+  hintUsedNote: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginBottom: SPACING.lg,
   },
   statsRow: {
     flexDirection: 'row',
@@ -546,4 +798,160 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.text,
   },
+  // Hint Confirmation Modal Styles
+  hintConfirmCard: {
+    backgroundColor: COLORS.backgroundCard,
+    borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.xl,
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 320,
+  },
+  hintConfirmIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: COLORS.accentGold + '20',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.md,
+  },
+  hintConfirmTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: SPACING.xs,
+  },
+  hintConfirmSubtitle: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.lg,
+    textAlign: 'center',
+  },
+  rewardComparison: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.lg,
+    gap: SPACING.md,
+  },
+  rewardColumn: {
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  rewardColumnLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textMuted,
+    marginBottom: SPACING.xs,
+  },
+  rewardBadgeFull: {
+    backgroundColor: COLORS.wordleCorrect,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  rewardBadgeText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  shardBadge: {
+    backgroundColor: COLORS.primary,
+  },
+  rewardBadgeReduced: {
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.textMuted + '40',
+  },
+  rewardBadgeTextReduced: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textMuted,
+  },
+  shardBadgeReduced: {
+    borderColor: COLORS.textMuted + '40',
+  },
+  rewardArrow: {
+    paddingHorizontal: SPACING.sm,
+  },
+  hintConfirmButtons: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+    width: '100%',
+  },
+  hintCancelButton: {
+    flex: 1,
+    backgroundColor: COLORS.surface,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    alignItems: 'center',
+  },
+  hintCancelButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  hintConfirmButton: {
+    flex: 1,
+    backgroundColor: COLORS.accentGold,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.xs,
+  },
+  hintConfirmButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#000',
+  },
+  // Already Played Today Styles
+  alreadyPlayedContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: SPACING.lg,
+  },
+  alreadyPlayedCard: {
+    backgroundColor: COLORS.backgroundCard,
+    borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.xl,
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 320,
+  },
+  alreadyPlayedEmoji: {
+    fontSize: 64,
+    marginBottom: SPACING.md,
+  },
+  alreadyPlayedTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: SPACING.sm,
+    textAlign: 'center',
+  },
+  alreadyPlayedSubtitle: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.lg,
+    textAlign: 'center',
+  },
+  alreadyPlayedButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+  },
+  alreadyPlayedButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
 });
+

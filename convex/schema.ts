@@ -67,6 +67,7 @@ export default defineSchema({
     wordleMaxStreak: v.number(),
     wordleGuessDistribution: v.array(v.number()),
     wordleLastPlayedDate: v.optional(v.string()),
+    wordleHintUsedDate: v.optional(v.string()), // Date when hint was used (IST)
     
     // Word Finder Stats
     wfEasyGamesPlayed: v.number(),

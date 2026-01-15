@@ -87,6 +87,7 @@ export const updateWordleStats = mutation({
     token: v.string(),
     won: v.boolean(),
     guessCount: v.optional(v.number()), // 1-6 if won
+    usedHint: v.optional(v.boolean()), // Did user use hint this game?
   },
   handler: async (ctx, args) => {
     const childId = await getChildIdFromSession(ctx, args.token);
@@ -115,6 +116,7 @@ export const updateWordleStats = mutation({
         ? Math.max(user.wordleMaxStreak, user.wordleCurrentStreak + 1)
         : user.wordleMaxStreak,
       guessDistribution: distribution,
+      usedHint: args.usedHint ?? false,
     };
 
     await ctx.db.patch(user._id, {
@@ -147,6 +149,45 @@ export const canPlayWordle = query({
 
     const today = getISTDate();
     return user.wordleLastPlayedDate !== today;
+  },
+});
+
+// Mark that user used a hint today (persists even if app is closed)
+export const useWordleHint = mutation({
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    const childId = await getChildIdFromSession(ctx, args.token);
+    if (!childId) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_child_id", (q) => q.eq("childId", childId))
+      .first();
+
+    if (!user) throw new Error("User not found");
+
+    const today = getISTDate();
+    await ctx.db.patch(user._id, { wordleHintUsedDate: today });
+    return { success: true };
+  },
+});
+
+// Check if user used a hint today (for restoring state after app restart)
+export const didUseWordleHint = query({
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    const childId = await getChildIdFromSession(ctx, args.token);
+    if (!childId) return false;
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_child_id", (q) => q.eq("childId", childId))
+      .first();
+
+    if (!user) return false;
+
+    const today = getISTDate();
+    return user.wordleHintUsedDate === today;
   },
 });
 

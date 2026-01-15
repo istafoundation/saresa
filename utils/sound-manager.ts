@@ -170,21 +170,25 @@ export function useBackgroundMusic() {
   }, [musicEnabled, musicVolume, musicPlayer]);
   
   const stopMusic = useCallback(() => {
-    if (!musicPlayer || isUnmountedRef.current) return;
+    if (!musicPlayer) return;
     
     try {
-      musicPlayer.pause();
-      musicPlayer.seekTo(0);
+      if (musicPlayer.playing) {
+        musicPlayer.pause();
+        musicPlayer.seekTo(0);
+      }
     } catch (e) {
       // Player may have been released - this is expected during unmount
     }
   }, [musicPlayer]);
   
   const pauseMusic = useCallback(() => {
-    if (!musicPlayer || isUnmountedRef.current) return;
+    if (!musicPlayer) return;
     
     try {
-      musicPlayer.pause();
+      if (musicPlayer.playing) {
+        musicPlayer.pause();
+      }
     } catch (e) {
       // Player may have been released
     }
