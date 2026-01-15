@@ -58,7 +58,6 @@ export default function WordFinderScreen() {
   const [lastFoundWord, setLastFoundWord] = useState<string | null>(null);
   const [hintText, setHintText] = useState<string | null>(null);
   const [result, setResult] = useState<{ xpEarned: number; wordsFound: number; total: number } | null>(null);
-  const [autoStarted, setAutoStarted] = useState(false);
   
   // Local selection state for smooth updates
   const [localSelection, setLocalSelection] = useState<CellPosition[]>([]);
@@ -71,21 +70,42 @@ export default function WordFinderScreen() {
   
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const gridLayoutRef = useRef<{ x: number; y: number } | null>(null);
+  const prevUrlModeRef = useRef<string | undefined>(undefined);
   
-  // Auto-start game if mode is passed in URL
+  // Handle URL mode changes - reset and start game in one effect
   useEffect(() => {
-    if (urlMode && !autoStarted && gameState === 'idle') {
-      const selectedMode = urlMode as GameMode;
-      if ((selectedMode === 'easy' && canPlayEasyToday()) || 
-          (selectedMode === 'hard' && canPlayHardToday())) {
-        const success = startGame(selectedMode);
-        if (success) {
-          setAutoStarted(true);
-          setShowModeSelect(false);
+    if (urlMode) {
+      const modeChanged = urlMode !== prevUrlModeRef.current;
+      
+      if (modeChanged) {
+        // Reset store game state first
+        resetGame();
+        prevUrlModeRef.current = urlMode;
+        
+        // Reset all local state for fresh start
+        setShowModeSelect(false);
+        setShowResult(false);
+        setResult(null);
+        setLastFoundWord(null);
+        setHintText(null);
+        setLocalSelection([]);
+      }
+      
+      // Use direct store access to get current state (avoids stale closure)
+      const currentState = useWordFinderStore.getState();
+      if (currentState.gameState === 'idle') {
+        const selectedMode = urlMode as GameMode;
+        if ((selectedMode === 'easy' && canPlayEasyToday()) || 
+            (selectedMode === 'hard' && canPlayHardToday())) {
+          startGame(selectedMode);
         }
       }
+    } else if (prevUrlModeRef.current !== undefined) {
+      // Navigated without mode param - show mode selection
+      prevUrlModeRef.current = undefined;
+      setShowModeSelect(true);
     }
-  }, [urlMode, autoStarted, gameState, canPlayEasyToday, canPlayHardToday, startGame]);
+  }, [urlMode, canPlayEasyToday, canPlayHardToday, startGame, resetGame]);
   
   // Timer effect
   useEffect(() => {

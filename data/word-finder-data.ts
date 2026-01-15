@@ -83,12 +83,12 @@ export const HARD_QUESTIONS: HardQuestion[] = [
   { id: 12, question: 'What is a synonym for "angry"?', answer: 'IRATE', hint: 'Very mad' },
   { id: 13, question: 'What is a synonym for "brave"?', answer: 'BOLD', hint: 'Courageous' },
   { id: 14, question: 'What is a synonym for "smart"?', answer: 'CLEVER', hint: 'Intelligent' },
-  { id: 15, question: 'What is a synonym for "old"?', answer: 'ANCIENT', hint: 'Very old' },
+  { id: 15, question: 'What is a synonym for "old"?', answer: 'AGED', hint: 'Elderly' },
 
   // Antonyms
   { id: 16, question: 'What is an antonym of "loud"?', answer: 'QUIET', hint: 'Not noisy' },
   { id: 17, question: 'What is an antonym of "fast"?', answer: 'SLOW', hint: 'Not quick' },
-  { id: 18, question: 'What is an antonym of "deep"?', answer: 'SHALLOW', hint: 'Not deep' },
+  { id: 18, question: 'What is an antonym of "heavy"?', answer: 'LIGHT', hint: 'Not heavy' },
   { id: 19, question: 'What is an antonym of "rough"?', answer: 'SMOOTH', hint: 'Not bumpy' },
   { id: 20, question: 'What is an antonym of "wet"?', answer: 'DRY', hint: 'Not moist' },
 
@@ -96,15 +96,15 @@ export const HARD_QUESTIONS: HardQuestion[] = [
   { id: 21, question: 'What word from Latin means "to carry"?', answer: 'FERRY', hint: 'Transport across water' },
   { id: 22, question: 'What word comes from "graph" meaning write?', answer: 'DRAFT', hint: 'A written plan' },
   { id: 23, question: 'What word relates to "aqua" (water)?', answer: 'FLUID', hint: 'Liquid state' },
-  { id: 24, question: 'What word relates to "terra" (earth)?', answer: 'TERRAIN', hint: 'Land surface' },
+  { id: 24, question: 'What word relates to "terra"?', answer: 'EARTH', hint: 'Our planet' },
   { id: 25, question: 'What word relates to "solar" (sun)?', answer: 'SUNNY', hint: 'Full of sunshine' },
 
   // Grammar Terms
   { id: 26, question: 'What punctuation ends a question?', answer: 'QUERY', hint: 'Question mark symbol' },
-  { id: 27, question: 'A word that describes a noun is called?', answer: 'ADJECTIVE', hint: 'Describes things' },
+  { id: 27, question: 'What word means "to change"?', answer: 'MODIFY', hint: 'Alter or adjust' },
   { id: 28, question: 'A word that shows action is called?', answer: 'VERB', hint: 'Action word' },
   { id: 29, question: 'Words that name things are called?', answer: 'NOUNS', hint: 'Person, place, thing' },
-  { id: 30, question: 'A word that replaces a noun is called?', answer: 'PRONOUN', hint: 'He, she, it' },
+  { id: 30, question: 'A word that modifies a verb is called?', answer: 'ADVERB', hint: 'Quickly, slowly' },
 
   // Idiom Meanings
   { id: 31, question: 'In "raining cats and dogs", what does it mean?', answer: 'HEAVY', hint: 'Intense rain' },
@@ -115,10 +115,10 @@ export const HARD_QUESTIONS: HardQuestion[] = [
 
   // Word Patterns
   { id: 36, question: 'What 5-letter word starts and ends with same letter?', answer: 'KAYAK', hint: 'Boat for paddling' },
-  { id: 37, question: 'What word has all 5 vowels in order?', answer: 'FACETIOUS', hint: 'Joking' },
+  { id: 37, question: 'What word has all 5 vowels?', answer: 'AUDIO', hint: 'Sound related' },
   { id: 38, question: 'A word spelled same forwards & backwards?', answer: 'RADAR', hint: 'Detection system' },
   { id: 39, question: 'What 5-letter word has no vowels?', answer: 'GLYPH', hint: 'Carved symbol' },
-  { id: 40, question: 'What word has 3 double letters in a row?', answer: 'BOOKKEEPER', hint: 'Handles accounts' },
+  { id: 40, question: 'What word has 2 double letters?', answer: 'MURMUR', hint: 'Soft sound' },
 
   // Homophones
   { id: 41, question: 'What sounds like "there" but means "belonging to them"?', answer: 'THEIR', hint: 'Possessive form' },
