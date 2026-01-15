@@ -6,7 +6,13 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "version:patch": "npm version patch --no-git-tag-version && node ./scripts/sync-version.js",
+    "version:minor": "npm version minor --no-git-tag-version && node ./scripts/sync-version.js",
+    "version:major": "npm version major --no-git-tag-version && node ./scripts/sync-version.js",
+    "build:release": "npm run version:patch && node ./scripts/build-release.js",
+    "build:release:minor": "npm run version:minor && node ./scripts/build-release.js",
+    "build:release:major": "npm run version:major && node ./scripts/build-release.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

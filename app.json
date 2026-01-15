@@ -22,7 +22,8 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1A0A2E"
       },
-      "package": "in.istafoundation.saresa"
+      "package": "in.istafoundation.saresa",
+      "versionCode": 1
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -30,7 +31,8 @@
     },
     "plugins": [
       "expo-router",
-      "expo-audio"
+      "expo-audio",
+      "./plugins/withAndroidSigning"
     ]
   }
 }

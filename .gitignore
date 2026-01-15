@@ -41,5 +41,12 @@ yarn-error.*
 /ios
 /android
 
+# Release builds output
+/builds
+
+# Signing certificates (KEEP PRIVATE!)
+/certs
+*.keystore
+
 #documentations
 docs
