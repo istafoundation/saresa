@@ -15,7 +15,7 @@ interface StatCardProps {
     label: string;
     positive?: boolean;
   };
-  color?: "emerald" | "emerald" | "amber" | "rose" | "blue" | "violet";
+  color?: "emerald" | "amber" | "rose" | "blue" | "violet";
   className?: string;
 }
 
@@ -29,7 +29,6 @@ export function StatCard({
 }: StatCardProps) {
   
   const colorStyles = {
-    emerald: "bg-emerald-50 text-emerald-600 ring-emerald-100",
     emerald: "bg-emerald-50 text-emerald-600 ring-emerald-100",
     amber: "bg-amber-50 text-amber-600 ring-amber-100",
     rose: "bg-rose-50 text-rose-600 ring-rose-100",
