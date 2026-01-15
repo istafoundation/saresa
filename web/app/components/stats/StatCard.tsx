@@ -15,7 +15,7 @@ interface StatCardProps {
     label: string;
     positive?: boolean;
   };
-  color?: "emerald" | "amber" | "rose" | "blue" | "violet";
+  color?: "emerald" | "amber" | "rose" | "blue" | "violet" | "indigo";
   className?: string;
 }
 
@@ -34,6 +34,7 @@ export function StatCard({
     rose: "bg-rose-50 text-rose-600 ring-rose-100",
     blue: "bg-blue-50 text-blue-600 ring-blue-100",
     violet: "bg-violet-50 text-violet-600 ring-violet-100",
+    indigo: "bg-indigo-50 text-indigo-600 ring-indigo-100",
   };
 
   return (
