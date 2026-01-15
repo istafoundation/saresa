@@ -1,6 +1,0 @@
-{
-  "buildCommand": "npx convex codegen && cd web && npm run build",
-  "outputDirectory": "web/.next",
-  "installCommand": "npm install --legacy-peer-deps && cd web && npm install --legacy-peer-deps",
-  "framework": null
-}
