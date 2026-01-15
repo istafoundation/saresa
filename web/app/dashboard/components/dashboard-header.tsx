@@ -7,7 +7,7 @@ export function DashboardHeader() {
   return (
     <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 sm:mb-12 bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
       <div className="flex items-center gap-3">
-        <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
+        <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600">
           <LayoutDashboard size={24} />
         </div>
         <div>
@@ -19,7 +19,7 @@ export function DashboardHeader() {
         <UserButton 
           appearance={{
             elements: {
-              avatarBox: "h-10 w-10 ring-2 ring-indigo-100",
+              avatarBox: "h-10 w-10 ring-2 ring-emerald-100",
             }
           }}
           afterSignOutUrl="/" 

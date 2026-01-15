@@ -1,53 +1,59 @@
-// 5-letter mythology-themed words for Wordle
-// Each word relates to Hindu mythology, culture, or Sanskrit terms
+// 5-letter English words for Wordle
+// Common vocabulary words for guessing
 
 export const WORDLE_WORDS = [
-  // Gods and Deities
-  'SHIVA', 'DURGA', 'INDRA', 'AGNIS', 'SURYA',
-  'VARUN', 'KUBERA', 'YAMAS', 'KALIS', 'SHAKTI',
+  // Common Everyday Words
+  'ABOUT', 'ABOVE', 'ACTOR', 'ADAPT', 'ADMIT',
+  'ADOPT', 'ADULT', 'AGENT', 'AGREE', 'AHEAD',
+  'ALARM', 'ALBUM', 'ALERT', 'ALLOW', 'ALONE',
+  'ALONG', 'ALTER', 'AMONG', 'ANGER', 'ANGLE',
+  'ANGRY', 'APART', 'APPLE', 'APPLY', 'ARENA',
   
-  // Concepts and Terms
-  'KARMA', 'VEDAS', 'PRANA', 'ATMAN', 'MUDRA',
-  'YANTRA', 'TANTRA', 'SUTRA', 'MANAS', 'YOGIS',
+  // Action Words
+  'ARGUE', 'ARISE', 'AVOID', 'AWAKE', 'AWARD',
+  'BEACH', 'BEGIN', 'BEING', 'BELOW', 'BENCH',
+  'BIRTH', 'BLACK', 'BLAME', 'BLANK', 'BLEND',
+  'BLIND', 'BLOCK', 'BLOOD', 'BOARD', 'BOOST',
   
-  // Epic Characters
-  'RAMAS', 'SITAS', 'ARJUN', 'BHIMA', 'DRONA',
-  'KARNA', 'NAKUL', 'KRIPA',
+  // Descriptive Words
+  'BOUND', 'BRAIN', 'BRAND', 'BRAVE', 'BREAD',
+  'BREAK', 'BRICK', 'BRIEF', 'BRING', 'BROAD',
+  'BROWN', 'BUILD', 'BUNCH', 'BURST', 'CABLE',
+  'CARRY', 'CATCH', 'CAUSE', 'CHAIN', 'CHAIR',
+  'CHEAP', 'CHECK', 'CHEST', 'CHIEF', 'CHILD',
   
-  // Sacred Items
-  'LOTUS', 'CONCH', 'FLASK', 'WHEEL', 'MACES',
+  // Places & Objects
+  'CHOSE', 'CLAIM', 'CLASS', 'CLEAN', 'CLEAR',
+  'CLIMB', 'CLOCK', 'CLOSE', 'CLOUD', 'COACH',
+  'COAST', 'COUNT', 'COURT', 'COVER', 'CRAFT',
+  'CRASH', 'CREAM', 'CRIME', 'CROSS', 'CROWD',
   
-  // Places
-  'KASHI', 'GANGA', 'AYODH', 'LANKA', 'MATHS',
+  // More Common Words
+  'DAILY', 'DANCE', 'DEATH', 'DEBUT', 'DELAY',
+  'DEPTH', 'DOING', 'DOUBT', 'DOZEN', 'DRAFT',
+  'DRAMA', 'DRANK', 'DRAWN', 'DREAM', 'DRESS',
+  'DRINK', 'DRIVE', 'DROVE', 'DYING', 'EAGER',
+  'EARLY', 'EARTH', 'EIGHT', 'ELITE', 'EMPTY',
   
-  // Animals (Vahanas)
-  'NANDI', 'GARUD', 'SWANS', 'LIONS', 'BULLS',
+  // Emotions & States
+  'ENEMY', 'ENJOY', 'ENTER', 'ENTRY', 'EQUAL',
+  'ERROR', 'EVENT', 'EVERY', 'EXACT', 'EXIST',
+  'EXTRA', 'FAITH', 'FALSE', 'FAULT', 'FAVOR',
+  'FIELD', 'FIFTH', 'FIFTY', 'FIGHT', 'FINAL',
   
-  // Nature Elements  
-  'EARTH', 'FIRES', 'WATER', 'WINDS', 'SKIES',
+  // Things
+  'FIRST', 'FIXED', 'FLASH', 'FLEET', 'FLOOR',
+  'FLUID', 'FOCUS', 'FORCE', 'FORTH', 'FORTY',
+  'FORUM', 'FOUND', 'FRAME', 'FRESH', 'FRONT',
+  'FRUIT', 'FUNNY', 'GIANT', 'GIVEN', 'GLASS',
+  'GLOBE', 'GOING', 'GRACE', 'GRADE', 'GRAIN',
   
-  // Qualities
-  'POWER', 'GRACE', 'TRUTH', 'PEACE', 'LIGHT',
-  'VALOR', 'GLORY', 'HONOR', 'UNITY', 'BLISS',
-  
-  // Actions
-  'DANCE', 'CHANT', 'BLESS', 'GUARD', 'GUIDE',
-  
-  // Time/Cycle
-  'YUGAS', 'CYCLE', 'EPOCH', 'TIMES', 'KALPA',
-  
-  // Weapons (simplified)
-  'SWORD', 'ARROW', 'SPEAR', 'BLAZE', 'STORM',
-  
-  // Music/Arts
-  'FLUTE', 'DRUMS', 'VEENA', 'SONGS', 'BEATS',
-  
-  // Numbers/Sacred
-  'THREE', 'SEVEN', 'THREI', 'TRINE',
-  
-  // Common Sanskrit-derived
-  'NAMES', 'FORMS', 'PATHS', 'SOULS', 'STARS',
-  'REALM', 'CROWN', 'ROYAL', 'SAGE',
+  // More Words
+  'GRAND', 'GRANT', 'GRASS', 'GRAVE', 'GREAT',
+  'GREEN', 'GROSS', 'GROUP', 'GROWN', 'GUESS',
+  'GUEST', 'GUIDE', 'HAPPY', 'HEART', 'HEAVY',
+  'HENCE', 'HORSE', 'HOTEL', 'HOUSE', 'HUMAN',
+  'IDEAL', 'IMAGE', 'INDEX', 'INNER', 'INPUT',
 ];
 
 // Total valid words for checking guesses
@@ -110,10 +116,14 @@ export const VALID_WORDS = new Set([
   'YOUNG', 'YOUTH', 'ZEROS',
 ]);
 
-// Function to get today's word deterministically
+// Function to get today's word deterministically (using IST timezone)
 export function getTodaysWord(): string {
   const startDate = new Date('2024-01-01').getTime();
-  const today = new Date().setHours(0, 0, 0, 0);
+  // Use IST (UTC+5:30) for consistent word across all users
+  const now = new Date();
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  const istNow = new Date(now.getTime() + istOffset);
+  const today = new Date(istNow.toISOString().split('T')[0]).getTime();
   const daysSinceStart = Math.floor((today - startDate) / (1000 * 60 * 60 * 24));
   return WORDLE_WORDS[daysSinceStart % WORDLE_WORDS.length];
 }

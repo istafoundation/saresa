@@ -198,8 +198,8 @@ export default function PracticeScreen() {
           })}
         </View>
 
-        {/* Fun Fact */}
-        {showResult && currentQuestion.funFact && (
+        {/* Explanation - shown when user answers incorrectly */}
+        {showResult && !isCorrect && currentQuestion.explanation && (
           <MotiView
             from={{ opacity: 0, translateY: 10 }}
             animate={{ opacity: 1, translateY: 0 }}
@@ -207,7 +207,7 @@ export default function PracticeScreen() {
           >
             <Mascot mascotType={mascot} size="small" />
             <View style={styles.funFactBubble}>
-              <Text style={styles.funFactText}>{currentQuestion.funFact}</Text>
+              <Text style={styles.funFactText}>{currentQuestion.explanation}</Text>
             </View>
           </MotiView>
         )}

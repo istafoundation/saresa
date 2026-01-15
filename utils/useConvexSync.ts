@@ -6,8 +6,8 @@ import { api } from '../convex/_generated/api';
 import { useUserStore, type SyncedUserData } from '../stores/user-store';
 import { useChildAuth } from './childAuth';
 
-// Enable/disable debug logging
-const DEBUG_SYNC = __DEV__ || true;
+// Enable/disable debug logging (only in development)
+const DEBUG_SYNC = __DEV__;
 
 function logSync(message: string, data?: any) {
   if (DEBUG_SYNC) {

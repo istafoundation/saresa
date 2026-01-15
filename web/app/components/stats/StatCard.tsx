@@ -15,7 +15,7 @@ interface StatCardProps {
     label: string;
     positive?: boolean;
   };
-  color?: "indigo" | "emerald" | "amber" | "rose" | "blue" | "violet";
+  color?: "emerald" | "emerald" | "amber" | "rose" | "blue" | "violet";
   className?: string;
 }
 
@@ -24,12 +24,12 @@ export function StatCard({
   value, 
   icon: Icon, 
   trend, 
-  color = "indigo",
+  color = "emerald",
   className 
 }: StatCardProps) {
   
   const colorStyles = {
-    indigo: "bg-indigo-50 text-indigo-600 ring-indigo-100",
+    emerald: "bg-emerald-50 text-emerald-600 ring-emerald-100",
     emerald: "bg-emerald-50 text-emerald-600 ring-emerald-100",
     amber: "bg-amber-50 text-amber-600 ring-amber-100",
     rose: "bg-rose-50 text-rose-600 ring-rose-100",

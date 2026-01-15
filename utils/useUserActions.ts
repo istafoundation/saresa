@@ -4,8 +4,8 @@ import { useMutation } from 'convex/react';
 import { api } from '../convex/_generated/api';
 import { useChildAuth } from './childAuth';
 
-// Enable/disable debug logging
-const DEBUG_SYNC = __DEV__ || true;
+// Enable/disable debug logging (only in development)
+const DEBUG_SYNC = __DEV__;
 
 function logSync(action: string, data?: any) {
   if (DEBUG_SYNC) {

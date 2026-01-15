@@ -52,7 +52,7 @@ export default function ChildStatsPage() {
           <div>
             <h1 className="text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
               {child.name}
-              <span className="text-sm font-medium px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100">
+              <span className="text-sm font-medium px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-100">
                 Level {detailedStats ? Math.floor((detailedStats.profile?.xp ?? 0) / 100) + 1 : 1}
               </span>
             </h1>
@@ -63,7 +63,7 @@ export default function ChildStatsPage() {
         <div className="flex gap-3">
           <div className="text-right hidden md:block">
             <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">Total XP</p>
-            <p className="text-2xl font-bold text-indigo-600">
+            <p className="text-2xl font-bold text-emerald-600">
               {detailedStats ? (detailedStats.profile?.xp ?? 0).toLocaleString() : 0}
             </p>
           </div>
@@ -87,7 +87,7 @@ export default function ChildStatsPage() {
                color="amber"
              />
              <StatCard 
-                label="GK Accuracy" 
+                label="English Insane Accuracy" 
                 value={`${detailedStats.gkStats?.accuracy ?? 0}%`} 
                 icon={Target} 
                 color="emerald"
@@ -112,7 +112,7 @@ export default function ChildStatsPage() {
             <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
                <div className="flex items-center justify-between mb-6">
                  <div>
-                   <h3 className="font-bold text-lg text-slate-900">General Knowledge</h3>
+                   <h3 className="font-bold text-lg text-slate-900">English Insane</h3>
                    <p className="text-slate-500 text-xs">Practice session accuracy</p>
                  </div>
                  <div className="bg-emerald-50 text-emerald-700 font-bold px-3 py-1 rounded-lg text-sm">

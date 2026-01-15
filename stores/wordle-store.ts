@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { storage } from '../utils/storage';
-import { getTodaysWord } from '../data/wordle-words';
+import { getTodaysWord, isValidWord } from '../data/wordle-words';
 
 // Zustand persist storage adapter for MMKV
 const zustandStorage = {
@@ -18,6 +18,13 @@ const zustandStorage = {
     storage.delete(name);
   },
 };
+
+// IST timezone helper - matches server-side calculation
+function getISTDate(): string {
+  const now = new Date();
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  return new Date(now.getTime() + istOffset).toISOString().split('T')[0];
+}
 
 export type LetterState = 'correct' | 'present' | 'absent' | 'unused';
 export type GameState = 'playing' | 'won' | 'lost';
@@ -93,6 +100,11 @@ export const useWordleStore = create<WordleState>()(
           return { valid: false };
         }
         
+        // Validate word is in dictionary
+        if (!isValidWord(currentGuess)) {
+          return { valid: false, error: 'Not in word list' };
+        }
+        
         // Calculate result for each letter
         const result: LetterState[] = [];
         const targetLetters = targetWord.split('');
@@ -135,7 +147,7 @@ export const useWordleStore = create<WordleState>()(
         // Update game state if ended
         // NOTE: Stats are updated in Convex via useGameStatsActions().updateWordleStats()
         if (won || lost) {
-          const today = new Date().toISOString().split('T')[0];
+          const today = getISTDate();
           set({
             guesses: newGuesses,
             currentGuess: '',
@@ -155,7 +167,7 @@ export const useWordleStore = create<WordleState>()(
       },
       
       initGame: () => {
-        const today = new Date().toISOString().split('T')[0];
+        const today = getISTDate();
         const { lastPlayedDate } = get();
         
         // If already played today, keep current state
@@ -172,7 +184,7 @@ export const useWordleStore = create<WordleState>()(
       },
       
       canPlayToday: () => {
-        const today = new Date().toISOString().split('T')[0];
+        const today = getISTDate();
         return get().lastPlayedDate !== today;
       },
       

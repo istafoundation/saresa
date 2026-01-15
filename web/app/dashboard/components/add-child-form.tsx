@@ -59,7 +59,7 @@ export function AddChildForm() {
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 sticky top-8">
       <div className="flex items-center gap-3 mb-6">
-        <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+        <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
           <UserPlus size={20} />
         </div>
         <h2 className="text-xl font-bold text-slate-900">Add Child</h2>
@@ -71,7 +71,7 @@ export function AddChildForm() {
           <input
             type="text"
             required
-            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-slate-50 focus:bg-white outline-none transition-all text-slate-900 placeholder:text-slate-400"
+            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-slate-50 focus:bg-white outline-none transition-all text-slate-900 placeholder:text-slate-400"
             placeholder="e.g. Arjun"
             value={formData.name}
             onChange={e => setFormData({...formData, name: e.target.value})}
@@ -84,7 +84,7 @@ export function AddChildForm() {
             type="text"
             required
             minLength={4}
-            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-slate-50 focus:bg-white outline-none transition-all text-slate-900 placeholder:text-slate-400 font-mono text-sm"
+            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-slate-50 focus:bg-white outline-none transition-all text-slate-900 placeholder:text-slate-400 font-mono text-sm"
             placeholder="e.g. arjun_cool"
             value={formData.username}
             onChange={e => setFormData({...formData, username: e.target.value.toLowerCase().replace(/\s/g, '')})}
@@ -99,7 +99,7 @@ export function AddChildForm() {
               type="password"
               required
               minLength={6}
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-slate-50 focus:bg-white outline-none transition-all text-slate-900 placeholder:text-slate-400"
+              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-slate-50 focus:bg-white outline-none transition-all text-slate-900 placeholder:text-slate-400"
               placeholder="Min 6 chars"
               value={formData.password}
               onChange={e => setFormData({...formData, password: e.target.value})}
@@ -111,7 +111,7 @@ export function AddChildForm() {
             <input
               type="password"
               required
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-slate-50 focus:bg-white outline-none transition-all text-slate-900 placeholder:text-slate-400"
+              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-slate-50 focus:bg-white outline-none transition-all text-slate-900 placeholder:text-slate-400"
               placeholder="Re-enter"
               value={formData.confirmPassword}
               onChange={e => setFormData({...formData, confirmPassword: e.target.value})}
@@ -136,7 +136,7 @@ export function AddChildForm() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3.5 rounded-xl transition-all shadow-lg shadow-indigo-200 disabled:opacity-70 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2 mt-2"
+          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3.5 rounded-xl transition-all shadow-lg shadow-emerald-200 disabled:opacity-70 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2 mt-2"
         >
           {loading ? (
             <>

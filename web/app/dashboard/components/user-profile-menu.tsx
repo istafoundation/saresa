@@ -41,7 +41,7 @@ export function UserProfileMenu() {
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 p-1.5 rounded-full hover:bg-slate-100 transition-colors border border-transparent hover:border-slate-200"
       >
-        <div className="h-9 w-9 rounded-full overflow-hidden bg-indigo-100 flex items-center justify-center border border-slate-200">
+        <div className="h-9 w-9 rounded-full overflow-hidden bg-emerald-100 flex items-center justify-center border border-slate-200">
           <img 
             src={user.imageUrl} 
             alt={user.fullName || "User"} 
@@ -72,7 +72,7 @@ export function UserProfileMenu() {
               Account
             </div>
             {/* 
-            <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+            <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors">
               <User size={16} />
               Profile Settings
             </button>

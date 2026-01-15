@@ -9,6 +9,7 @@
  */
 
 import type * as childAuth from "../childAuth.js";
+import type * as crons from "../crons.js";
 import type * as gameStats from "../gameStats.js";
 import type * as migrations from "../migrations.js";
 import type * as parents from "../parents.js";
@@ -22,6 +23,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   childAuth: typeof childAuth;
+  crons: typeof crons;
   gameStats: typeof gameStats;
   migrations: typeof migrations;
   parents: typeof parents;

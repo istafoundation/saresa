@@ -152,7 +152,7 @@ export default function ProfileScreen() {
           <View style={styles.gameStatCard}>
             <View style={styles.gameStatHeader}>
               <Text style={styles.gameStatEmoji}>🧠</Text>
-              <Text style={styles.gameStatTitle}>General Knowledge</Text>
+              <Text style={styles.gameStatTitle}>English Insane</Text>
             </View>
             <View style={styles.gameStatGrid}>
               <View style={styles.gameStatItem}>

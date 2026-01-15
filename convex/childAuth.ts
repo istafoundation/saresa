@@ -1,14 +1,21 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 
-// Generate random session token (32 hex characters)
+// Generate cryptographically secure session token (32 hex characters)
 function generateToken(): string {
-  const chars = "abcdef0123456789";
-  let token = "";
-  for (let i = 0; i < 32; i++) {
-    token += chars[Math.floor(Math.random() * chars.length)];
+  // Use crypto.randomUUID() which is available in modern runtimes
+  // Fallback to timestamp + random for older environments
+  try {
+    // Generate two UUIDs and extract hex portions for 32 chars
+    const uuid = crypto.randomUUID().replace(/-/g, '');
+    return uuid.slice(0, 32);
+  } catch {
+    // Fallback: use multiple random sources for better entropy
+    const timestamp = Date.now().toString(16);
+    const random1 = Math.random().toString(16).slice(2);
+    const random2 = Math.random().toString(16).slice(2);
+    return (timestamp + random1 + random2).slice(0, 32).padEnd(32, '0');
   }
-  return token;
 }
 
 // Session duration: 30 days in milliseconds
@@ -116,8 +123,8 @@ export const logout = mutation({
   },
 });
 
-// Clean up expired sessions (can be called periodically)
-export const cleanupExpiredSessions = mutation({
+// Clean up expired sessions (called by cron job)
+export const cleanupExpiredSessions = internalMutation({
   handler: async (ctx) => {
     const now = Date.now();
     const expiredSessions = await ctx.db

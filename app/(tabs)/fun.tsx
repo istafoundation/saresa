@@ -65,8 +65,8 @@ export default function FunScreen() {
             >
               <Text style={styles.gameCardEmoji}>🧠</Text>
               <View style={styles.gameCardTitleContainer}>
-                <Text style={styles.gameCardTitle}>General Knowledge</Text>
-                <Text style={styles.gameCardDesc}>Test your mythology mastery</Text>
+                <Text style={styles.gameCardTitle}>English Insane</Text>
+                <Text style={styles.gameCardDesc}>Master hard English grammar</Text>
               </View>
             </LinearGradient>
             
@@ -150,7 +150,7 @@ export default function FunScreen() {
             >
               <Text style={styles.gameCardEmoji}>📝</Text>
               <View style={styles.gameCardTitleContainer}>
-                <Text style={styles.gameCardTitle}>Mythology Wordle</Text>
+                <Text style={styles.gameCardTitle}>Wordle</Text>
                 <Text style={styles.gameCardDesc}>
                   {canPlayWordle 
                     ? 'Guess the 5-letter word!' 
@@ -197,7 +197,7 @@ export default function FunScreen() {
               <Text style={styles.gameCardEmoji}>🔍</Text>
               <View style={styles.gameCardTitleContainer}>
                 <Text style={styles.gameCardTitle}>Word Finder</Text>
-                <Text style={styles.gameCardDesc}>Find hidden words in the grid</Text>
+                <Text style={styles.gameCardDesc}>Find English vocabulary words</Text>
               </View>
             </LinearGradient>
             

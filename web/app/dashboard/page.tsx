@@ -6,8 +6,9 @@ import { api } from "../../../convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
 import { ChildCard } from "./components/child-card";
 import { AddChildForm } from "./components/add-child-form";
-import { Users, Sparkles, TrendingUp, Gamepad2 } from "lucide-react";
+import { Users, Sparkles, TrendingUp, Gamepad2, Flame, Calendar } from "lucide-react";
 import { StatCard } from "../components/stats/StatCard";
+import { ActivityFeed } from "./components/activity-feed";
 
 export default function Dashboard() {
   const { user } = useUser();
@@ -30,27 +31,77 @@ export default function Dashboard() {
   const activeToday = myChildren?.filter(c => c.hasPlayedToday).length || 0;
   const totalXP = myChildren?.reduce((acc, curr) => acc + (curr.xp || 0), 0) || 0;
   const totalStreak = myChildren?.reduce((acc, curr) => acc + (curr.streak || 0), 0) || 0;
+  const totalGamesPlayed = myChildren?.reduce((acc, curr) => acc + (curr.gamesPlayed || 0), 0) || 0;
+  const bestStreak = myChildren?.reduce((acc, curr) => Math.max(acc, curr.streak || 0), 0) || 0;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">
-            Welcome back, {user?.firstName} 👋
-          </h1>
-          <p className="text-slate-500 mt-2 text-lg">
-            Here's how your little learners are doing today.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-full text-sm font-medium">
-          <Sparkles size={16} />
-          <span>{activeToday} Active Today</span>
+      {/* Quick Stats Summary Banner */}
+      <div className="bg-gradient-to-r from-emerald-600 via-emerald-700 to-emerald-700 rounded-3xl p-6 md:p-8 text-white shadow-xl shadow-emerald-200/50 relative overflow-hidden">
+        {/* Decorative circles */}
+        <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/4" />
+        <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/4" />
+        
+        <div className="relative z-10">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
+                Welcome back, {user?.firstName}! 👋
+              </h1>
+              <p className="text-emerald-100 mt-1 text-sm md:text-base">
+                Here's how your little learners are doing today.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm text-white rounded-full text-sm font-medium border border-white/20">
+              <Calendar size={16} />
+              <span>{new Date().toLocaleDateString('en-IN', { weekday: 'long', month: 'short', day: 'numeric' })}</span>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
+              <div className="flex items-center gap-2 text-emerald-200 text-xs font-medium mb-1">
+                <Users size={14} />
+                <span>Today's Activity</span>
+              </div>
+              <p className="text-2xl md:text-3xl font-bold">
+                {activeToday}<span className="text-lg text-emerald-200">/{totalChildren}</span>
+              </p>
+              <p className="text-emerald-200 text-xs mt-1">learners playing</p>
+            </div>
+            
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
+              <div className="flex items-center gap-2 text-emerald-200 text-xs font-medium mb-1">
+                <TrendingUp size={14} />
+                <span>Total XP</span>
+              </div>
+              <p className="text-2xl md:text-3xl font-bold">{totalXP.toLocaleString()}</p>
+              <p className="text-emerald-200 text-xs mt-1">experience earned</p>
+            </div>
+            
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
+              <div className="flex items-center gap-2 text-amber-200 text-xs font-medium mb-1">
+                <Flame size={14} />
+                <span>Best Streak</span>
+              </div>
+              <p className="text-2xl md:text-3xl font-bold">{bestStreak}</p>
+              <p className="text-emerald-200 text-xs mt-1">days in a row</p>
+            </div>
+            
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
+              <div className="flex items-center gap-2 text-emerald-200 text-xs font-medium mb-1">
+                <Gamepad2 size={14} />
+                <span>Games Played</span>
+              </div>
+              <p className="text-2xl md:text-3xl font-bold">{totalGamesPlayed.toLocaleString()}</p>
+              <p className="text-emerald-200 text-xs mt-1">total sessions</p>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Stats Overview Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
         <StatCard 
           label="Total Learners" 
           value={totalChildren} 
@@ -62,7 +113,6 @@ export default function Dashboard() {
           value={totalXP.toLocaleString()} 
           icon={TrendingUp} 
           color="indigo"
-          trend={{ value: 12, label: "vs last week", positive: true }} 
         />
         <StatCard 
           label="Active Streaks" 
@@ -72,7 +122,7 @@ export default function Dashboard() {
         />
         <StatCard 
           label="Games Played" 
-          value="--" 
+          value={totalGamesPlayed.toLocaleString()} 
           icon={Gamepad2} 
           color="emerald"
         />
@@ -84,7 +134,7 @@ export default function Dashboard() {
           <section>
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                <Users className="text-indigo-500" size={24} />
+                <Users className="text-emerald-500" size={24} />
                 Your Children
               </h2>
             </div>
@@ -113,8 +163,9 @@ export default function Dashboard() {
           </section>
         </div>
 
-        {/* Add Child Form */}
-        <div className="lg:col-span-1">
+        {/* Sidebar: Activity Feed + Add Child Form */}
+        <div className="lg:col-span-1 space-y-6">
+          <ActivityFeed />
           <div className="sticky top-8">
              <AddChildForm />
           </div>

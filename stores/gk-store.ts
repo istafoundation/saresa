@@ -19,6 +19,13 @@ const zustandStorage = {
   },
 };
 
+// IST timezone helper - matches server-side calculation
+function getISTDate(): string {
+  const now = new Date();
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  return new Date(now.getTime() + istOffset).toISOString().split('T')[0];
+}
+
 export type GameMode = 'practice' | 'competitive';
 export type QuizState = 'idle' | 'playing' | 'finished';
 
@@ -163,7 +170,7 @@ export const useGKStore = create<GKState>()(
           xpEarned = Math.round(baseXP * (1 + accuracy) * speedBonus);
           
           // Mark competitive as played today
-          const today = new Date().toISOString().split('T')[0];
+          const today = getISTDate();
           set({ lastCompetitiveDate: today });
         }
         
@@ -173,7 +180,7 @@ export const useGKStore = create<GKState>()(
       },
       
       canPlayCompetitiveToday: () => {
-        const today = new Date().toISOString().split('T')[0];
+        const today = getISTDate();
         return get().lastCompetitiveDate !== today;
       },
       

@@ -1,4 +1,5 @@
 // Word Finder game data - Word sets for Easy mode and Questions for Hard mode
+// English vocabulary focused
 
 export interface WordSet {
   id: number;
@@ -13,127 +14,125 @@ export interface HardQuestion {
   hint: string;
 }
 
-// Easy mode: 5-word themed sets (mythology focused)
+// Easy mode: 5-word themed sets (English vocabulary focused)
 export const WORD_SETS: WordSet[] = [
-  // Ramayana Theme
-  { id: 1, theme: 'Ramayana Heroes', words: ['RAMA', 'SITA', 'HANUMAN', 'LAXMAN', 'BHARAT'] },
-  { id: 2, theme: 'Ramayana Villains', words: ['RAVANA', 'KUMBH', 'SURPA', 'VIBHI', 'MEGHA'] },
-  { id: 3, theme: 'Ramayana Places', words: ['LANKA', 'AYODH', 'PANCHV', 'KISHK', 'MITHIL'] },
+  // Colors
+  { id: 1, theme: 'Colors', words: ['BLACK', 'WHITE', 'GREEN', 'BROWN', 'CORAL'] },
+  { id: 2, theme: 'More Colors', words: ['BEIGE', 'IVORY', 'MAUVE', 'AMBER', 'PEACH'] },
   
-  // Mahabharata Theme
-  { id: 4, theme: 'Pandavas', words: ['ARJUN', 'BHEEM', 'YUDHI', 'NAKUL', 'SAHED'] },
-  { id: 5, theme: 'Kauravas', words: ['DURYO', 'DUSHAS', 'KARNA', 'SHAKUN', 'DRONA'] },
-  { id: 6, theme: 'Mahabharata Women', words: ['DRUPA', 'KUNTI', 'GANDH', 'SUBHA', 'UTTARA'] },
+  // Animals
+  { id: 3, theme: 'Farm Animals', words: ['HORSE', 'SHEEP', 'GOOSE', 'CHICK', 'SWINE'] },
+  { id: 4, theme: 'Wild Animals', words: ['TIGER', 'ZEBRA', 'PANDA', 'KOALA', 'MOOSE'] },
+  { id: 5, theme: 'Sea Creatures', words: ['WHALE', 'SHARK', 'SQUID', 'CORAL', 'CLAMS'] },
+  { id: 6, theme: 'Birds', words: ['EAGLE', 'CRANE', 'STORK', 'RAVEN', 'FINCH'] },
   
-  // Gods & Goddesses
-  { id: 7, theme: 'Trinity', words: ['BRAHM', 'VISHN', 'SHIVA', 'SARAS', 'LAXMI'] },
-  { id: 8, theme: 'Avatars', words: ['MATSY', 'KURMA', 'VARAH', 'NARSI', 'VAMAN'] },
-  { id: 9, theme: 'Goddesses', words: ['DURGA', 'KALI', 'PARVT', 'RADHA', 'GAYAT'] },
+  // Body Parts
+  { id: 7, theme: 'Body Parts', words: ['HEART', 'BRAIN', 'HANDS', 'SPINE', 'LIVER'] },
+  { id: 8, theme: 'Face Parts', words: ['MOUTH', 'TEETH', 'CHEEK', 'BROWS', 'SKULL'] },
   
-  // Weapons & Items
-  { id: 10, theme: 'Divine Weapons', words: ['TRISH', 'CHAKR', 'GANDA', 'VAJRA', 'PINAKA'] },
-  { id: 11, theme: 'Sacred Items', words: ['VEENA', 'LOTUS', 'CONCH', 'MACE', 'CROWN'] },
+  // Numbers & Time
+  { id: 9, theme: 'Numbers', words: ['THREE', 'SEVEN', 'EIGHT', 'FIFTY', 'FORTY'] },
+  { id: 10, theme: 'Time Words', words: ['MONTH', 'YEARS', 'WEEKS', 'HOURS', 'TODAY'] },
   
-  // Elements & Nature
-  { id: 12, theme: 'Panchabhoota', words: ['EARTH', 'WATER', 'FIRE', 'AIR', 'SPACE'] },
-  { id: 13, theme: 'Sacred Animals', words: ['NANDI', 'GARUD', 'MOOSH', 'AIRAV', 'SHESH'] },
+  // Emotions
+  { id: 11, theme: 'Positive Feelings', words: ['HAPPY', 'PROUD', 'BRAVE', 'CHARM', 'BLISS'] },
+  { id: 12, theme: 'Negative Feelings', words: ['ANGRY', 'SCARY', 'GRIEF', 'PANIC', 'SHAME'] },
   
-  // Sages & Saints
-  { id: 14, theme: 'Great Sages', words: ['VYASA', 'VALMI', 'NARDA', 'AGAST', 'BHRIGU'] },
-  { id: 15, theme: 'Seven Rishis', words: ['ATRI', 'VASISH', 'KASYAP', 'GOTAM', 'JAMDA'] },
+  // Nature
+  { id: 13, theme: 'Weather', words: ['STORM', 'CLOUD', 'SUNNY', 'FROST', 'FOGGY'] },
+  { id: 14, theme: 'Plants', words: ['MAPLE', 'TULIP', 'DAISY', 'FERNS', 'GRASS'] },
+  { id: 15, theme: 'Landscapes', words: ['BEACH', 'CLIFF', 'RIVER', 'HILLS', 'SWAMP'] },
   
-  // Concepts
-  { id: 16, theme: 'Yogic Terms', words: ['KARMA', 'DHARM', 'MOKSH', 'ATMAN', 'MAYA'] },
-  { id: 17, theme: 'Sacred Texts', words: ['VEDAS', 'GITA', 'PURAN', 'UPANI', 'SUTRA'] },
+  // Food & Drinks
+  { id: 16, theme: 'Fruits', words: ['APPLE', 'GRAPE', 'LEMON', 'MANGO', 'PEACH'] },
+  { id: 17, theme: 'Vegetables', words: ['ONION', 'BEANS', 'CARROT', 'MAIZE', 'OLIVE'] },
+  { id: 18, theme: 'Drinks', words: ['WATER', 'JUICE', 'LATTE', 'MOCHA', 'CIDER'] },
   
-  // Krishna Leela
-  { id: 18, theme: 'Krishna Story', words: ['GOPAL', 'GOVID', 'YASHO', 'NANDA', 'BALRAM'] },
-  { id: 19, theme: 'Vrindavan', words: ['FLUTE', 'GOPIS', 'YAMUN', 'BUTTER', 'DANCE'] },
+  // Home & Objects
+  { id: 19, theme: 'Furniture', words: ['CHAIR', 'TABLE', 'COUCH', 'SHELF', 'STOOL'] },
+  { id: 20, theme: 'Kitchen Items', words: ['KNIFE', 'SPOON', 'PLATE', 'BOWLS', 'GLASS'] },
   
-  // Festivals
-  { id: 20, theme: 'Festivals', words: ['DIWALI', 'HOLI', 'NAVRT', 'DURGA', 'GANESH'] },
+  // Action Verbs
+  { id: 21, theme: 'Movement Verbs', words: ['CLIMB', 'DANCE', 'MARCH', 'SLIDE', 'SWING'] },
+  { id: 22, theme: 'Communication', words: ['SPEAK', 'WRITE', 'SHOUT', 'SING', 'LAUGH'] },
   
-  // More word sets for variety
-  { id: 21, theme: 'Demons', words: ['ASURA', 'DANAV', 'RAKSHAS', 'MAHISH', 'TARAK'] },
-  { id: 22, theme: 'Heavenly', words: ['DEVAS', 'INDRA', 'VARUN', 'AGNI', 'VAYU'] },
-  { id: 23, theme: 'Sacred Rivers', words: ['GANGA', 'YAMUN', 'SARAS', 'GODAV', 'KAVERI'] },
-  { id: 24, theme: 'Mountains', words: ['KAILASH', 'MERU', 'MANDARA', 'HIMAV', 'VINDHYA'] },
-  { id: 25, theme: 'Kingdoms', words: ['HASTIN', 'INDRAP', 'DWARKA', 'MATHUR', 'KASHI'] },
+  // Adjectives
+  { id: 23, theme: 'Size Words', words: ['LARGE', 'SMALL', 'GIANT', 'DWARF', 'GRAND'] },
+  { id: 24, theme: 'Texture Words', words: ['ROUGH', 'SMOOTH', 'SILKY', 'BUMPY', 'FUZZY'] },
+  { id: 25, theme: 'Speed Words', words: ['QUICK', 'RAPID', 'SWIFT', 'HASTY', 'BRISK'] },
 ];
 
-// Hard mode: Question-answer pairs with hints
+// Hard mode: Question-answer pairs with hints (English vocabulary definitions)
 export const HARD_QUESTIONS: HardQuestion[] = [
-  // Ramayana
-  { id: 1, question: 'Who killed the demon king Ravana?', answer: 'RAMA', hint: 'Prince of Ayodhya' },
-  { id: 2, question: 'Who is the monkey god in Ramayana?', answer: 'HANUMAN', hint: 'Son of Vayu' },
-  { id: 3, question: 'Who was abducted by Ravana?', answer: 'SITA', hint: 'Wife of Rama' },
-  { id: 4, question: 'Which kingdom did Ravana rule?', answer: 'LANKA', hint: 'Island kingdom' },
-  { id: 5, question: 'Who built the bridge to Lanka?', answer: 'NALA', hint: 'Vanara architect' },
-  
-  // Mahabharata
-  { id: 6, question: 'Who was the greatest archer in Mahabharata?', answer: 'ARJUNA', hint: 'Third Pandava' },
-  { id: 7, question: 'Who narrated the Bhagavad Gita?', answer: 'KRISHNA', hint: 'Eighth avatar of Vishnu' },
-  { id: 8, question: 'Who was the blind king in Mahabharata?', answer: 'DHRIT', hint: 'Father of Kauravas' },
-  { id: 9, question: 'Who was known for his strength among Pandavas?', answer: 'BHEEM', hint: 'Second Pandava' },
-  { id: 10, question: 'Who was the teacher of both Pandavas and Kauravas?', answer: 'DRONA', hint: 'Guru of archery' },
-  
-  // Gods
-  { id: 11, question: 'Who is the destroyer in the Holy Trinity?', answer: 'SHIVA', hint: 'Has a third eye' },
-  { id: 12, question: 'Who is the preserver in the Holy Trinity?', answer: 'VISHNU', hint: 'Has a discus' },
-  { id: 13, question: 'Who is the creator in the Holy Trinity?', answer: 'BRAHMA', hint: 'Has four heads' },
-  { id: 14, question: 'Who is the god of thunder and rain?', answer: 'INDRA', hint: 'King of Devas' },
-  { id: 15, question: 'Who is the god of fire?', answer: 'AGNI', hint: 'Consumes offerings' },
-  
-  // Goddesses
-  { id: 16, question: 'Who killed the buffalo demon Mahishasura?', answer: 'DURGA', hint: 'Has ten arms' },
-  { id: 17, question: 'Who is the goddess of wealth?', answer: 'LAXMI', hint: 'Wife of Vishnu' },
-  { id: 18, question: 'Who is the goddess of knowledge?', answer: 'SARAS', hint: 'Plays the veena' },
-  { id: 19, question: 'Who is the fierce form of Shakti?', answer: 'KALI', hint: 'Has a garland of skulls' },
-  { id: 20, question: 'Who is the consort of Lord Shiva?', answer: 'PARVATI', hint: 'Daughter of Himavan' },
-  
-  // Weapons
-  { id: 21, question: 'What is the trident of Lord Shiva called?', answer: 'TRISHUL', hint: 'Three-pronged weapon' },
-  { id: 22, question: 'What is the discus of Lord Vishnu called?', answer: 'CHAKRA', hint: 'Spinning weapon' },
-  { id: 23, question: 'What is the bow of Lord Shiva called?', answer: 'PINAKA', hint: 'Divine bow' },
-  { id: 24, question: 'What weapon did Indra use?', answer: 'VAJRA', hint: 'Thunderbolt' },
-  { id: 25, question: 'What is the mace of Bheem called?', answer: 'GADA', hint: 'Heavy club' },
-  
-  // Sacred Animals
-  { id: 26, question: 'What is the vehicle of Lord Shiva?', answer: 'NANDI', hint: 'Sacred bull' },
-  { id: 27, question: 'What is the vehicle of Lord Vishnu?', answer: 'GARUDA', hint: 'King of birds' },
-  { id: 28, question: 'What is the vehicle of Lord Ganesha?', answer: 'MOOSHAK', hint: 'Small creature' },
-  { id: 29, question: 'What is the vehicle of Goddess Durga?', answer: 'SIMHA', hint: 'King of jungle' },
-  { id: 30, question: 'What is the thousand-headed serpent?', answer: 'SHESHA', hint: 'Vishnu rests on it' },
-  
-  // Concepts
-  { id: 31, question: 'What is the cycle of action and consequence called?', answer: 'KARMA', hint: 'What goes around...' },
-  { id: 32, question: 'What is righteous duty called?', answer: 'DHARMA', hint: 'Path of righteousness' },
-  { id: 33, question: 'What is liberation from rebirth called?', answer: 'MOKSHA', hint: 'Ultimate goal' },
-  { id: 34, question: 'What is the soul called in Sanskrit?', answer: 'ATMAN', hint: 'Inner self' },
-  { id: 35, question: 'What is cosmic illusion called?', answer: 'MAYA', hint: 'World of illusion' },
-  
-  // Texts
-  { id: 36, question: 'Which text contains the song of the Lord?', answer: 'GITA', hint: 'Krishna\'s teachings' },
-  { id: 37, question: 'What are the oldest sacred texts called?', answer: 'VEDAS', hint: 'Four in number' },
-  { id: 38, question: 'Who wrote the Mahabharata?', answer: 'VYASA', hint: 'Also called Ved Vyasa' },
-  { id: 39, question: 'Who wrote the Ramayana?', answer: 'VALMIKI', hint: 'First poet (Adi Kavi)' },
-  
-  // Places
-  { id: 40, question: 'Where is Lord Shiva\'s abode?', answer: 'KAILASH', hint: 'Sacred mountain' },
-  { id: 41, question: 'What is Krishna\'s underwater kingdom called?', answer: 'DWARKA', hint: 'City of gates' },
-  { id: 42, question: 'Where did Krishna grow up?', answer: 'VRINDA', hint: 'Land of tulsi' },
-  { id: 43, question: 'Which river descended from heaven?', answer: 'GANGA', hint: 'Most sacred river' },
-  
-  // Avatars
-  { id: 44, question: 'Which avatar was half-man half-lion?', answer: 'NARASIMHA', hint: 'Fourth avatar' },
-  { id: 45, question: 'Which avatar was a fish?', answer: 'MATSYA', hint: 'First avatar' },
-  { id: 46, question: 'Which avatar was a tortoise?', answer: 'KURMA', hint: 'Second avatar' },
-  { id: 47, question: 'Which avatar was a boar?', answer: 'VARAHA', hint: 'Third avatar' },
-  { id: 48, question: 'Which avatar was a dwarf?', answer: 'VAMANA', hint: 'Fifth avatar' },
-  
-  // Sages
-  { id: 49, question: 'Who is the celestial sage with a veena?', answer: 'NARADA', hint: 'Travels between worlds' },
-  { id: 50, question: 'Which sage drank the ocean?', answer: 'AGASTYA', hint: 'Southern sage' },
+  // Vocabulary Definitions - Easy
+  { id: 1, question: 'What word means "extremely happy"?', answer: 'ELATED', hint: 'Feeling great joy' },
+  { id: 2, question: 'What word means "to make larger"?', answer: 'EXPAND', hint: 'Opposite of shrink' },
+  { id: 3, question: 'What word means "happening every year"?', answer: 'ANNUAL', hint: 'Once per year' },
+  { id: 4, question: 'What word means "easy to understand"?', answer: 'SIMPLE', hint: 'Not complex' },
+  { id: 5, question: 'What word means "to look quickly"?', answer: 'GLANCE', hint: 'A brief look' },
+
+  // Vocabulary Definitions - Medium
+  { id: 6, question: 'What word means "extremely tired"?', answer: 'WEARY', hint: 'Worn out' },
+  { id: 7, question: 'What word means "to persuade or influence"?', answer: 'SWAY', hint: 'Move opinion' },
+  { id: 8, question: 'What word means "a strong desire"?', answer: 'YEARN', hint: 'To long for' },
+  { id: 9, question: 'What word means "to shine brightly"?', answer: 'GLEAM', hint: 'A flash of light' },
+  { id: 10, question: 'What word means "brief and to the point"?', answer: 'TERSE', hint: 'Concise' },
+
+  // Synonyms
+  { id: 11, question: 'What is a synonym for "begin"?', answer: 'START', hint: 'To commence' },
+  { id: 12, question: 'What is a synonym for "angry"?', answer: 'IRATE', hint: 'Very mad' },
+  { id: 13, question: 'What is a synonym for "brave"?', answer: 'BOLD', hint: 'Courageous' },
+  { id: 14, question: 'What is a synonym for "smart"?', answer: 'CLEVER', hint: 'Intelligent' },
+  { id: 15, question: 'What is a synonym for "old"?', answer: 'ANCIENT', hint: 'Very old' },
+
+  // Antonyms
+  { id: 16, question: 'What is an antonym of "loud"?', answer: 'QUIET', hint: 'Not noisy' },
+  { id: 17, question: 'What is an antonym of "fast"?', answer: 'SLOW', hint: 'Not quick' },
+  { id: 18, question: 'What is an antonym of "deep"?', answer: 'SHALLOW', hint: 'Not deep' },
+  { id: 19, question: 'What is an antonym of "rough"?', answer: 'SMOOTH', hint: 'Not bumpy' },
+  { id: 20, question: 'What is an antonym of "wet"?', answer: 'DRY', hint: 'Not moist' },
+
+  // Word Roots & Origins
+  { id: 21, question: 'What word from Latin means "to carry"?', answer: 'FERRY', hint: 'Transport across water' },
+  { id: 22, question: 'What word comes from "graph" meaning write?', answer: 'DRAFT', hint: 'A written plan' },
+  { id: 23, question: 'What word relates to "aqua" (water)?', answer: 'FLUID', hint: 'Liquid state' },
+  { id: 24, question: 'What word relates to "terra" (earth)?', answer: 'TERRAIN', hint: 'Land surface' },
+  { id: 25, question: 'What word relates to "solar" (sun)?', answer: 'SUNNY', hint: 'Full of sunshine' },
+
+  // Grammar Terms
+  { id: 26, question: 'What punctuation ends a question?', answer: 'QUERY', hint: 'Question mark symbol' },
+  { id: 27, question: 'A word that describes a noun is called?', answer: 'ADJECTIVE', hint: 'Describes things' },
+  { id: 28, question: 'A word that shows action is called?', answer: 'VERB', hint: 'Action word' },
+  { id: 29, question: 'Words that name things are called?', answer: 'NOUNS', hint: 'Person, place, thing' },
+  { id: 30, question: 'A word that replaces a noun is called?', answer: 'PRONOUN', hint: 'He, she, it' },
+
+  // Idiom Meanings
+  { id: 31, question: 'In "raining cats and dogs", what does it mean?', answer: 'HEAVY', hint: 'Intense rain' },
+  { id: 32, question: '"Once in a blue moon" means?', answer: 'RARE', hint: 'Very seldom' },
+  { id: 33, question: '"Piece of cake" means something is?', answer: 'EASY', hint: 'Not difficult' },
+  { id: 34, question: '"Break a leg" is used to wish someone?', answer: 'LUCK', hint: 'Good fortune' },
+  { id: 35, question: '"Under the weather" means feeling?', answer: 'ILL', hint: 'Sick' },
+
+  // Word Patterns
+  { id: 36, question: 'What 5-letter word starts and ends with same letter?', answer: 'KAYAK', hint: 'Boat for paddling' },
+  { id: 37, question: 'What word has all 5 vowels in order?', answer: 'FACETIOUS', hint: 'Joking' },
+  { id: 38, question: 'A word spelled same forwards & backwards?', answer: 'RADAR', hint: 'Detection system' },
+  { id: 39, question: 'What 5-letter word has no vowels?', answer: 'GLYPH', hint: 'Carved symbol' },
+  { id: 40, question: 'What word has 3 double letters in a row?', answer: 'BOOKKEEPER', hint: 'Handles accounts' },
+
+  // Homophones
+  { id: 41, question: 'What sounds like "there" but means "belonging to them"?', answer: 'THEIR', hint: 'Possessive form' },
+  { id: 42, question: 'What sounds like "write" but means "correct"?', answer: 'RIGHT', hint: 'Opposite of wrong' },
+  { id: 43, question: 'What sounds like "flower" but means "ground grains"?', answer: 'FLOUR', hint: 'For baking' },
+  { id: 44, question: 'What sounds like "steel" but means "to take"?', answer: 'STEAL', hint: 'To rob' },
+  { id: 45, question: 'What sounds like "wait" but means "heaviness"?', answer: 'WEIGHT', hint: 'Measured in pounds' },
+
+  // More Vocabulary
+  { id: 46, question: 'What word means "a group of birds"?', answer: 'FLOCK', hint: 'Flying together' },
+  { id: 47, question: 'What word means "the edge of something"?', answer: 'BRINK', hint: 'Border or verge' },
+  { id: 48, question: 'What word means "to look at with wide eyes"?', answer: 'STARE', hint: 'Fixed gaze' },
+  { id: 49, question: 'What word means "a sudden attack"?', answer: 'RAID', hint: 'Surprise assault' },
+  { id: 50, question: 'What word means "to avoid something"?', answer: 'EVADE', hint: 'Escape from' },
 ];
 
 // Helper function to get random word set for Easy mode

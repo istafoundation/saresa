@@ -1,5 +1,5 @@
 // Root layout - App entry point with providers
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Stack, Redirect, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -10,6 +10,7 @@ import { COLORS } from '../constants/theme';
 import ConvexClientProvider from './ConvexClientProvider';
 import { useConvexSync } from '../utils/useConvexSync';
 import { useChildAuth } from '../utils/childAuth';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 
 // Loading screen while checking auth
 function LoadingScreen() {
@@ -25,6 +26,7 @@ function LoadingScreen() {
 function InitialLayout() {
   const segments = useSegments();
   const { isAuthenticated, isLoading, token } = useChildAuth();
+  const streakUpdatedRef = useRef(false);
   
   // Sync Convex data to Zustand store
   useConvexSync();
@@ -33,10 +35,15 @@ function InitialLayout() {
   const userCheck = useQuery(api.users.checkUserExists, token ? { token } : "skip");
   const updateStreak = useMutation(api.users.updateStreak);
   
-  // Update streak when user is authenticated
+  // Update streak when user is authenticated (with debouncing to prevent duplicate calls)
   useEffect(() => {
-    if (isAuthenticated && userCheck?.exists && token) {
+    if (isAuthenticated && userCheck?.exists && token && !streakUpdatedRef.current) {
+      streakUpdatedRef.current = true;
       updateStreak({ token });
+    }
+    // Reset ref when user logs out
+    if (!isAuthenticated) {
+      streakUpdatedRef.current = false;
     }
   }, [isAuthenticated, userCheck?.exists, token]);
 
@@ -102,12 +109,14 @@ function InitialLayout() {
 
 export default function RootLayout() {
   return (
-    <ConvexClientProvider>
-      <GestureHandlerRootView style={styles.container}>
-        <StatusBar style="dark" />
-        <InitialLayout />
-      </GestureHandlerRootView>
-    </ConvexClientProvider>
+    <ErrorBoundary>
+      <ConvexClientProvider>
+        <GestureHandlerRootView style={styles.container}>
+          <StatusBar style="dark" />
+          <InitialLayout />
+        </GestureHandlerRootView>
+      </ConvexClientProvider>
+    </ErrorBoundary>
   );
 }
 

@@ -1,6 +1,46 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
+// Level thresholds matching constants/levels.ts
+const LEVELS = [
+  { level: 1, xpRequired: 0 },
+  { level: 2, xpRequired: 100 },
+  { level: 3, xpRequired: 250 },
+  { level: 4, xpRequired: 450 },
+  { level: 5, xpRequired: 700 },
+  { level: 6, xpRequired: 1000 },
+  { level: 7, xpRequired: 1400 },
+  { level: 8, xpRequired: 1900 },
+  { level: 9, xpRequired: 2500 },
+  { level: 10, xpRequired: 3200 },
+  { level: 11, xpRequired: 4000 },
+  { level: 12, xpRequired: 5000 },
+  { level: 13, xpRequired: 6200 },
+  { level: 14, xpRequired: 7600 },
+  { level: 15, xpRequired: 9200 },
+  { level: 16, xpRequired: 11000 },
+  { level: 17, xpRequired: 13000 },
+  { level: 18, xpRequired: 15500 },
+  { level: 19, xpRequired: 18500 },
+  { level: 20, xpRequired: 22000 },
+];
+
+function getLevelForXP(xp: number): number {
+  for (let i = LEVELS.length - 1; i >= 0; i--) {
+    if (xp >= LEVELS[i].xpRequired) {
+      return LEVELS[i].level;
+    }
+  }
+  return 1;
+}
+
+// IST timezone helper for consistent date handling
+function getISTDate(): string {
+  const now = new Date();
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  return new Date(now.getTime() + istOffset).toISOString().split("T")[0];
+}
+
 // Get or create parent account after Clerk login
 export const getOrCreateParent = mutation({
   args: {
@@ -52,7 +92,9 @@ export const checkUsernameAvailable = query({
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("children")
-      .withIndex("by_username", (q) => q.eq("username", args.username.toLowerCase()))
+      .withIndex("by_username", (q) =>
+        q.eq("username", args.username.toLowerCase())
+      )
       .first();
 
     return { available: !existing };
@@ -84,7 +126,9 @@ export const addChild = mutation({
       throw new Error("Username must be 4-20 characters");
     }
     if (!/^[a-z0-9_]+$/.test(username)) {
-      throw new Error("Username can only contain letters, numbers, and underscores");
+      throw new Error(
+        "Username can only contain letters, numbers, and underscores"
+      );
     }
 
     // Check uniqueness
@@ -139,6 +183,8 @@ export const getMyChildren = query({
       .withIndex("by_parent", (q) => q.eq("parentId", parent._id))
       .collect();
 
+    const today = getISTDate();
+
     // Get user data for each child
     const childrenWithStats = await Promise.all(
       children.map(async (child) => {
@@ -146,6 +192,32 @@ export const getMyChildren = query({
           .query("users")
           .withIndex("by_child_id", (q) => q.eq("childId", child._id))
           .first();
+
+        // Calculate games played from all game stats
+        const gamesPlayed = userData
+          ? userData.wordleGamesPlayed +
+            userData.wfEasyGamesPlayed +
+            userData.wfHardGamesPlayed +
+            Math.floor(userData.gkPracticeTotal / 10) // Approx GK sessions (10 questions per session)
+          : 0;
+
+        // Calculate level and progress to next level
+        const currentXP = userData?.xp ?? 0;
+        const currentLevel = userData ? getLevelForXP(currentXP) : 1;
+        const nextLevelData = LEVELS.find((l) => l.level === currentLevel + 1);
+        const currentLevelData = LEVELS.find((l) => l.level === currentLevel);
+        
+        let xpProgress = 0;
+        let xpToNextLevel = 0;
+        if (nextLevelData && currentLevelData) {
+          const xpInCurrentLevel = currentXP - currentLevelData.xpRequired;
+          const xpNeededForNextLevel = nextLevelData.xpRequired - currentLevelData.xpRequired;
+          xpProgress = Math.round((xpInCurrentLevel / xpNeededForNextLevel) * 100);
+          xpToNextLevel = nextLevelData.xpRequired - currentXP;
+        }
+
+        // Determine last active timestamp
+        const lastActiveAt = child.lastLoginAt || child.createdAt;
 
         return {
           _id: child._id,
@@ -156,10 +228,17 @@ export const getMyChildren = query({
           createdAt: child.createdAt,
           lastLoginAt: child.lastLoginAt,
           // Stats from user data
-          xp: userData?.xp ?? 0,
+          xp: currentXP,
           streak: userData?.streak ?? 0,
-          level: userData ? Math.floor(userData.xp / 100) + 1 : 1,
-          hasPlayedToday: userData?.lastLoginDate === new Date().toISOString().split('T')[0],
+          level: currentLevel,
+          hasPlayedToday: userData?.lastLoginDate === today,
+          // New enhanced stats
+          gamesPlayed,
+          nextLevel: currentLevel + 1,
+          xpProgress, // Percentage progress to next level (0-100)
+          xpToNextLevel, // XP needed to reach next level
+          lastActiveAt, // Timestamp for "last active" display
+          lastLoginDate: userData?.lastLoginDate, // For activity calculations
         };
       })
     );
@@ -342,9 +421,12 @@ export const getChildStats = query({
       gkStats: {
         practiceTotal: userData.gkPracticeTotal,
         practiceCorrect: userData.gkPracticeCorrect,
-        accuracy: userData.gkPracticeTotal > 0
-          ? Math.round((userData.gkPracticeCorrect / userData.gkPracticeTotal) * 100)
-          : 0,
+        accuracy:
+          userData.gkPracticeTotal > 0
+            ? Math.round(
+                (userData.gkPracticeCorrect / userData.gkPracticeTotal) * 100
+              )
+            : 0,
       },
       wordleStats: {
         gamesPlayed: userData.wordleGamesPlayed,
@@ -359,5 +441,168 @@ export const getChildStats = query({
         totalXPEarned: userData.wfTotalXPEarned,
       },
     };
+  },
+});
+
+// Get recent activities for activity feed (derived from children's data)
+export const getRecentActivities = query({
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    const parent = await ctx.db
+      .query("parents")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    if (!parent) return [];
+
+    const children = await ctx.db
+      .query("children")
+      .withIndex("by_parent", (q) => q.eq("parentId", parent._id))
+      .collect();
+
+    const activities: Array<{
+      id: string;
+      childName: string;
+      type: string;
+      message: string;
+      icon: string;
+      timestamp: number;
+      color: string;
+    }> = [];
+
+    const today = getISTDate();
+    const todayDate = new Date(today);
+    
+    for (const child of children) {
+      const userData = await ctx.db
+        .query("users")
+        .withIndex("by_child_id", (q) => q.eq("childId", child._id))
+        .first();
+
+      if (!userData) continue;
+
+      // Check for streak achievements
+      if (userData.streak >= 7) {
+        activities.push({
+          id: `${child._id}-streak-${userData.streak}`,
+          childName: child.name,
+          type: "streak",
+          message: `has a 🔥 ${userData.streak}-day streak!`,
+          icon: "flame",
+          timestamp: child.lastLoginAt || Date.now(),
+          color: "amber",
+        });
+      }
+
+      // Check for level milestones (every 5 levels)
+      const level = getLevelForXP(userData.xp);
+      if (level >= 5 && level % 5 === 0) {
+        activities.push({
+          id: `${child._id}-level-${level}`,
+          childName: child.name,
+          type: "level_up",
+          message: `reached Level ${level}! 🏆`,
+          icon: "trophy",
+          timestamp: child.lastLoginAt || Date.now(),
+          color: "purple",
+        });
+      }
+
+      // Check for XP milestones (every 1000 XP)
+      if (userData.xp >= 1000 && userData.xp % 1000 < 100) {
+        const milestone = Math.floor(userData.xp / 1000) * 1000;
+        activities.push({
+          id: `${child._id}-xp-${milestone}`,
+          childName: child.name,
+          type: "xp_milestone",
+          message: `earned ${milestone.toLocaleString()}+ XP! 📈`,
+          icon: "trending",
+          timestamp: child.lastLoginAt || Date.now(),
+          color: "indigo",
+        });
+      }
+
+      // Check if played today
+      if (userData.lastLoginDate === today) {
+        activities.push({
+          id: `${child._id}-played-today`,
+          childName: child.name,
+          type: "game_played",
+          message: "is playing today 🎮",
+          icon: "game",
+          timestamp: child.lastLoginAt || Date.now(),
+          color: "emerald",
+        });
+      }
+
+      // Check for inactivity (3+ days without playing)
+      if (userData.lastLoginDate) {
+        const lastPlayed = new Date(userData.lastLoginDate);
+        const diffDays = Math.floor((todayDate.getTime() - lastPlayed.getTime()) / (1000 * 60 * 60 * 24));
+        
+        if (diffDays >= 3) {
+          activities.push({
+            id: `${child._id}-inactive-${diffDays}`,
+            childName: child.name,
+            type: "inactive",
+            message: `hasn't played in ${diffDays} days`,
+            icon: "alert",
+            timestamp: lastPlayed.getTime(),
+            color: "rose",
+          });
+        }
+      }
+    }
+
+    // Sort by timestamp (most recent first) and limit to 10
+    return activities
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, 10);
+  },
+});
+
+// Update child name
+export const updateChildName = mutation({
+  args: {
+    childId: v.id("children"),
+    name: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const parent = await ctx.db
+      .query("parents")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    if (!parent) throw new Error("Parent not found");
+
+    const child = await ctx.db.get(args.childId);
+    if (!child || child.parentId !== parent._id) {
+      throw new Error("Child not found");
+    }
+
+    const trimmedName = args.name.trim();
+    if (trimmedName.length < 1 || trimmedName.length > 50) {
+      throw new Error("Name must be 1-50 characters");
+    }
+
+    // Update child name
+    await ctx.db.patch(args.childId, { name: trimmedName });
+
+    // Also update user data name if it exists
+    const userData = await ctx.db
+      .query("users")
+      .withIndex("by_child_id", (q) => q.eq("childId", args.childId))
+      .first();
+
+    if (userData) {
+      await ctx.db.patch(userData._id, { name: trimmedName });
+    }
+
+    return { success: true, name: trimmedName };
   },
 });
