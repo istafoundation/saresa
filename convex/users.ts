@@ -127,6 +127,12 @@ export const createUser = mutation({
       wfLastEasyDate: undefined,
       wfLastHardDate: undefined,
       wfEasyAttemptsToday: 0,
+
+      // Grammar Detective stats
+      gdQuestionsAnswered: 0,
+      gdCorrectAnswers: 0,
+      gdTotalXPEarned: 0,
+      gdCurrentQuestionIndex: 0,
     });
   },
 });

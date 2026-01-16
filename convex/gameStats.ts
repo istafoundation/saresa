@@ -259,3 +259,55 @@ export const canPlayWordFinder = query({
     }
   },
 });
+
+// Update Grammar Detective stats
+export const updateGrammarDetectiveStats = mutation({
+  args: {
+    token: v.string(),
+    questionsAnswered: v.number(),
+    correctAnswers: v.number(),
+    xpEarned: v.number(),
+    currentQuestionIndex: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const childId = await getChildIdFromSession(ctx, args.token);
+    if (!childId) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_child_id", (q) => q.eq("childId", childId))
+      .first();
+
+    if (!user) throw new Error("User not found");
+
+    await ctx.db.patch(user._id, {
+      gdQuestionsAnswered: (user.gdQuestionsAnswered ?? 0) + args.questionsAnswered,
+      gdCorrectAnswers: (user.gdCorrectAnswers ?? 0) + args.correctAnswers,
+      gdTotalXPEarned: (user.gdTotalXPEarned ?? 0) + args.xpEarned,
+      gdCurrentQuestionIndex: args.currentQuestionIndex,
+    });
+  },
+});
+
+// Get Grammar Detective progress (for resuming)
+export const getGrammarDetectiveProgress = query({
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    const childId = await getChildIdFromSession(ctx, args.token);
+    if (!childId) return null;
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_child_id", (q) => q.eq("childId", childId))
+      .first();
+
+    if (!user) return null;
+
+    return {
+      questionsAnswered: user.gdQuestionsAnswered ?? 0,
+      correctAnswers: user.gdCorrectAnswers ?? 0,
+      totalXPEarned: user.gdTotalXPEarned ?? 0,
+      currentQuestionIndex: user.gdCurrentQuestionIndex ?? 0,
+    };
+  },
+});

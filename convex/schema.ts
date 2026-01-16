@@ -85,6 +85,12 @@ export default defineSchema({
     wfLastEasyDate: v.optional(v.string()),
     wfLastHardDate: v.optional(v.string()),
     wfEasyAttemptsToday: v.number(),
+    
+    // Grammar Detective Stats
+    gdQuestionsAnswered: v.number(),
+    gdCorrectAnswers: v.number(),
+    gdTotalXPEarned: v.number(),
+    gdCurrentQuestionIndex: v.number(),  // Resume position
   }).index("by_child_id", ["childId"]),
 
   // ============================================
@@ -98,7 +104,8 @@ export default defineSchema({
       v.literal("wordle_word"),
       v.literal("word_set"),
       v.literal("hard_question"),
-      v.literal("gk_question")
+      v.literal("gk_question"),
+      v.literal("pos_question")
     ),
     gameId: v.string(),  // "wordle", "word-finder", "english-insane"
     

@@ -36,6 +36,15 @@ export const gkQuestionContentValidator = v.object({
   explanation: v.string(),
 });
 
+// Grammar Detective (Parts of Speech) question
+export const posQuestionContentValidator = v.object({
+  sentence: v.string(),
+  words: v.array(v.string()),
+  questionText: v.string(),
+  correctIndices: v.array(v.number()),
+  explanation: v.string(),
+});
+
 // ============================================
 // HELPER FUNCTIONS
 // ============================================
@@ -139,6 +148,29 @@ function validateContentData(type: string, data: any): { valid: boolean; error?:
       }
       break;
 
+    case 'pos_question':
+      if (!data.sentence || typeof data.sentence !== 'string' || data.sentence.trim().length === 0) {
+        return { valid: false, error: 'Sentence is required' };
+      }
+      if (!Array.isArray(data.words) || data.words.length === 0) {
+        return { valid: false, error: 'Words array is required' };
+      }
+      if (!data.questionText || typeof data.questionText !== 'string' || data.questionText.trim().length === 0) {
+        return { valid: false, error: 'Question text is required' };
+      }
+      if (!Array.isArray(data.correctIndices) || data.correctIndices.length === 0) {
+        return { valid: false, error: 'At least one correct index is required' };
+      }
+      for (const idx of data.correctIndices) {
+        if (typeof idx !== 'number' || idx < 0 || idx >= data.words.length) {
+          return { valid: false, error: 'Correct indices must be valid word indices' };
+        }
+      }
+      if (!data.explanation || typeof data.explanation !== 'string' || data.explanation.trim().length === 0) {
+        return { valid: false, error: 'Explanation is required' };
+      }
+      break;
+
     default:
       return { valid: false, error: 'Unknown content type' };
   }
@@ -201,7 +233,8 @@ export const getGameContent = query({
       v.literal("wordle_word"),
       v.literal("word_set"),
       v.literal("hard_question"),
-      v.literal("gk_question")
+      v.literal("gk_question"),
+      v.literal("pos_question")
     )),
   },
   handler: async (ctx, args) => {
@@ -357,7 +390,8 @@ export const addContent = mutation({
       v.literal("wordle_word"),
       v.literal("word_set"),
       v.literal("hard_question"),
-      v.literal("gk_question")
+      v.literal("gk_question"),
+      v.literal("pos_question")
     ),
     gameId: v.string(),
     data: v.any(),
@@ -503,7 +537,8 @@ export const bulkAddContent = mutation({
         v.literal("wordle_word"),
         v.literal("word_set"),
         v.literal("hard_question"),
-        v.literal("gk_question")
+        v.literal("gk_question"),
+        v.literal("pos_question")
       ),
       gameId: v.string(),
       data: v.any(),

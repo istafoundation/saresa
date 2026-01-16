@@ -299,6 +299,47 @@ export default function FunScreen() {
             </View>
           </View>
         </MotiView>
+
+        {/* Grammar Detective Card */}
+        <MotiView
+          from={{ opacity: 0, translateY: 20 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: 'spring', delay: 500 }}
+        >
+          <Pressable
+            style={styles.gameCard}
+            onPress={() => handleGamePress('/games/grammar-detective')}
+          >
+            <LinearGradient
+              colors={[COLORS.rainbow3 || '#9b59b6', COLORS.rainbow5 || '#3498db']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.gameCardHeader}
+            >
+              <Text style={styles.gameCardEmoji}>🔍</Text>
+              <View style={styles.gameCardTitleContainer}>
+                <Text style={styles.gameCardTitle}>Grammar Detective</Text>
+                <Text style={styles.gameCardDesc}>Find parts of speech</Text>
+              </View>
+              <View style={styles.dailyBadge}>
+                <Text style={styles.dailyBadgeText}>∞</Text>
+              </View>
+            </LinearGradient>
+            
+            <View style={styles.gameCardContent}>
+              <View style={styles.wordleInfo}>
+                <View style={styles.wordleInfoItem}>
+                  <Ionicons name="flash" size={18} color={COLORS.primary} />
+                  <Text style={styles.wordleInfoText}>Infinite Rush</Text>
+                </View>
+                <View style={styles.wordleInfoItem}>
+                  <Ionicons name="star" size={18} color={COLORS.accentGold} />
+                  <Text style={styles.wordleInfoText}>+2 XP per correct</Text>
+                </View>
+              </View>
+            </View>
+          </Pressable>
+        </MotiView>
         
         {/* Bottom spacing to account for tab bar */}
         <View style={{ height: 100 }} />

@@ -336,6 +336,87 @@ export function useEnglishInsaneQuestions(): ContentResult<typeof FALLBACK_GK_QU
   };
 }
 
+// Minimal fallback Grammar Detective questions
+const FALLBACK_GD_QUESTIONS = [
+  {
+    id: 'gd1',
+    sentence: 'The quick brown fox jumps over the lazy dog.',
+    words: ['The', 'quick', 'brown', 'fox', 'jumps', 'over', 'the', 'lazy', 'dog.'],
+    questionText: 'Find ALL the adjectives in this sentence.',
+    correctIndices: [1, 2, 7], // quick, brown, lazy
+    explanation: 'Adjectives describe nouns. "Quick" and "brown" describe "fox", and "lazy" describes "dog".',
+  },
+];
+
+/**
+ * Hook for Grammar Detective (Parts of Speech) questions
+ */
+export function useGrammarDetectiveQuestions(): ContentResult<typeof FALLBACK_GD_QUESTIONS> {
+  const { token } = useChildAuth();
+  
+  const serverContent = useQuery(
+    api.content.getGameContent,
+    token ? { gameId: 'grammar-detective', type: 'pos_question' } : 'skip'
+  );
+  
+  const serverVersion = useQuery(
+    api.content.getContentVersion,
+    token ? { gameId: 'grammar-detective' } : 'skip'
+  );
+
+  const [cachedData, setCachedData] = useState<typeof FALLBACK_GD_QUESTIONS | null>(null);
+  const [status, setStatus] = useState<ContentStatus>('loading');
+
+  useEffect(() => {
+    getCachedContent<typeof FALLBACK_GD_QUESTIONS>('grammar-detective').then((cached) => {
+      if (cached) {
+        setCachedData(cached.data);
+        setStatus('cached');
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (serverContent && serverVersion) {
+      const transformedContent = serverContent.map((c: any) => ({
+        id: c._id,
+        ...c.data,
+      })) as typeof FALLBACK_GD_QUESTIONS;
+      setCachedData(transformedContent);
+      setStatus('fresh');
+      setCachedContent(
+        'grammar-detective',
+        transformedContent,
+        serverVersion.version,
+        serverVersion.checksum
+      );
+    }
+  }, [serverContent, serverVersion]);
+
+  const content = useMemo(() => {
+    if (cachedData && cachedData.length > 0) return cachedData;
+    if (serverContent && serverContent.length > 0) {
+      return serverContent.map((c: any) => ({
+        id: c._id,
+        ...c.data,
+      })) as typeof FALLBACK_GD_QUESTIONS;
+    }
+    return FALLBACK_GD_QUESTIONS;
+  }, [cachedData, serverContent]);
+
+  const refresh = useCallback(async () => {
+    setStatus('loading');
+  }, []);
+
+  return {
+    content,
+    status: content === FALLBACK_GD_QUESTIONS ? 'fallback' : status,
+    version: serverVersion?.version ?? 0,
+    isStale: status === 'cached',
+    refresh,
+  };
+}
+
 // ============================================
 // ANALYTICS HOOK (for tracking content usage)
 // ============================================
