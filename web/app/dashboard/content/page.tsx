@@ -8,6 +8,7 @@ import {
   BookOpen,
   Puzzle,
   Brain,
+  Search,
   Plus,
   Archive,
   RefreshCw,
@@ -22,6 +23,7 @@ export default function ContentManagementPage() {
   const wordleContent = useQuery(api.content.getAllContent, { gameId: "wordle" });
   const wordFinderContent = useQuery(api.content.getAllContent, { gameId: "word-finder" });
   const englishInsaneContent = useQuery(api.content.getAllContent, { gameId: "english-insane" });
+  const grammarDetectiveContent = useQuery(api.content.getAllContent, { gameId: "grammar-detective" });
 
   const games = [
     {
@@ -54,17 +56,29 @@ export default function ContentManagementPage() {
       contentCount: englishInsaneContent?.length ?? 0,
       activeCount: englishInsaneContent?.filter((c) => c.status === "active").length ?? 0,
     },
+    {
+      id: "grammar-detective",
+      name: "Grammar Detective",
+      description: "Parts of speech questions",
+      icon: Search,
+      color: "indigo",
+      href: "/dashboard/content/grammar-detective",
+      contentCount: grammarDetectiveContent?.length ?? 0,
+      activeCount: grammarDetectiveContent?.filter((c) => c.status === "active").length ?? 0,
+    },
   ];
 
   const totalContent =
     (wordleContent?.length ?? 0) +
     (wordFinderContent?.length ?? 0) +
-    (englishInsaneContent?.length ?? 0);
+    (englishInsaneContent?.length ?? 0) +
+    (grammarDetectiveContent?.length ?? 0);
 
   const totalActive =
     (wordleContent?.filter((c) => c.status === "active").length ?? 0) +
     (wordFinderContent?.filter((c) => c.status === "active").length ?? 0) +
-    (englishInsaneContent?.filter((c) => c.status === "active").length ?? 0);
+    (englishInsaneContent?.filter((c) => c.status === "active").length ?? 0) +
+    (grammarDetectiveContent?.filter((c) => c.status === "active").length ?? 0);
 
   return (
     <div className="space-y-8">
@@ -125,7 +139,7 @@ export default function ContentManagementPage() {
             </div>
             <div>
               <p className="text-sm text-slate-500">Games</p>
-              <p className="text-2xl font-bold text-slate-900">3</p>
+              <p className="text-2xl font-bold text-slate-900">4</p>
             </div>
           </div>
         </div>
@@ -140,18 +154,24 @@ export default function ContentManagementPage() {
               ? "bg-emerald-500"
               : game.color === "blue"
               ? "bg-blue-500"
+              : game.color === "indigo"
+              ? "bg-indigo-500"
               : "bg-purple-500";
           const lightBg =
             game.color === "emerald"
               ? "bg-emerald-50"
               : game.color === "blue"
               ? "bg-blue-50"
+              : game.color === "indigo"
+              ? "bg-indigo-50"
               : "bg-purple-50";
           const textColor =
             game.color === "emerald"
               ? "text-emerald-600"
               : game.color === "blue"
               ? "text-blue-600"
+              : game.color === "indigo"
+              ? "text-indigo-600"
               : "text-purple-600";
 
           return (
@@ -197,7 +217,7 @@ export default function ContentManagementPage() {
         <h2 className="text-lg font-semibold text-slate-900 mb-4">
           Quick Actions
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Link
             href="/dashboard/content/wordle?action=add"
             className="flex items-center gap-3 p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
@@ -233,7 +253,20 @@ export default function ContentManagementPage() {
             </div>
             <div>
               <p className="font-medium text-slate-900">Add Question</p>
-              <p className="text-sm text-slate-500">New grammar question</p>
+              <p className="text-sm text-slate-500">English Insane</p>
+            </div>
+          </Link>
+
+          <Link
+            href="/dashboard/content/grammar-detective?action=add"
+            className="flex items-center gap-3 p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
+          >
+            <div className="p-2 bg-indigo-100 rounded-lg">
+              <Plus className="w-4 h-4 text-indigo-600" />
+            </div>
+            <div>
+              <p className="font-medium text-slate-900">Grammar Detective</p>
+              <p className="text-sm text-slate-500">Parts of speech</p>
             </div>
           </Link>
         </div>

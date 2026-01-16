@@ -3,7 +3,7 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,7 +24,7 @@ export default function GrammarDetectiveScreen() {
   const router = useRouter();
   const { token } = useChildAuth();
   const { addXP } = useUserActions();
-  const { playTap, playCorrect, playWrong } = useGameAudio();
+  const { playCorrect, playWrong } = useGameAudio();
   const { triggerTap, triggerHapticOnly } = useTapFeedback();
   
   // OTA Content
@@ -87,7 +87,6 @@ export default function GrammarDetectiveScreen() {
     if (result.correct) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       playCorrect();
-      // Add XP
       if (token) {
         await addXP(XP_PER_CORRECT);
       }
@@ -96,7 +95,6 @@ export default function GrammarDetectiveScreen() {
       playWrong();
     }
     
-    // Sync to Convex
     if (token) {
       await updateStats({
         token,
@@ -139,115 +137,166 @@ export default function GrammarDetectiveScreen() {
           <Ionicons name="arrow-back" size={24} color={COLORS.text} />
         </Pressable>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Grammar Detective</Text>
-          <Text style={styles.headerSubtitle}>Infinite Rush</Text>
+          <Text style={styles.headerTitle}>🔍 Grammar Detective</Text>
         </View>
-        <View style={styles.statsContainer}>
-          <Text style={styles.statsText}>+{sessionXP} XP</Text>
+        <View style={styles.xpBadge}>
+          <Text style={styles.xpText}>+{sessionXP} XP</Text>
         </View>
       </View>
 
-      {/* Progress Bar */}
-      <View style={styles.progressBar}>
-        <View style={styles.progressItem}>
-          <Ionicons name="checkmark-circle" size={18} color={COLORS.success} />
-          <Text style={styles.progressText}>{sessionCorrect}</Text>
+      {/* Stats Row */}
+      <View style={styles.statsRow}>
+        <View style={styles.statItem}>
+          <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
+          <Text style={styles.statValue}>{sessionCorrect}</Text>
+          <Text style={styles.statLabel}>correct</Text>
         </View>
-        <View style={styles.progressItem}>
-          <Ionicons name="help-circle" size={18} color={COLORS.textSecondary} />
-          <Text style={styles.progressText}>{sessionAnswered}</Text>
+        <View style={styles.statDivider} />
+        <View style={styles.statItem}>
+          <Ionicons name="layers" size={16} color={COLORS.primary} />
+          <Text style={styles.statValue}>{sessionAnswered}</Text>
+          <Text style={styles.statLabel}>answered</Text>
         </View>
-        <View style={styles.progressItem}>
-          <Text style={styles.progressLabel}>All-time:</Text>
-          <Text style={styles.progressText}>{stats.totalCorrect}/{stats.totalAnswered}</Text>
+        <View style={styles.statDivider} />
+        <View style={styles.statItem}>
+          <Ionicons name="trophy" size={16} color={COLORS.accentGold} />
+          <Text style={styles.statValue}>{stats.totalCorrect}</Text>
+          <Text style={styles.statLabel}>all-time</Text>
         </View>
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        {/* Question */}
+        {/* Question Card */}
         <MotiView
           key={currentQuestion.id}
-          from={{ opacity: 0, translateY: 20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'spring' }}
-          style={styles.questionCard}
+          from={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ type: 'spring', damping: 20 }}
         >
-          <Text style={styles.questionText}>{currentQuestion.questionText}</Text>
+          <LinearGradient
+            colors={[COLORS.primary + '20', COLORS.primaryDark + '10']}
+            style={styles.questionCard}
+          >
+            <View style={styles.questionBadge}>
+              <Text style={styles.questionBadgeText}>QUESTION</Text>
+            </View>
+            <Text style={styles.questionText}>{currentQuestion.questionText}</Text>
+            <Text style={styles.hintText}>Tap on the correct word(s) below</Text>
+          </LinearGradient>
         </MotiView>
 
-        {/* Sentence with tappable words */}
-        <View style={styles.sentenceContainer}>
-          {currentQuestion.words.map((word, index) => {
-            const isSelected = selectedIndices.includes(index);
-            const isCorrect = lastResult?.correctIndices.includes(index);
-            const isWrongSelection = gameState === 'reviewing' && isSelected && !isCorrect;
-            const isMissedCorrect = gameState === 'reviewing' && isCorrect && !isSelected;
-            
-            return (
-              <MotiView
-                key={`${currentQuestion.id}-${index}`}
-                from={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ type: 'spring', delay: index * 30 }}
-              >
-                <Pressable
-                  onPress={() => handleWordPress(index)}
-                  disabled={gameState === 'reviewing'}
-                  style={[
-                    styles.wordBubble,
-                    isSelected && gameState === 'playing' && styles.wordBubbleSelected,
-                    gameState === 'reviewing' && isCorrect && styles.wordBubbleCorrect,
-                    isWrongSelection && styles.wordBubbleWrong,
-                    isMissedCorrect && styles.wordBubbleMissed,
-                  ]}
-                >
-                  <Text 
+        {/* Sentence Card - Displays like a proper sentence */}
+        <MotiView
+          from={{ opacity: 0, translateY: 15 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: 'spring', delay: 100 }}
+          style={styles.sentenceCard}
+        >
+          <View style={styles.sentenceHeader}>
+            <Ionicons name="document-text-outline" size={18} color={COLORS.textSecondary} />
+            <Text style={styles.sentenceLabel}>Read the sentence:</Text>
+          </View>
+          
+          {/* Sentence as inline text with tappable words */}
+          <Text style={styles.sentenceText}>
+            {currentQuestion.words.map((word, index) => {
+              const isSelected = selectedIndices.includes(index);
+              const isCorrect = lastResult?.correctIndices.includes(index);
+              const isWrongSelection = gameState === 'reviewing' && isSelected && !isCorrect;
+              const isMissedCorrect = gameState === 'reviewing' && isCorrect && !isSelected;
+              
+              // Determine background and text color based on state
+              let bgStyle = {};
+              let textColor = COLORS.text;
+              
+              if (gameState === 'reviewing') {
+                if (isCorrect) {
+                  bgStyle = styles.wordCorrectBg;
+                  textColor = COLORS.success;
+                } else if (isWrongSelection) {
+                  bgStyle = styles.wordWrongBg;
+                  textColor = COLORS.error;
+                }
+              } else if (isSelected) {
+                bgStyle = styles.wordSelectedBg;
+                textColor = COLORS.primary;
+              }
+              
+              const isLastWord = index === currentQuestion.words.length - 1;
+              const needsSpace = !isLastWord;
+              
+              return (
+                <Text key={`word-${index}`}>
+                  <Text
+                    onPress={() => handleWordPress(index)}
                     style={[
-                      styles.wordText,
-                      isSelected && gameState === 'playing' && styles.wordTextSelected,
-                      gameState === 'reviewing' && isCorrect && styles.wordTextCorrect,
+                      styles.inlineWord,
+                      bgStyle,
+                      { color: textColor },
+                      isMissedCorrect && styles.wordMissedText,
                     ]}
                   >
                     {word}
                   </Text>
-                  {isSelected && gameState === 'playing' && (
-                    <MotiView
-                      from={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      style={styles.selectionIndicator}
-                    />
-                  )}
-                </Pressable>
-              </MotiView>
-            );
-          })}
-        </View>
+                  {needsSpace && <Text style={styles.wordSpace}> </Text>}
+                </Text>
+              );
+            })}
+          </Text>
+          
+          {/* Selection indicator */}
+          {selectedIndices.length > 0 && gameState === 'playing' && (
+            <MotiView
+              from={{ opacity: 0, translateY: 5 }}
+              animate={{ opacity: 1, translateY: 0 }}
+              style={styles.selectionSummary}
+            >
+              <Ionicons name="checkmark-done" size={16} color={COLORS.primary} />
+              <Text style={styles.selectionText}>
+                Selected: {selectedIndices.map(i => currentQuestion.words[i]).join(', ')}
+              </Text>
+            </MotiView>
+          )}
+        </MotiView>
 
         {/* Result Feedback */}
         {gameState === 'reviewing' && lastResult && (
           <MotiView
-            from={{ opacity: 0, translateY: 20 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            transition={{ type: 'spring' }}
+            from={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: 'spring', damping: 15 }}
             style={[
               styles.resultCard,
               lastResult.correct ? styles.resultCardCorrect : styles.resultCardWrong,
             ]}
           >
             <View style={styles.resultHeader}>
-              <Ionicons
-                name={lastResult.correct ? 'checkmark-circle' : 'close-circle'}
-                size={28}
-                color={lastResult.correct ? COLORS.success : COLORS.error}
-              />
-              <Text style={[
-                styles.resultTitle,
-                { color: lastResult.correct ? COLORS.success : COLORS.error }
+              <View style={[
+                styles.resultIconBg,
+                { backgroundColor: lastResult.correct ? COLORS.success + '20' : COLORS.error + '20' }
               ]}>
-                {lastResult.correct ? 'Correct! +2 XP' : 'Not quite!'}
-              </Text>
+                <Ionicons
+                  name={lastResult.correct ? 'checkmark' : 'close'}
+                  size={24}
+                  color={lastResult.correct ? COLORS.success : COLORS.error}
+                />
+              </View>
+              <View style={styles.resultTitleContainer}>
+                <Text style={[
+                  styles.resultTitle,
+                  { color: lastResult.correct ? COLORS.success : COLORS.error }
+                ]}>
+                  {lastResult.correct ? 'Excellent!' : 'Not quite!'}
+                </Text>
+                {lastResult.correct && (
+                  <Text style={styles.xpEarnedText}>+2 XP earned</Text>
+                )}
+              </View>
             </View>
-            <Text style={styles.explanationText}>{lastResult.explanation}</Text>
+            <View style={styles.explanationContainer}>
+              <Ionicons name="bulb-outline" size={18} color={COLORS.accentGold} />
+              <Text style={styles.explanationText}>{lastResult.explanation}</Text>
+            </View>
           </MotiView>
         )}
       </ScrollView>
@@ -257,8 +306,8 @@ export default function GrammarDetectiveScreen() {
         {gameState === 'playing' ? (
           <Pressable
             style={[
-              styles.submitButton,
-              selectedIndices.length === 0 && styles.submitButtonDisabled,
+              styles.actionButton,
+              selectedIndices.length === 0 && styles.actionButtonDisabled,
             ]}
             onPress={handleSubmit}
             disabled={selectedIndices.length === 0}
@@ -266,24 +315,31 @@ export default function GrammarDetectiveScreen() {
             <LinearGradient
               colors={selectedIndices.length > 0 
                 ? [COLORS.primary, COLORS.primaryDark] 
-                : [COLORS.surface, COLORS.surface]}
-              style={styles.submitButtonGradient}
+                : ['#444', '#333']}
+              style={styles.actionButtonGradient}
             >
+              <Ionicons 
+                name="send" 
+                size={20} 
+                color={selectedIndices.length > 0 ? COLORS.text : COLORS.textMuted} 
+              />
               <Text style={[
-                styles.submitButtonText,
-                selectedIndices.length === 0 && styles.submitButtonTextDisabled,
+                styles.actionButtonText,
+                selectedIndices.length === 0 && styles.actionButtonTextDisabled,
               ]}>
                 Submit Answer
               </Text>
             </LinearGradient>
           </Pressable>
         ) : (
-          <Pressable style={styles.nextButton} onPress={handleNext}>
+          <Pressable style={styles.actionButton} onPress={handleNext}>
             <LinearGradient
-              colors={[COLORS.accent, COLORS.primaryDark]}
-              style={styles.nextButtonGradient}
+              colors={[COLORS.accent, COLORS.primary]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.actionButtonGradient}
             >
-              <Text style={styles.nextButtonText}>Next Question</Text>
+              <Text style={styles.actionButtonText}>Continue</Text>
               <Ionicons name="arrow-forward" size={20} color={COLORS.text} />
             </LinearGradient>
           </Pressable>
@@ -313,136 +369,166 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
-    gap: SPACING.sm,
   },
   backButton: {
     padding: SPACING.sm,
+    marginRight: SPACING.xs,
   },
   headerCenter: {
     flex: 1,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
     color: COLORS.text,
   },
-  headerSubtitle: {
-    fontSize: 12,
-    color: COLORS.primary,
-    fontWeight: '600',
-  },
-  statsContainer: {
-    backgroundColor: COLORS.accentGold + '30',
+  xpBadge: {
+    backgroundColor: COLORS.accentGold + '25',
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs,
+    paddingVertical: SPACING.xs + 2,
     borderRadius: BORDER_RADIUS.full,
+    borderWidth: 1,
+    borderColor: COLORS.accentGold + '40',
   },
-  statsText: {
+  xpText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '800',
     color: COLORS.accentGold,
   },
-  progressBar: {
+  statsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.md,
-    backgroundColor: COLORS.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginHorizontal: SPACING.md,
     marginBottom: SPACING.md,
+    paddingVertical: SPACING.sm,
+    backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.lg,
+    gap: SPACING.md,
   },
-  progressItem: {
+  statItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.xs,
   },
-  progressLabel: {
+  statValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  statLabel: {
     fontSize: 12,
     color: COLORS.textMuted,
   },
-  progressText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.text,
+  statDivider: {
+    width: 1,
+    height: 20,
+    backgroundColor: COLORS.textMuted + '30',
   },
   content: {
     flex: 1,
   },
   contentContainer: {
     padding: SPACING.md,
-    gap: SPACING.lg,
+    gap: SPACING.md,
   },
   questionCard: {
-    backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.xl,
     padding: SPACING.lg,
-    ...SHADOWS.sm,
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  questionBadge: {
+    backgroundColor: COLORS.primary + '30',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.full,
+  },
+  questionBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: COLORS.primary,
+    letterSpacing: 1,
   },
   questionText: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '700',
     color: COLORS.text,
     textAlign: 'center',
-    lineHeight: 28,
+    lineHeight: 30,
   },
-  sentenceContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: SPACING.sm,
-    padding: SPACING.md,
-    backgroundColor: COLORS.backgroundCard,
-    borderRadius: BORDER_RADIUS.xl,
-    minHeight: 120,
-    alignItems: 'center',
+  hintText: {
+    fontSize: 13,
+    color: COLORS.textMuted,
+    fontStyle: 'italic',
   },
-  wordBubble: {
+  sentenceCard: {
     backgroundColor: COLORS.surface,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 2,
-    borderColor: COLORS.surface,
-    position: 'relative',
-    ...SHADOWS.sm,
+    borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.lg,
+    gap: SPACING.md,
+    ...SHADOWS.md,
   },
-  wordBubbleSelected: {
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.primary + '20',
+  sentenceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
   },
-  wordBubbleCorrect: {
-    borderColor: COLORS.success,
-    backgroundColor: COLORS.success + '20',
+  sentenceLabel: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
   },
-  wordBubbleWrong: {
-    borderColor: COLORS.error,
-    backgroundColor: COLORS.error + '20',
-  },
-  wordBubbleMissed: {
-    borderColor: COLORS.success,
-    borderStyle: 'dashed',
-  },
-  wordText: {
-    fontSize: 18,
-    fontWeight: '600',
+  sentenceText: {
+    fontSize: 20,
+    lineHeight: 36,
     color: COLORS.text,
   },
-  wordTextSelected: {
-    color: COLORS.primary,
+  inlineWord: {
+    fontSize: 20,
+    fontWeight: '500',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: 'hidden',
   },
-  wordTextCorrect: {
+  wordSpace: {
+    fontSize: 20,
+  },
+  wordSelectedBg: {
+    backgroundColor: COLORS.primary + '30',
+    borderRadius: 6,
+    fontWeight: '700',
+  },
+  wordCorrectBg: {
+    backgroundColor: COLORS.success + '30',
+    borderRadius: 6,
+    fontWeight: '700',
+  },
+  wordWrongBg: {
+    backgroundColor: COLORS.error + '30',
+    borderRadius: 6,
+    fontWeight: '700',
+  },
+  wordMissedText: {
+    textDecorationLine: 'underline',
+    textDecorationStyle: 'dashed',
     color: COLORS.success,
     fontWeight: '700',
   },
-  selectionIndicator: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: COLORS.primary,
+  selectionSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    paddingTop: SPACING.sm,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.textMuted + '20',
+  },
+  selectionText: {
+    fontSize: 14,
+    color: COLORS.primary,
+    fontWeight: '600',
+    flex: 1,
   },
   resultCard: {
     borderRadius: BORDER_RADIUS.xl,
@@ -450,67 +536,78 @@ const styles = StyleSheet.create({
     gap: SPACING.md,
   },
   resultCardCorrect: {
-    backgroundColor: COLORS.success + '15',
-    borderWidth: 1,
-    borderColor: COLORS.success + '40',
+    backgroundColor: COLORS.success + '10',
+    borderWidth: 1.5,
+    borderColor: COLORS.success + '30',
   },
   resultCardWrong: {
-    backgroundColor: COLORS.error + '15',
-    borderWidth: 1,
-    borderColor: COLORS.error + '40',
+    backgroundColor: COLORS.error + '10',
+    borderWidth: 1.5,
+    borderColor: COLORS.error + '30',
   },
   resultHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.sm,
+    gap: SPACING.md,
+  },
+  resultIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resultTitleContainer: {
+    flex: 1,
   },
   resultTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  xpEarnedText: {
+    fontSize: 13,
+    color: COLORS.accentGold,
+    fontWeight: '600',
+  },
+  explanationContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.backgroundCard,
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
   },
   explanationText: {
     fontSize: 15,
     color: COLORS.textSecondary,
     lineHeight: 22,
+    flex: 1,
   },
   bottomContainer: {
     padding: SPACING.md,
     paddingBottom: SPACING.lg,
   },
-  submitButton: {
-    borderRadius: BORDER_RADIUS.lg,
+  actionButton: {
+    borderRadius: BORDER_RADIUS.xl,
     overflow: 'hidden',
+    ...SHADOWS.md,
   },
-  submitButtonDisabled: {
-    opacity: 0.6,
+  actionButtonDisabled: {
+    opacity: 0.5,
   },
-  submitButtonGradient: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: SPACING.lg,
-  },
-  submitButtonText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.text,
-  },
-  submitButtonTextDisabled: {
-    color: COLORS.textMuted,
-  },
-  nextButton: {
-    borderRadius: BORDER_RADIUS.lg,
-    overflow: 'hidden',
-  },
-  nextButtonGradient: {
+  actionButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: SPACING.lg,
     gap: SPACING.sm,
   },
-  nextButtonText: {
+  actionButtonText: {
     fontSize: 18,
     fontWeight: '700',
     color: COLORS.text,
+  },
+  actionButtonTextDisabled: {
+    color: COLORS.textMuted,
   },
 });

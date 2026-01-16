@@ -8,10 +8,11 @@ import { useSearchParams } from "next/navigation";
 import {
   Plus,
   ArrowLeft,
+  ArrowRight,
   Search,
   Archive,
   X,
-  Wand2,
+  Check,
 } from "lucide-react";
 import type { Id } from "@convex/_generated/dataModel";
 
@@ -42,12 +43,12 @@ function GrammarDetectiveContent() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(action === "add");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Form state
+  // Wizard state
+  const [step, setStep] = useState(1);
   const [sentence, setSentence] = useState("");
   const [questionText, setQuestionText] = useState("");
   const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
   const [explanation, setExplanation] = useState("");
-
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -57,8 +58,8 @@ function GrammarDetectiveContent() {
   const filteredContent = content?.filter((item) => {
     const data = item.data as POSQuestion;
     const matchesSearch =
-      data.sentence.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      data.questionText.toLowerCase().includes(searchQuery.toLowerCase());
+      data.sentence?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      data.questionText?.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesSearch && item.status !== "archived";
   });
 
@@ -70,23 +71,34 @@ function GrammarDetectiveContent() {
     );
   };
 
-  const handleAdd = async () => {
+  const resetForm = () => {
+    setStep(1);
+    setSentence("");
+    setQuestionText("");
+    setSelectedIndices([]);
+    setExplanation("");
     setError("");
+  };
 
+  const handleNextStep = () => {
+    setError("");
     if (!sentence.trim()) {
-      setError("Sentence is required");
+      setError("Please enter a sentence");
       return;
     }
-
+    if (!questionText.trim()) {
+      setError("Please enter a question");
+      return;
+    }
     if (words.length === 0) {
       setError("Sentence must have at least one word");
       return;
     }
+    setStep(2);
+  };
 
-    if (!questionText.trim()) {
-      setError("Question text is required");
-      return;
-    }
+  const handleAdd = async () => {
+    setError("");
 
     if (selectedIndices.length === 0) {
       setError("Please select at least one correct word");
@@ -94,7 +106,7 @@ function GrammarDetectiveContent() {
     }
 
     if (!explanation.trim()) {
-      setError("Explanation is required");
+      setError("Please add an explanation");
       return;
     }
 
@@ -112,11 +124,7 @@ function GrammarDetectiveContent() {
         },
         status: "active",
       });
-      // Reset form
-      setSentence("");
-      setQuestionText("");
-      setSelectedIndices([]);
-      setExplanation("");
+      resetForm();
       setIsAddModalOpen(false);
     } catch (err) {
       setError("Failed to add question");
@@ -145,18 +153,18 @@ function GrammarDetectiveContent() {
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-indigo-100 rounded-lg">
-              <Wand2 className="w-5 h-5 text-indigo-600" />
+              <Search className="w-5 h-5 text-indigo-600" />
             </div>
             <div>
               <h1 className="text-2xl font-bold text-slate-900">Grammar Detective</h1>
               <p className="text-slate-600">
-                {totalQuestions} questions
+                {totalQuestions} questions • Parts of speech
               </p>
             </div>
           </div>
         </div>
         <button
-          onClick={() => setIsAddModalOpen(true)}
+          onClick={() => { resetForm(); setIsAddModalOpen(true); }}
           className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
         >
           <Plus className="w-4 h-4" />
@@ -198,7 +206,7 @@ function GrammarDetectiveContent() {
           <tbody className="divide-y divide-slate-100">
             {filteredContent?.map((item) => {
               const data = item.data as POSQuestion;
-              const correctWords = data.correctIndices.map((i) => data.words[i]).join(", ");
+              const correctWords = data.correctIndices?.map((i) => data.words?.[i]).filter(Boolean).join(", ") || "-";
               return (
                 <tr key={item._id} className="hover:bg-slate-50">
                   <td className="px-6 py-4 max-w-xs">
@@ -228,27 +236,40 @@ function GrammarDetectiveContent() {
 
         {filteredContent?.length === 0 && (
           <div className="text-center py-12 text-slate-500">
-            No questions found
+            No questions found. Add your first question!
           </div>
         )}
       </div>
 
-      {/* Add Modal */}
+      {/* Add Modal - 2 Step Wizard */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-slate-200">
-              <h2 className="text-lg font-semibold text-slate-900">
-                Add Question
-              </h2>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${step === 1 ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-600'}`}>
+                    1
+                  </div>
+                  <div className="w-8 h-0.5 bg-slate-200" />
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${step === 2 ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500'}`}>
+                    2
+                  </div>
+                </div>
+                <span className="text-sm font-medium text-slate-600">
+                  {step === 1 ? "Enter Sentence & Question" : "Select Correct Words"}
+                </span>
+              </div>
               <button
-                onClick={() => setIsAddModalOpen(false)}
+                onClick={() => { resetForm(); setIsAddModalOpen(false); }}
                 className="p-1 hover:bg-slate-100 rounded"
               >
                 <X className="w-5 h-5 text-slate-500" />
               </button>
             </div>
 
+            {/* Content */}
             <div className="p-4 space-y-4">
               {error && (
                 <div className="bg-red-50 text-red-700 px-4 py-2 rounded-lg text-sm">
@@ -256,92 +277,141 @@ function GrammarDetectiveContent() {
                 </div>
               )}
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Sentence
-                </label>
-                <textarea
-                  value={sentence}
-                  onChange={(e) => {
-                    setSentence(e.target.value);
-                    setSelectedIndices([]);
-                  }}
-                  placeholder="The quick brown fox jumps over the lazy dog."
-                  rows={2}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Question Text
-                </label>
-                <input
-                  type="text"
-                  value={questionText}
-                  onChange={(e) => setQuestionText(e.target.value)}
-                  placeholder="Find ALL the adjectives in this sentence."
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              {words.length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Click to mark correct word(s)
-                  </label>
-                  <div className="flex flex-wrap gap-2 p-3 bg-slate-50 rounded-lg">
-                    {words.map((word, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => toggleWordIndex(idx)}
-                        className={`px-3 py-1.5 rounded-lg border-2 font-medium transition-colors ${
-                          selectedIndices.includes(idx)
-                            ? "border-indigo-500 bg-indigo-100 text-indigo-700"
-                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                        }`}
-                      >
-                        {word}
-                      </button>
-                    ))}
+              {step === 1 && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Sentence
+                    </label>
+                    <textarea
+                      value={sentence}
+                      onChange={(e) => {
+                        setSentence(e.target.value);
+                        setSelectedIndices([]);
+                      }}
+                      placeholder="The quick brown fox jumps over the lazy dog."
+                      rows={3}
+                      className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    {words.length > 0 && (
+                      <p className="text-xs text-slate-500 mt-1">
+                        {words.length} words detected
+                      </p>
+                    )}
                   </div>
-                  {selectedIndices.length > 0 && (
-                    <p className="text-xs text-indigo-600 mt-1">
-                      Selected: {selectedIndices.map((i) => words[i]).join(", ")}
-                    </p>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Question
+                    </label>
+                    <input
+                      type="text"
+                      value={questionText}
+                      onChange={(e) => setQuestionText(e.target.value)}
+                      placeholder="Find ALL the adjectives in this sentence."
+                      className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  {/* Preview of words */}
+                  {words.length > 0 && (
+                    <div className="p-3 bg-slate-50 rounded-lg">
+                      <p className="text-xs font-medium text-slate-500 mb-2">PREVIEW</p>
+                      <p className="text-slate-800">{words.join(" ")}</p>
+                    </div>
                   )}
-                </div>
+                </>
               )}
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Explanation
-                </label>
-                <textarea
-                  value={explanation}
-                  onChange={(e) => setExplanation(e.target.value)}
-                  placeholder="Why are these the correct answers?"
-                  rows={2}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
+              {step === 2 && (
+                <>
+                  <div className="p-3 bg-indigo-50 rounded-lg">
+                    <p className="text-sm font-medium text-indigo-800 mb-1">Question:</p>
+                    <p className="text-indigo-900">{questionText}</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Tap the correct word(s)
+                    </label>
+                    <div className="flex flex-wrap gap-2 p-4 bg-slate-50 rounded-lg min-h-[100px]">
+                      {words.map((word, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => toggleWordIndex(idx)}
+                          className={`px-4 py-2 rounded-lg border-2 font-medium transition-all ${
+                            selectedIndices.includes(idx)
+                              ? "border-indigo-500 bg-indigo-100 text-indigo-700 ring-2 ring-indigo-200"
+                              : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-100"
+                          }`}
+                        >
+                          {word}
+                          {selectedIndices.includes(idx) && (
+                            <Check className="inline w-4 h-4 ml-1" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                    {selectedIndices.length > 0 && (
+                      <p className="text-sm text-indigo-600 mt-2 font-medium">
+                        ✓ Selected: {selectedIndices.map((i) => words[i]).join(", ")}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Explanation (Why are these correct?)
+                    </label>
+                    <textarea
+                      value={explanation}
+                      onChange={(e) => setExplanation(e.target.value)}
+                      placeholder="Explain why these words are the correct answers..."
+                      rows={2}
+                      className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </>
+              )}
             </div>
 
+            {/* Footer */}
             <div className="flex gap-3 p-4 border-t border-slate-200">
-              <button
-                onClick={() => setIsAddModalOpen(false)}
-                className="flex-1 py-2 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAdd}
-                disabled={isSubmitting}
-                className="flex-1 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
-              >
-                {isSubmitting ? "Adding..." : "Add Question"}
-              </button>
+              {step === 1 ? (
+                <>
+                  <button
+                    onClick={() => { resetForm(); setIsAddModalOpen(false); }}
+                    className="flex-1 py-2 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleNextStep}
+                    className="flex-1 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
+                  >
+                    Next: Select Words
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setStep(1)}
+                    className="flex-1 py-2 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={handleAdd}
+                    disabled={isSubmitting || selectedIndices.length === 0}
+                    className="flex-1 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {isSubmitting ? "Adding..." : "Add Question"}
+                    <Check className="w-4 h-4" />
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
