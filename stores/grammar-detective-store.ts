@@ -204,8 +204,15 @@ export const useGrammarDetectiveStore = create<GrammarDetectiveState>()(
 
       syncFromConvex: (serverStats) => {
         // Sync from Convex on app load (Convex is source of truth)
+        // CRITICAL: Do NOT update index if we are in 'reviewing' state.
+        // This prevents the UI from switching to the next question in the background
+        // while the user is looking at the result card of the current question.
+        // This happens because we update stats (and server index) immediately on submit,
+        // which triggers a subscription update before the user clicks "Continue".
+        const shouldUpdateIndex = get().gameState !== 'reviewing';
+        
         set({
-          currentQuestionIndex: serverStats.currentQuestionIndex,
+          currentQuestionIndex: shouldUpdateIndex ? serverStats.currentQuestionIndex : get().currentQuestionIndex,
           stats: {
             totalAnswered: serverStats.questionsAnswered,
             totalCorrect: serverStats.correctAnswers,

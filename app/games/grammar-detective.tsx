@@ -63,13 +63,6 @@ export default function GrammarDetectiveScreen() {
     }
   }, [serverProgress]);
 
-  // Start game when questions are loaded
-  useEffect(() => {
-    if (allQuestions && allQuestions.length > 0 && gameState === 'idle') {
-      startGame(allQuestions as GDQuestion[]);
-    }
-  }, [allQuestions, gameState]);
-
   const currentQuestion = getCurrentQuestion(allQuestions as GDQuestion[]);
 
   const handleWordPress = (index: number) => {
@@ -117,13 +110,49 @@ export default function GrammarDetectiveScreen() {
     router.back();
   };
 
-  // Loading state
-  if (questionsStatus === 'loading' || !currentQuestion) {
+  // Debug logging
+  console.log('[GrammarDetective] Status:', questionsStatus, 'Questions:', allQuestions?.length, 'GameState:', gameState, 'CurrentQ:', currentQuestion?.id);
+
+  // Check if shuffled IDs match current content
+  const { shuffledQuestionIds } = useGrammarDetectiveStore.getState();
+  const contentIds = allQuestions?.map((q: any) => q.id).join(',') ?? '';
+  const shuffledIds = shuffledQuestionIds.join(',');
+  
+  // Start or restart game when content changes
+  useEffect(() => {
+    if (!allQuestions || allQuestions.length === 0) return;
+    
+    const questionIdSet = new Set(allQuestions.map((q: any) => q.id));
+    const currentShuffled = useGrammarDetectiveStore.getState().shuffledQuestionIds;
+    const idsMatch = currentShuffled.length > 0 && currentShuffled.every(id => questionIdSet.has(id));
+    
+    if (!idsMatch) {
+      console.log('[GrammarDetective] Content changed, restarting game');
+      startGame(allQuestions as GDQuestion[]);
+    }
+  }, [contentIds]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Loading state - only show if we have no content at all
+  const isLoading = !allQuestions || allQuestions.length === 0;
+  
+  if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
           <Text style={styles.loadingText}>Loading questions...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Still waiting for game to start
+  if (!currentQuestion) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.loadingText}>Starting game...</Text>
         </View>
       </SafeAreaView>
     );

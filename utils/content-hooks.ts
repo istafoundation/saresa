@@ -354,15 +354,20 @@ const FALLBACK_GD_QUESTIONS = [
 export function useGrammarDetectiveQuestions(): ContentResult<typeof FALLBACK_GD_QUESTIONS> {
   const { token } = useChildAuth();
   
+  // Fetch ALL content for grammar-detective, then filter client-side
+  // (type filter was causing issues with the new pos_question type)
   const serverContent = useQuery(
     api.content.getGameContent,
-    token ? { gameId: 'grammar-detective', type: 'pos_question' } : 'skip'
+    token ? { gameId: 'grammar-detective' } : 'skip'
   );
   
   const serverVersion = useQuery(
     api.content.getContentVersion,
     token ? { gameId: 'grammar-detective' } : 'skip'
   );
+
+  // Debug logging
+  console.log('[GDHook] Token:', !!token, 'ServerContent:', serverContent?.length, 'ServerVersion:', serverVersion?.version);
 
   const [cachedData, setCachedData] = useState<typeof FALLBACK_GD_QUESTIONS | null>(null);
   const [status, setStatus] = useState<ContentStatus>('loading');
@@ -377,7 +382,8 @@ export function useGrammarDetectiveQuestions(): ContentResult<typeof FALLBACK_GD
   }, []);
 
   useEffect(() => {
-    if (serverContent && serverVersion) {
+    if (serverContent && serverContent.length > 0) {
+      console.log('[GDHook] Received server content:', serverContent.length, 'items');
       const transformedContent = serverContent.map((c: any) => ({
         id: c._id,
         ...c.data,
@@ -387,8 +393,8 @@ export function useGrammarDetectiveQuestions(): ContentResult<typeof FALLBACK_GD
       setCachedContent(
         'grammar-detective',
         transformedContent,
-        serverVersion.version,
-        serverVersion.checksum
+        serverVersion?.version ?? 0,
+        serverVersion?.checksum ?? ''
       );
     }
   }, [serverContent, serverVersion]);
