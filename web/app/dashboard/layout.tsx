@@ -23,9 +23,6 @@ export default function DashboardLayout({
   const { user } = useUser();
   const isAdmin = useQuery(api.parents.isAdmin);
   
-  // DEBUG: Log admin status
-  console.log("isAdmin query result:", isAdmin, "user:", user?.id);
-
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
