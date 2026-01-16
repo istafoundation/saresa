@@ -86,11 +86,11 @@ export default defineSchema({
     wfLastHardDate: v.optional(v.string()),
     wfEasyAttemptsToday: v.number(),
     
-    // Grammar Detective Stats
-    gdQuestionsAnswered: v.number(),
-    gdCorrectAnswers: v.number(),
-    gdTotalXPEarned: v.number(),
-    gdCurrentQuestionIndex: v.number(),  // Resume position
+    // Grammar Detective Stats (optional for backward compatibility)
+    gdQuestionsAnswered: v.optional(v.number()),
+    gdCorrectAnswers: v.optional(v.number()),
+    gdTotalXPEarned: v.optional(v.number()),
+    gdCurrentQuestionIndex: v.optional(v.number()),  // Resume position
   }).index("by_child_id", ["childId"]),
 
   // ============================================
