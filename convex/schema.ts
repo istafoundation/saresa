@@ -91,6 +91,12 @@ export default defineSchema({
     gdCorrectAnswers: v.optional(v.number()),
     gdTotalXPEarned: v.optional(v.number()),
     gdCurrentQuestionIndex: v.optional(v.number()),  // Resume position
+    
+    // Explorer Stats (India Explorer)
+    expCorrectAnswers: v.optional(v.number()),       // Total correct across all days
+    expTotalXPEarned: v.optional(v.number()),        // Total XP earned
+    expLastPlayedDate: v.optional(v.string()),       // IST date "2026-01-16"
+    expGuessedToday: v.optional(v.array(v.string())), // ["IN-MH", "IN-KA", ...] - prevents repeats
   }).index("by_child_id", ["childId"]),
 
   // ============================================

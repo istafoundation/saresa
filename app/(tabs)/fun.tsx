@@ -340,6 +340,47 @@ export default function FunScreen() {
             </View>
           </Pressable>
         </MotiView>
+
+        {/* Explorer's Heaven Card */}
+        <MotiView
+          from={{ opacity: 0, translateY: 20 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: 'spring', delay: 600 }}
+        >
+          <View style={styles.gameCard}>
+            <LinearGradient
+              colors={['#1abc9c', '#16a085']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.gameCardHeader}
+            >
+              <Text style={styles.gameCardEmoji}>🗺️</Text>
+              <View style={styles.gameCardTitleContainer}>
+                <Text style={styles.gameCardTitle}>Explorer's Heaven</Text>
+                <Text style={styles.gameCardDesc}>Discover geography!</Text>
+              </View>
+            </LinearGradient>
+            
+            <View style={styles.gameCardContent}>
+              {/* India Explorer */}
+              <Pressable 
+                style={styles.modeButton}
+                onPress={() => handleGamePress('/games/explorer/india')}
+              >
+                <View style={styles.modeButtonContent}>
+                  <Text style={{ fontSize: 24 }}>🇮🇳</Text>
+                  <View style={styles.modeButtonText}>
+                    <Text style={styles.modeButtonTitle}>Explore India</Text>
+                    <Text style={styles.modeButtonDesc}>
+                      Identify states on the map • Max 360 XP
+                    </Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+              </Pressable>
+            </View>
+          </View>
+        </MotiView>
         
         {/* Bottom spacing to account for tab bar */}
         <View style={{ height: 100 }} />

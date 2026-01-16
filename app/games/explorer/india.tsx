@@ -1,0 +1,810 @@
+// India Explorer - Identify states and union territories on the map
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { View, Text, StyleSheet, Pressable, Dimensions, ScrollView, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { MotiView } from 'moti';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { useQuery, useMutation } from 'convex/react';
+import { api } from '../../../convex/_generated/api';
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../../../constants/theme';
+import { useExplorerStore } from '../../../stores/explorer-store';
+import { useChildAuth } from '../../../utils/childAuth';
+import { useTapFeedback } from '../../../utils/useTapFeedback';
+import { useSoundEffects } from '../../../utils/sound-manager';
+import { useUserStore } from '../../../stores/user-store';
+import { TOTAL_REGIONS, XP_PER_CORRECT, MAX_XP, calculateXP } from '../../../data/india-states';
+import IndiaMap from '../../../components/IndiaMap';
+import Mascot from '../../../components/Mascot';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+export default function IndiaExplorerScreen() {
+  const router = useRouter();
+  const { token } = useChildAuth();
+  const { triggerTap } = useTapFeedback();
+  const { playTap, playCorrect, playWrong, playWin } = useSoundEffects();
+  const { mascot } = useUserStore();
+  const [isStarting, setIsStarting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  // Audio debounce guard - prevents rapid-fire sound effects
+  const lastSoundTimeRef = useRef<number>(0);
+  const SOUND_DEBOUNCE_MS = 150;
+  
+  // Store state
+  const {
+    gameState,
+    currentRegion,
+    selectedRegion,
+    guessedToday,
+    correctCount,
+    showFeedback,
+    wasCorrect,
+    initGame,
+    nextQuestion,
+    preSelectRegion,
+    submitSelection,
+    closeFeedback,
+    finishGame,
+    resetGame,
+  } = useExplorerStore();
+  
+  // Convex queries and mutations
+  const progress = useQuery(api.gameStats.getExplorerProgress, 
+    token ? { token } : 'skip'
+  );
+  const updateStats = useMutation(api.gameStats.updateExplorerStats);
+  
+  // Check if already completed today
+  const isCompletedToday = progress?.isCompletedToday ?? false;
+  const remaining = TOTAL_REGIONS - (progress?.guessedToday?.length ?? 0);
+  
+  // Calculate session result (must be before early returns to maintain hook order)
+  const sessionResult = useMemo(() => {
+    if (gameState !== 'finished') return null;
+    return { xp: calculateXP(correctCount), correct: correctCount, total: guessedToday.length };
+  }, [gameState, correctCount, guessedToday.length]);
+
+  // Memoize filtered guessed regions for the map
+  // Must be at top level to avoid hook order errors
+  const filteredGuessedRegions = useMemo(() => {
+    return guessedToday.filter(id => id !== currentRegion?.id);
+  }, [guessedToday, currentRegion?.id]);
+  
+  // Start or continue game
+  const handleStartGame = useCallback(() => {
+    if (!progress) return;
+    
+    triggerTap('medium');
+    setIsStarting(true);
+    
+    // Initialize with today's progress from Convex
+    initGame(progress.guessedToday);
+    
+    // Get first question
+    setTimeout(() => {
+      nextQuestion();
+      setIsStarting(false);
+    }, 300);
+  }, [progress, initGame, nextQuestion, triggerTap]);
+  
+  // Handle map tap - just select the region (don't submit yet)
+  const handleRegionPress = useCallback((regionId: string) => {
+    if (gameState !== 'playing' || !currentRegion || showFeedback) return;
+    
+    // Debounce tap sound to prevent multiple rapid sounds
+    const now = Date.now();
+    const shouldPlaySound = now - lastSoundTimeRef.current > SOUND_DEBOUNCE_MS;
+    
+    triggerTap('light');
+    if (shouldPlaySound) {
+      lastSoundTimeRef.current = now;
+      playTap();
+    }
+    preSelectRegion(regionId);
+  }, [gameState, currentRegion, showFeedback, preSelectRegion, triggerTap, playTap]);
+  
+  // Handle submit button - check the answer
+  const handleSubmit = useCallback(async () => {
+    if (gameState !== 'playing' || !currentRegion || !selectedRegion || !token || isSaving) return;
+    
+    setIsSaving(true);
+    triggerTap('medium');
+    const isCorrect = submitSelection();
+    
+    // Play sound feedback
+    if (isCorrect) {
+      playCorrect();
+    } else {
+      playWrong();
+    }
+    
+    // Update Convex
+    try {
+      await updateStats({
+        token,
+        regionId: currentRegion.id,
+        correct: isCorrect,
+        xpEarned: isCorrect ? XP_PER_CORRECT : 0,
+      });
+    } catch (error) {
+      console.error('Failed to update stats:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [gameState, currentRegion, selectedRegion, token, isSaving, submitSelection, updateStats, triggerTap, playCorrect, playWrong]);
+  
+  // Continue to next question or finish
+  const handleContinue = useCallback(() => {
+    triggerTap('light');
+    
+    // Debounce tap sound to prevent overlap with correct/wrong sounds
+    const now = Date.now();
+    if (now - lastSoundTimeRef.current > SOUND_DEBOUNCE_MS) {
+      lastSoundTimeRef.current = now;
+      playTap();
+    }
+    
+    closeFeedback();
+    
+    const hasMore = nextQuestion();
+    if (!hasMore) {
+      // All done - play win sound if they got at least half correct!
+      if (correctCount >= guessedToday.length / 2) {
+        playWin();
+      }
+      finishGame();
+    }
+  }, [closeFeedback, nextQuestion, finishGame, triggerTap, playTap, playWin, correctCount, guessedToday.length]);
+  
+  // Back to games
+  const handleBack = useCallback(() => {
+    triggerTap('medium');
+    resetGame();
+    router.back();
+  }, [resetGame, router, triggerTap]);
+  
+  // Loading state
+  if (!progress) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.loadingText}>Loading progress...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+  
+  // Completed today state
+  if (isCompletedToday && gameState === 'idle') {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Pressable onPress={handleBack} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+          </Pressable>
+          <Text style={styles.title}>India Explorer</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        
+        <View style={styles.completedContainer}>
+          <Mascot mascotType={mascot} size="large" />
+          <Text style={styles.completedTitle}>🎉 All Done for Today!</Text>
+          <Text style={styles.completedText}>
+            You've identified all {TOTAL_REGIONS} states and union territories!
+          </Text>
+          <Text style={styles.completedStats}>
+            Total XP Earned: {progress.totalXPEarned}
+          </Text>
+          <Text style={styles.completedHint}>Come back tomorrow for more exploring!</Text>
+          
+          <Pressable style={styles.backToGamesButton} onPress={handleBack}>
+            <Text style={styles.backToGamesText}>Back to Games</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+  
+  // Idle state - show start screen
+  if (gameState === 'idle') {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Pressable onPress={handleBack} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+          </Pressable>
+          <Text style={styles.title}>India Explorer</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <MotiView
+            from={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: 'spring' }}
+            style={styles.startCard}
+          >
+            <LinearGradient
+              colors={['#1abc9c', '#16a085']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.startCardGradient}
+            >
+              <Text style={styles.startEmoji}>🗺️</Text>
+              <Text style={styles.startTitle}>Explore India</Text>
+              <Text style={styles.startSubtitle}>
+                Identify all {TOTAL_REGIONS} states and union territories
+              </Text>
+            </LinearGradient>
+            
+            <View style={styles.startInfo}>
+              <View style={styles.startInfoItem}>
+                <Ionicons name="location" size={20} color={COLORS.primary} />
+                <Text style={styles.startInfoText}>{remaining} remaining today</Text>
+              </View>
+              <View style={styles.startInfoItem}>
+                <Ionicons name="star" size={20} color={COLORS.accentGold} />
+                <Text style={styles.startInfoText}>Max {MAX_XP} XP</Text>
+              </View>
+            </View>
+            
+            <Pressable
+              style={styles.startButton}
+              onPress={handleStartGame}
+              disabled={isStarting}
+            >
+              {isStarting ? (
+                <ActivityIndicator color={COLORS.text} />
+              ) : (
+                <>
+                  <Text style={styles.startButtonText}>
+                    {progress.guessedToday.length > 0 ? 'Continue' : 'Start Exploring'}
+                  </Text>
+                  <Ionicons name="arrow-forward" size={20} color={COLORS.text} />
+                </>
+              )}
+            </Pressable>
+          </MotiView>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+  
+  // Finished state
+  
+  if (gameState === 'finished' && sessionResult) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.resultContainer}>
+          <MotiView
+            from={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: 'spring', delay: 200 }}
+          >
+            <Text style={styles.resultEmoji}>🎉</Text>
+            <Text style={styles.resultTitle}>Session Complete!</Text>
+            
+            <View style={styles.resultStats}>
+              <View style={styles.resultStatItem}>
+                <Text style={styles.resultStatValue}>{correctCount}</Text>
+                <Text style={styles.resultStatLabel}>Correct</Text>
+              </View>
+              <View style={styles.resultStatDivider} />
+              <View style={styles.resultStatItem}>
+                <Text style={styles.resultStatValue}>{guessedToday.length}</Text>
+                <Text style={styles.resultStatLabel}>Answered</Text>
+              </View>
+              <View style={styles.resultStatDivider} />
+              <View style={styles.resultStatItem}>
+                <Text style={[styles.resultStatValue, { color: COLORS.accentGold }]}>
+                  +{sessionResult.xp}
+                </Text>
+                <Text style={styles.resultStatLabel}>XP</Text>
+              </View>
+            </View>
+            
+            {guessedToday.length >= TOTAL_REGIONS ? (
+              <Text style={styles.resultHint}>
+                🏆 You've completed all regions! Come back tomorrow.
+              </Text>
+            ) : (
+              <Text style={styles.resultHint}>
+                {TOTAL_REGIONS - guessedToday.length} regions remaining today
+              </Text>
+            )}
+            
+            <Pressable style={styles.resultButton} onPress={handleBack}>
+              <Text style={styles.resultButtonText}>Done</Text>
+            </Pressable>
+          </MotiView>
+        </View>
+      </SafeAreaView>
+    );
+  }
+  
+  // Playing state
+  return (
+    <SafeAreaView style={styles.container}>
+      {/* Header */}
+      <View style={styles.gameHeader}>
+        <Pressable onPress={handleBack} style={styles.backButton}>
+          <Ionicons name="close" size={24} color={COLORS.text} />
+        </Pressable>
+        
+        <View style={styles.progressContainer}>
+          <Text style={styles.progressText}>
+            {guessedToday.length} / {TOTAL_REGIONS}
+          </Text>
+          <View style={styles.progressBar}>
+            <View 
+              style={[
+                styles.progressFill, 
+                { width: `${(guessedToday.length / TOTAL_REGIONS) * 100}%` }
+              ]} 
+            />
+          </View>
+        </View>
+        
+        <View style={styles.scoreContainer}>
+          <Ionicons name="star" size={16} color={COLORS.accentGold} />
+          <Text style={styles.scoreText}>{correctCount * XP_PER_CORRECT}</Text>
+        </View>
+      </View>
+      
+      {/* Question */}
+      <View style={styles.questionContainer}>
+        <Text style={styles.questionLabel}>Find this on the map:</Text>
+        <Text style={styles.questionText}>{currentRegion?.name}</Text>
+        <Text style={styles.questionType}>
+          {currentRegion?.type === 'state' ? 'State' : 'Union Territory'}
+        </Text>
+      </View>
+      
+      {/* Map */}
+      <View style={styles.mapContainer}>
+        <IndiaMap
+          targetRegion={currentRegion?.id}
+          selectedRegion={selectedRegion ?? undefined}
+          guessedRegions={filteredGuessedRegions}
+          correctRegion={showFeedback ? currentRegion?.id : undefined}
+          wrongRegion={showFeedback && !wasCorrect ? selectedRegion ?? undefined : undefined}
+          onRegionPress={handleRegionPress}
+          disabled={showFeedback || gameState !== 'playing'}
+        />
+      </View>
+      
+      {/* Submit Button - appears when a region is selected */}
+      {selectedRegion && !showFeedback && (
+        <MotiView
+          from={{ opacity: 0, translateY: 20 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: 'spring', damping: 15 }}
+          style={styles.submitContainer}
+        >
+          <Pressable
+            style={[styles.submitButton, isSaving && styles.submitButtonDisabled]}
+            onPress={handleSubmit}
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <ActivityIndicator color={COLORS.text} />
+            ) : (
+              <>
+                <Text style={styles.submitButtonText}>Submit Answer</Text>
+                <Ionicons name="checkmark-circle" size={20} color={COLORS.text} />
+              </>
+            )}
+          </Pressable>
+        </MotiView>
+      )}
+      
+      {/* Feedback Modal */}
+      {showFeedback && (
+        <MotiView
+          from={{ opacity: 0, translateY: 100 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: 'spring' }}
+          style={styles.feedbackContainer}
+        >
+          <View style={[
+            styles.feedbackCard,
+            { backgroundColor: wasCorrect ? COLORS.success : COLORS.error }
+          ]}>
+            <Text style={styles.feedbackEmoji}>
+              {wasCorrect ? '✅' : '❌'}
+            </Text>
+            <Text style={styles.feedbackTitle}>
+              {wasCorrect ? 'Correct!' : 'Not quite...'}
+            </Text>
+            {wasCorrect ? (
+              <View style={styles.xpBadge}>
+                <Ionicons name="star" size={16} color={COLORS.accentGold} />
+                <Text style={styles.xpBadgeText}>+{XP_PER_CORRECT} XP</Text>
+              </View>
+            ) : (
+              <Text style={styles.feedbackHint}>
+                {currentRegion?.name} is highlighted in green
+              </Text>
+            )}
+            <Pressable style={styles.feedbackButton} onPress={handleContinue}>
+              <Text style={styles.feedbackButtonText}>
+                {guessedToday.length >= TOTAL_REGIONS ? 'Finish' : 'Next'}
+              </Text>
+              <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+            </Pressable>
+          </View>
+        </MotiView>
+      )}
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.md,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: COLORS.textSecondary,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: SPACING.md,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: BORDER_RADIUS.full,
+    backgroundColor: COLORS.surface,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  content: {
+    flex: 1,
+    padding: SPACING.md,
+  },
+  
+  // Start screen
+  startCard: {
+    backgroundColor: COLORS.backgroundCard,
+    borderRadius: BORDER_RADIUS.xl,
+    overflow: 'hidden',
+    ...SHADOWS.md,
+  },
+  startCardGradient: {
+    padding: SPACING.xl,
+    alignItems: 'center',
+  },
+  startEmoji: {
+    fontSize: 64,
+    marginBottom: SPACING.md,
+  },
+  startTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: SPACING.xs,
+  },
+  startSubtitle: {
+    fontSize: 14,
+    color: COLORS.text + 'CC',
+    textAlign: 'center',
+  },
+  startInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    padding: SPACING.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.textMuted,
+  },
+  startInfoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  startInfoText: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+  },
+  startButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.primary,
+    margin: SPACING.md,
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+  },
+  startButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  
+  // Completed screen
+  completedContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: SPACING.xl,
+  },
+  completedTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginTop: SPACING.lg,
+    marginBottom: SPACING.sm,
+  },
+  completedText: {
+    fontSize: 16,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginBottom: SPACING.md,
+  },
+  completedStats: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.accentGold,
+    marginBottom: SPACING.sm,
+  },
+  completedHint: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+    marginBottom: SPACING.xl,
+  },
+  backToGamesButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+  },
+  backToGamesText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  
+  // Game header
+  gameHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: SPACING.md,
+    gap: SPACING.md,
+  },
+  progressContainer: {
+    flex: 1,
+    gap: SPACING.xs,
+  },
+  progressText: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+  },
+  progressBar: {
+    height: 6,
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.full,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.full,
+  },
+  scoreContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.full,
+  },
+  scoreText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.accentGold,
+  },
+  
+  // Question
+  questionContainer: {
+    alignItems: 'center',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+  },
+  questionLabel: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.xs,
+  },
+  questionText: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: COLORS.text,
+    textAlign: 'center',
+  },
+  questionType: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: SPACING.xs,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 2,
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.full,
+  },
+  
+  // Map
+  mapContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: SPACING.xs,
+  },
+  
+  // Feedback
+  feedbackContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: SPACING.md,
+  },
+  feedbackCard: {
+    borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.lg,
+    alignItems: 'center',
+  },
+  feedbackEmoji: {
+    fontSize: 40,
+    marginBottom: SPACING.sm,
+  },
+  feedbackTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: SPACING.xs,
+  },
+  feedbackHint: {
+    fontSize: 14,
+    color: COLORS.text + 'CC',
+    marginBottom: SPACING.md,
+  },
+  feedbackButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.lg,
+  },
+  feedbackButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  
+  // Result
+  resultContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: SPACING.xl,
+  },
+  resultEmoji: {
+    fontSize: 64,
+    textAlign: 'center',
+    marginBottom: SPACING.md,
+  },
+  resultTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: COLORS.text,
+    textAlign: 'center',
+    marginBottom: SPACING.lg,
+  },
+  resultStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.lg,
+    marginBottom: SPACING.lg,
+  },
+  resultStatItem: {
+    alignItems: 'center',
+    paddingHorizontal: SPACING.lg,
+  },
+  resultStatValue: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  resultStatLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: SPACING.xs,
+  },
+  resultStatDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: COLORS.textMuted,
+  },
+  resultHint: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginBottom: SPACING.xl,
+  },
+  resultButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+  },
+  resultButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  
+  // Submit button
+  submitContainer: {
+    paddingHorizontal: SPACING.md,
+    paddingBottom: SPACING.md,
+  },
+  submitButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.success,
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    ...SHADOWS.md,
+  },
+  submitButtonDisabled: {
+    opacity: 0.7,
+  },
+  submitButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  
+  // XP Badge
+  xpBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.full,
+    marginBottom: SPACING.sm,
+  },
+  xpBadgeText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.accentGold,
+  },
+});

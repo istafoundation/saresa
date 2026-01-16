@@ -311,3 +311,92 @@ export const getGrammarDetectiveProgress = query({
     };
   },
 });
+
+// ============================================
+// EXPLORER (India Explorer) STATS
+// ============================================
+
+// Total regions in India Explorer (28 states + 8 UTs)
+// Keep in sync with data/india-states.ts TOTAL_REGIONS
+const TOTAL_EXPLORER_REGIONS = 36;
+
+// Get Explorer progress for today (which states/UTs have been guessed)
+export const getExplorerProgress = query({
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    const childId = await getChildIdFromSession(ctx, args.token);
+    if (!childId) return null;
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_child_id", (q) => q.eq("childId", childId))
+      .first();
+
+    if (!user) return null;
+
+    const today = getISTDate();
+    
+    // If last played date is not today, reset guessed list
+    const guessedToday = user.expLastPlayedDate === today 
+      ? (user.expGuessedToday ?? [])
+      : [];
+
+    return {
+      guessedToday,
+      correctAnswers: user.expCorrectAnswers ?? 0,
+      totalXPEarned: user.expTotalXPEarned ?? 0,
+      isCompletedToday: guessedToday.length >= TOTAL_EXPLORER_REGIONS,
+    };
+  },
+});
+
+// Update Explorer stats after answering a question
+export const updateExplorerStats = mutation({
+  args: {
+    token: v.string(),
+    regionId: v.string(),    // e.g., "IN-MH"
+    correct: v.boolean(),
+    xpEarned: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const childId = await getChildIdFromSession(ctx, args.token);
+    if (!childId) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_child_id", (q) => q.eq("childId", childId))
+      .first();
+
+    if (!user) throw new Error("User not found");
+
+    const today = getISTDate();
+    
+    // Get current guessed list (reset if new day)
+    let guessedToday = user.expLastPlayedDate === today 
+      ? [...(user.expGuessedToday ?? [])]
+      : [];
+    
+    // Add the region to guessed list if not already there
+    if (!guessedToday.includes(args.regionId)) {
+      guessedToday.push(args.regionId);
+    }
+
+    const updates: Record<string, any> = {
+      expLastPlayedDate: today,
+      expGuessedToday: guessedToday,
+      expTotalXPEarned: (user.expTotalXPEarned ?? 0) + args.xpEarned,
+    };
+
+    if (args.correct) {
+      updates.expCorrectAnswers = (user.expCorrectAnswers ?? 0) + 1;
+    }
+
+    await ctx.db.patch(user._id, updates);
+
+    return {
+      guessedToday,
+      remaining: TOTAL_EXPLORER_REGIONS - guessedToday.length,
+      isComplete: guessedToday.length >= TOTAL_EXPLORER_REGIONS,
+    };
+  },
+});
