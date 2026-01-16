@@ -1,17 +1,24 @@
 // Word Finder game store - Grid generation, game logic, and persistence
 // Stats are stored in Convex and synced via useConvexSync -> user-store.ts
+// Content is fetched via OTA (useWordFinderSets, useWordFinderHardQuestions)
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { zustandStorage } from '../utils/storage';
-import { getISTDate } from '../utils/dates';
-import { 
-  getRandomWordSet, 
-  getRandomQuestion, 
-  type WordSet, 
-  type HardQuestion 
-} from '../data/word-finder-data';
 
-// Types
+// Types (self-contained - no external imports for data)
+export interface WordSet {
+  id: number;
+  theme: string;
+  words: string[];
+}
+
+export interface HardQuestion {
+  id: number;
+  question: string;
+  answer: string;
+  hint: string;
+}
+
 export type GameMode = 'easy' | 'hard';
 export type GameState = 'idle' | 'playing' | 'finished';
 
@@ -26,8 +33,6 @@ export interface WordPlacement {
   found: boolean;
 }
 
-// NOTE: Stats are now in Convex! Use useUserStore().wfStats instead.
-// This interface is kept for backwards compatibility but should not be used.
 export interface WordFinderStats {
   easyGamesPlayed: number;
   easyWordsFound: number;
@@ -64,14 +69,15 @@ export interface WordFinderState {
   easyAttemptsToday: number;
   lastHardPlayDate: string | null;
   
-  // Actions
-  startGame: (mode: GameMode) => boolean;
+  // Actions - now accept OTA content as parameters
+  startEasyGame: (wordSets: WordSet[]) => boolean;
+  startHardGame: (questions: HardQuestion[]) => boolean;
   selectCell: (row: number, col: number) => void;
   confirmSelection: () => { valid: boolean; word?: string };
   clearSelection: () => void;
   useHint: () => string | null;
-  nextHardQuestion: () => boolean;
-  skipHardQuestion: () => boolean;
+  nextHardQuestion: (questions: HardQuestion[]) => boolean;
+  skipHardQuestion: (questions: HardQuestion[]) => boolean;
   updateTimer: (seconds: number) => void;
   finishGame: () => { xpEarned: number; wordsFound: number; total: number };
   canPlayEasyToday: () => boolean;
@@ -237,6 +243,18 @@ function positionsMatch(pos1: CellPosition[], pos2: CellPosition[]): boolean {
   return forwardMatch || reverseMatch;
 }
 
+// Helper to get random item from array
+function getRandomItem<T>(arr: T[]): T | null {
+  if (arr.length === 0) return null;
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+// Helper to get random question excluding answered ones
+function getRandomQuestion(questions: HardQuestion[], excludeIds: number[]): HardQuestion | null {
+  const available = questions.filter(q => !excludeIds.includes(q.id));
+  return getRandomItem(available);
+}
+
 export const useWordFinderStore = create<WordFinderState>()(
   persist(
     (set, get) => ({
@@ -257,54 +275,57 @@ export const useWordFinderStore = create<WordFinderState>()(
       easyAttemptsToday: 0,
       lastHardPlayDate: null,
       
-      startGame: (mode) => {
-        const today = new Date().toISOString().split('T')[0];
-        
-        if (mode === 'easy' && !get().canPlayEasyToday()) {
+      // Start Easy game with OTA word sets
+      startEasyGame: (wordSets) => {
+        if (!get().canPlayEasyToday()) {
           return false;
         }
         
-        if (mode === 'hard' && !get().canPlayHardToday()) {
+        const wordSet = getRandomItem(wordSets);
+        if (!wordSet) return false;
+        
+        const { grid, placements } = generateGrid(wordSet.words);
+        
+        set({
+          mode: 'easy',
+          gameState: 'playing',
+          grid,
+          wordPlacements: placements,
+          selectedCells: [],
+          currentWordSet: wordSet,
+          currentQuestion: null,
+          hintUsed: false,
+          timeRemaining: MAX_TIME,
+        });
+        
+        return true;
+      },
+      
+      // Start Hard game with OTA questions
+      startHardGame: (questions) => {
+        if (!get().canPlayHardToday()) {
           return false;
         }
         
-        if (mode === 'easy') {
-          const wordSet = getRandomWordSet();
-          const { grid, placements } = generateGrid(wordSet.words);
-          
-          set({
-            mode: 'easy',
-            gameState: 'playing',
-            grid,
-            wordPlacements: placements,
-            selectedCells: [],
-            currentWordSet: wordSet,
-            currentQuestion: null,
-            hintUsed: false,
-            timeRemaining: MAX_TIME,
-          });
-        } else {
-          // Hard mode: Start with first question
-          const question = getRandomQuestion([]);
-          if (!question) return false;
-          
-          const { grid, placements } = generateGrid([question.answer]);
-          
-          set({
-            mode: 'hard',
-            gameState: 'playing',
-            grid,
-            wordPlacements: placements,
-            selectedCells: [],
-            currentWordSet: null,
-            currentQuestion: question,
-            answeredQuestionIds: [],
-            hintUsed: false,
-            hardQuestionsAnswered: 0,
-            hardCorrectAnswers: 0,
-            timeRemaining: MAX_TIME,
-          });
-        }
+        const question = getRandomQuestion(questions, []);
+        if (!question) return false;
+        
+        const { grid, placements } = generateGrid([question.answer]);
+        
+        set({
+          mode: 'hard',
+          gameState: 'playing',
+          grid,
+          wordPlacements: placements,
+          selectedCells: [],
+          currentWordSet: null,
+          currentQuestion: question,
+          answeredQuestionIds: [],
+          hintUsed: false,
+          hardQuestionsAnswered: 0,
+          hardCorrectAnswers: 0,
+          timeRemaining: MAX_TIME,
+        });
         
         return true;
       },
@@ -407,7 +428,8 @@ export const useWordFinderStore = create<WordFinderState>()(
         return currentQuestion.hint;
       },
       
-      nextHardQuestion: () => {
+      // Next question - now accepts OTA questions
+      nextHardQuestion: (questions) => {
         const { answeredQuestionIds, hardQuestionsAnswered, timeRemaining } = get();
         
         // Max 5 questions per hard mode session
@@ -416,7 +438,7 @@ export const useWordFinderStore = create<WordFinderState>()(
           return false;
         }
         
-        const question = getRandomQuestion(answeredQuestionIds);
+        const question = getRandomQuestion(questions, answeredQuestionIds);
         if (!question) {
           set({ gameState: 'finished' });
           return false;
@@ -436,7 +458,8 @@ export const useWordFinderStore = create<WordFinderState>()(
         return true;
       },
       
-      skipHardQuestion: () => {
+      // Skip question - now accepts OTA questions
+      skipHardQuestion: (questions) => {
         const { answeredQuestionIds, hardQuestionsAnswered, timeRemaining, currentQuestion } = get();
         
         // Increment questions answered (but NOT correct answers - no XP for skip)
@@ -456,7 +479,7 @@ export const useWordFinderStore = create<WordFinderState>()(
           ? [...answeredQuestionIds, currentQuestion.id]
           : answeredQuestionIds;
         
-        const question = getRandomQuestion(updatedAnsweredIds);
+        const question = getRandomQuestion(questions, updatedAnsweredIds);
         if (!question) {
           set({ 
             hardQuestionsAnswered: newQuestionsAnswered,
@@ -511,7 +534,6 @@ export const useWordFinderStore = create<WordFinderState>()(
           const { lastEasyPlayDate, easyAttemptsToday } = get();
           const newAttempts = lastEasyPlayDate === today ? easyAttemptsToday + 1 : 1;
           
-          // NOTE: Stats are updated in Convex via useGameStatsActions().updateWordFinderStats()
           set({ 
             lastEasyPlayDate: today,
             easyAttemptsToday: newAttempts,
@@ -526,7 +548,6 @@ export const useWordFinderStore = create<WordFinderState>()(
           const hintPenalty = hintUsed ? 0.5 : 1;
           xpEarned = Math.min(200, Math.round(baseXP * timeBonus * hintPenalty));
           
-          // NOTE: Stats are updated in Convex via useGameStatsActions().updateWordFinderStats()
           set({ 
             lastHardPlayDate: today,
           });

@@ -1,6 +1,6 @@
 // GK Practice Mode - Infinite questions, no XP
 // Stats are synced via Convex (useGameStatsActions)
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
 import { useState, useEffect, useRef } from 'react';
@@ -9,17 +9,22 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { COLORS, SPACING, BORDER_RADIUS } from '../../../constants/theme';
-import { useGKStore } from '../../../stores/gk-store';
+import { useGKStore, type Question } from '../../../stores/gk-store';
 import { useUserStore } from '../../../stores/user-store';
 import { useGameStatsActions } from '../../../utils/useUserActions';
 import { useGameAudio } from '../../../utils/sound-manager';
 import { useTapFeedback } from '../../../utils/useTapFeedback';
 import Mascot from '../../../components/Mascot';
+import { useEnglishInsaneQuestions } from '../../../utils/content-hooks';
 
 export default function PracticeScreen() {
   const router = useRouter();
   const { mascot, gkStats } = useUserStore();
   const { updateGKStats } = useGameStatsActions();
+  
+  // OTA Content
+  const { content: allQuestions, status: questionsStatus } = useEnglishInsaneQuestions();
+  
   const {
     quizState,
     currentQuestionIndex,
@@ -37,7 +42,7 @@ export default function PracticeScreen() {
   const [showResult, setShowResult] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [correctIndex, setCorrectIndex] = useState(0);
-  const { triggerTap } = useTapFeedback();
+  const { triggerTap, triggerHapticOnly } = useTapFeedback();
   
   // Track session stats locally for immediate UI feedback
   // (Convex will sync eventually, but this gives instant updates)
@@ -46,20 +51,22 @@ export default function PracticeScreen() {
   const [sessionCorrect, setSessionCorrect] = useState(0);
 
   useEffect(() => {
-    startQuiz('practice');
-    startMusic(); // Start background music
+    if (allQuestions && allQuestions.length > 0) {
+      startQuiz('practice', allQuestions as Question[]);
+      startMusic(); // Start background music
+    }
     return () => {
       resetQuiz();
       stopMusic(); // Stop music on exit
     };
-  }, []);
+  }, [allQuestions]);
 
   const currentQuestion = questions[currentQuestionIndex];
 
   const handleAnswer = async (index: number) => {
     if (showResult) return;
     
-    triggerTap('medium');
+    triggerHapticOnly('medium');
     setSelectedAnswer(index);
     
     const result = answerQuestion(index);
@@ -92,7 +99,7 @@ export default function PracticeScreen() {
     triggerTap();
     setSelectedAnswer(null);
     setShowResult(false);
-    nextQuestion();
+    nextQuestion(allQuestions as Question[]);
   };
 
   const handleEnd = () => {
@@ -104,7 +111,7 @@ export default function PracticeScreen() {
   const handleSkip = () => {
     triggerTap('light');
     // Just move to next question without recording any stats
-    nextQuestion();
+    nextQuestion(allQuestions as Question[]);
   };
 
   if (!currentQuestion) {

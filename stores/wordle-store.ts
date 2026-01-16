@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { zustandStorage } from '../utils/storage';
 import { getISTDate } from '../utils/dates';
-import { getTodaysWord, getTodaysHint, isValidWord } from '../data/wordle-words';
+import { isValidWord } from '../data/wordle-words';
 
 export type LetterState = 'correct' | 'present' | 'absent' | 'unused';
 export type GameState = 'playing' | 'won' | 'lost';
@@ -44,11 +44,11 @@ export interface WordleState {
   addLetter: (letter: string) => void;
   removeLetter: () => void;
   submitGuess: () => { valid: boolean; result?: LetterState[]; won?: boolean; lost?: boolean };
-  initGame: () => void;
+  initGame: (todaysWord: string, todaysHint: string) => void;
   canPlayToday: () => boolean;
-  resetGame: () => void;
-  useHint: () => void;                           // Mark hint as used (local)
-  setHintUsedFromServer: (used: boolean) => void; // Sync hint state from Convex
+  resetGame: (todaysWord: string, todaysHint: string) => void;
+  useHint: () => void;
+  setHintUsedFromServer: (used: boolean) => void;
 }
 
 const WORD_LENGTH = 5;
@@ -94,7 +94,7 @@ export const useWordleStore = create<WordleState>()(
           return { valid: false };
         }
         
-        // Validate word is in dictionary
+        // Validate word is in dictionary (local validation - instant)
         if (!isValidWord(currentGuess)) {
           return { valid: false, error: 'Not in word list' };
         }
@@ -166,7 +166,8 @@ export const useWordleStore = create<WordleState>()(
         return { valid: true, result, won, lost };
       },
       
-      initGame: () => {
+      // Initialize game with word from OTA (Convex)
+      initGame: (todaysWord: string, todaysHint: string) => {
         const today = getISTDate();
         const { lastPlayedDate, gameStartedDate, targetWord } = get();
         
@@ -175,7 +176,6 @@ export const useWordleStore = create<WordleState>()(
         
         // If game was started today (has guesses), preserve the state
         // Also verify we're playing today's word to handle new day rollover
-        const todaysWord = getTodaysWord();
         if (gameStartedDate === today && targetWord === todaysWord) {
           // Game in progress for today - don't reset!
           return;
@@ -184,7 +184,7 @@ export const useWordleStore = create<WordleState>()(
         // Start new game - reset for new day
         set({
           targetWord: todaysWord,
-          targetHint: getTodaysHint(),
+          targetHint: todaysHint,
           currentGuess: '',
           guesses: [],
           gameState: 'playing',
@@ -200,10 +200,11 @@ export const useWordleStore = create<WordleState>()(
         return get().lastPlayedDate !== today;
       },
       
-      resetGame: () => {
+      // Reset game with word from OTA (Convex)
+      resetGame: (todaysWord: string, todaysHint: string) => {
         set({
-          targetWord: getTodaysWord(),
-          targetHint: getTodaysHint(),
+          targetWord: todaysWord,
+          targetHint: todaysHint,
           currentGuess: '',
           guesses: [],
           gameState: 'playing',

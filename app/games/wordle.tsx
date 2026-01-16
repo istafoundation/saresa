@@ -1,6 +1,6 @@
 // Wordle Game Screen - Updated with How-To-Play, Share, and Hints
 // Stats are read from Convex via useUserStore (synced by useConvexSync)
-import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
 import { useEffect, useState } from 'react';
@@ -75,6 +75,9 @@ export default function WordleScreen() {
     token ? { token } : 'skip'
   );
   
+  // OTA: Get today's word from server (same for all users)
+  const todaysWordData = useQuery(api.content.getTodaysWordleWord);
+  
   // Check if hint was used today (from Convex - for restoring state after app restart)
   const didUseHintToday = useQuery(api.gameStats.didUseWordleHint, 
     token ? { token } : 'skip'
@@ -98,9 +101,11 @@ export default function WordleScreen() {
   const shakeX = useSharedValue(0);
   const { triggerTap } = useTapFeedback();
 
-  // Initialize game - but defer to Convex for source of truth
+  // Initialize game when we have today's word from OTA
   useEffect(() => {
-    initGame();
+    if (todaysWordData) {
+      initGame(todaysWordData.word, todaysWordData.hint);
+    }
     // Don't start music yet - wait for Convex check
     // Show how-to-play on first visit (check Convex stats)
     if (wordleStats.gamesPlayed === 0) {
@@ -109,7 +114,7 @@ export default function WordleScreen() {
     return () => {
       stopMusic(); // Stop music on exit
     };
-  }, []);
+  }, [todaysWordData]);
 
   // SYNC WITH CONVEX: Handle game availability and music
   useEffect(() => {
@@ -259,6 +264,18 @@ export default function WordleScreen() {
   // Calculate reward amounts for display
   const xpReward = hintUsed ? XP_WITH_HINT : XP_FULL;
   const shardReward = hintUsed ? SHARDS_WITH_HINT : SHARDS_FULL;
+
+  // Loading state while fetching today's word from OTA
+  if (!todaysWordData) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.loadingText}>Loading today's word...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   // If server confirms already played, show the overlay
   if (alreadyPlayedToday && gameState === 'playing') {
@@ -583,6 +600,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.md,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: COLORS.textSecondary,
   },
   header: {
     flexDirection: 'row',

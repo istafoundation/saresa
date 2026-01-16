@@ -7,6 +7,7 @@ export default defineSchema({
     clerkId: v.string(),
     email: v.string(),
     name: v.string(),
+    role: v.optional(v.string()),  // "parent" (default) | "admin"
     createdAt: v.number(),
   }).index("by_clerk_id", ["clerkId"]),
 
@@ -85,4 +86,122 @@ export default defineSchema({
     wfLastHardDate: v.optional(v.string()),
     wfEasyAttemptsToday: v.number(),
   }).index("by_child_id", ["childId"]),
+
+  // ============================================
+  // OTA CONTENT MANAGEMENT SYSTEM
+  // ============================================
+
+  // Main content storage for all games
+  gameContent: defineTable({
+    // Content type
+    type: v.union(
+      v.literal("wordle_word"),
+      v.literal("word_set"),
+      v.literal("hard_question"),
+      v.literal("gk_question")
+    ),
+    gameId: v.string(),  // "wordle", "word-finder", "english-insane"
+    
+    // The actual content payload (varies by type)
+    data: v.any(),
+    
+    // Lifecycle status
+    status: v.union(
+      v.literal("draft"),
+      v.literal("active"),
+      v.literal("scheduled"),
+      v.literal("archived")
+    ),
+    
+    // Versioning
+    version: v.number(),
+    
+    // Organization
+    tags: v.array(v.string()),  // ["seasonal", "halloween", "advanced"]
+    packId: v.optional(v.string()),  // Link to content pack
+    
+    // Scheduling (for scheduled content)
+    validFrom: v.optional(v.number()),  // Timestamp
+    validUntil: v.optional(v.number()),
+    
+    // Priority for weighted selection
+    priority: v.number(),  // Higher = more likely to show
+    
+    // Metadata
+    createdBy: v.optional(v.id("parents")),  // Admin who created it
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_game_status", ["gameId", "status"])
+    .index("by_type_status", ["type", "status"])
+    .index("by_pack", ["packId"]),
+
+  // Version tracking per game (for cache invalidation)
+  contentVersions: defineTable({
+    gameId: v.string(),
+    version: v.number(),
+    publishedAt: v.number(),
+    description: v.string(),
+    contentCount: v.number(),  // How many items in this version
+    checksum: v.string(),  // For cache validation
+  })
+    .index("by_game", ["gameId"])
+    .index("by_game_version", ["gameId", "version"]),
+
+  // Content performance analytics
+  contentAnalytics: defineTable({
+    contentId: v.id("gameContent"),
+    gameId: v.string(),
+    
+    // Usage metrics
+    timesShown: v.number(),
+    timesCompleted: v.number(),
+    successRate: v.number(),  // 0.0 - 1.0
+    
+    // Time metrics
+    avgTimeSpent: v.number(),  // milliseconds
+    
+    // Skip/abandon rate
+    skipCount: v.number(),
+    
+    // Calculated difficulty based on performance
+    calculatedDifficulty: v.union(
+      v.literal("easy"),
+      v.literal("medium"),
+      v.literal("hard")
+    ),
+    
+    lastUpdated: v.number(),
+  })
+    .index("by_content", ["contentId"])
+    .index("by_game", ["gameId"]),
+
+  // Content packs for seasonal/event groupings
+  contentPacks: defineTable({
+    name: v.string(),
+    description: v.string(),
+    gameId: v.string(),
+    
+    // Activation rules
+    activationType: v.union(
+      v.literal("always"),
+      v.literal("scheduled"),
+      v.literal("manual")
+    ),
+    isActive: v.boolean(),
+    startDate: v.optional(v.number()),
+    endDate: v.optional(v.number()),
+    priority: v.number(),
+    
+    // Theming
+    theme: v.optional(v.object({
+      primaryColor: v.string(),
+      iconEmoji: v.string(),
+      specialEffect: v.optional(v.string()),
+    })),
+    
+    createdAt: v.number(),
+  })
+    .index("by_game", ["gameId"])
+    .index("by_active", ["isActive"]),
 });

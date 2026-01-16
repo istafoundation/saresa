@@ -8,33 +8,13 @@
  * @module
  */
 
-import type * as childAuth from "../childAuth.js";
-import type * as content from "../content.js";
-import type * as contentMigration from "../contentMigration.js";
-import type * as crons from "../crons.js";
-import type * as gameStats from "../gameStats.js";
-import type * as lib_dates from "../lib/dates.js";
-import type * as migrations from "../migrations.js";
-import type * as parents from "../parents.js";
-import type * as users from "../users.js";
-
 import type {
   ApiFromModules,
   FilterApi,
   FunctionReference,
 } from "convex/server";
 
-declare const fullApi: ApiFromModules<{
-  childAuth: typeof childAuth;
-  content: typeof content;
-  contentMigration: typeof contentMigration;
-  crons: typeof crons;
-  gameStats: typeof gameStats;
-  "lib/dates": typeof lib_dates;
-  migrations: typeof migrations;
-  parents: typeof parents;
-  users: typeof users;
-}>;
+declare const fullApi: ApiFromModules<{}>;
 
 /**
  * A utility for referencing Convex functions in your app's public API.

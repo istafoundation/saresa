@@ -1,6 +1,6 @@
 // Word Finder Game Screen - 8x8 grid word search with swipe mechanics
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, Pressable, Dimensions, PanResponder } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Dimensions, PanResponder, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView } from 'moti';
@@ -10,11 +10,12 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useQuery } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants/theme';
-import { useWordFinderStore, type GameMode, type CellPosition } from '../../stores/word-finder-store';
+import { useWordFinderStore, type GameMode, type CellPosition, type WordSet, type HardQuestion } from '../../stores/word-finder-store';
 import { useUserActions, useGameStatsActions } from '../../utils/useUserActions';
 import { useGameAudio } from '../../utils/sound-manager';
 import { useTapFeedback } from '../../utils/useTapFeedback';
 import { useChildAuth } from '../../utils/childAuth';
+import { useWordFinderSets, useWordFinderHardQuestions } from '../../utils/content-hooks';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GRID_SIZE = 8;
@@ -32,6 +33,10 @@ export default function WordFinderScreen() {
   const { addXP } = useUserActions();
   const { updateWordFinderStats } = useGameStatsActions();
   
+  // OTA Content - fetch word sets and hard questions
+  const { content: wordSets, status: wordSetsStatus } = useWordFinderSets();
+  const { content: hardQuestions, status: hardQuestionsStatus } = useWordFinderHardQuestions();
+  
   const {
     mode,
     gameState,
@@ -42,7 +47,8 @@ export default function WordFinderScreen() {
     currentQuestion,
     hintUsed,
     timeRemaining,
-    startGame,
+    startEasyGame,
+    startHardGame,
     selectCell,
     confirmSelection,
     clearSelection,
@@ -112,9 +118,10 @@ export default function WordFinderScreen() {
       const currentState = useWordFinderStore.getState();
       if (currentState.gameState === 'idle') {
         const selectedMode = urlMode as GameMode;
-        if ((selectedMode === 'easy' && canPlayEasyToday) || 
-            (selectedMode === 'hard' && canPlayHardToday)) {
-          startGame(selectedMode);
+        if (selectedMode === 'easy' && canPlayEasyToday) {
+          startEasyGame(wordSets as WordSet[]);
+        } else if (selectedMode === 'hard' && canPlayHardToday) {
+          startHardGame(hardQuestions as HardQuestion[]);
         } else {
           // Can't play - go back to games tab
           router.back();
@@ -125,7 +132,7 @@ export default function WordFinderScreen() {
       prevUrlModeRef.current = undefined;
       setShowModeSelect(true);
     }
-  }, [urlMode, canPlayEasyToday, canPlayHardToday, startGame, resetGame, router]);
+  }, [urlMode, canPlayEasyToday, canPlayHardToday, startEasyGame, startHardGame, wordSets, hardQuestions, resetGame, router]);
   
   // Timer effect
   useEffect(() => {
@@ -183,7 +190,12 @@ export default function WordFinderScreen() {
   
   const handleStartGame = (selectedMode: GameMode) => {
     triggerTap('medium');
-    const success = startGame(selectedMode);
+    let success = false;
+    if (selectedMode === 'easy') {
+      success = startEasyGame(wordSets as WordSet[]);
+    } else {
+      success = startHardGame(hardQuestions as HardQuestion[]);
+    }
     if (success) {
       setShowModeSelect(false);
       setShowResult(false);
@@ -223,22 +235,22 @@ export default function WordFinderScreen() {
     triggerTap('medium');
     setLastFoundWord(null);
     setHintText(null);
-    const hasMore = nextHardQuestion();
+    const hasMore = nextHardQuestion(hardQuestions as HardQuestion[]);
     if (!hasMore) {
       handleGameEnd();
     }
-  }, [triggerTap, nextHardQuestion]);
+  }, [triggerTap, nextHardQuestion, hardQuestions]);
   
   const handleSkipQuestion = useCallback(() => {
     triggerTap('light');
     setLastFoundWord(null);
     setHintText(null);
     setLocalSelection([]);
-    const hasMore = skipHardQuestion();
+    const hasMore = skipHardQuestion(hardQuestions as HardQuestion[]);
     if (!hasMore) {
       handleGameEnd();
     }
-  }, [triggerTap, skipHardQuestion]);
+  }, [triggerTap, skipHardQuestion, hardQuestions]);
   
   // Helper functions
   const isAdjacent = (cell1: CellPosition, cell2: CellPosition): boolean => {

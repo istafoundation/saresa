@@ -80,6 +80,166 @@ export const getMyParentData = query({
   },
 });
 
+// Get current user's role 
+export const getMyRole = query({
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return "parent";
+
+    const parent = await ctx.db
+      .query("parents")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    return parent?.role || "parent";
+  },
+});
+
+// Check if current user is admin
+export const isAdmin = query({
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return false;
+
+    const parent = await ctx.db
+      .query("parents")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    return parent?.role === "admin";
+  },
+});
+
+// Admin: Search children by username or name (limited results)
+export const adminSearchChildren = query({
+  args: { 
+    searchQuery: v.string(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    // Verify admin
+    const parent = await ctx.db
+      .query("parents")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    if (!parent || parent.role !== "admin") return [];
+
+    const query = args.searchQuery.toLowerCase().trim();
+    if (query.length < 2) return []; // Minimum 2 chars
+
+    const limit = args.limit || 10;
+
+    // Search all children (we filter in memory for text search)
+    const allChildren = await ctx.db.query("children").collect();
+    
+    const matched = allChildren
+      .filter(c => 
+        c.username.toLowerCase().includes(query) ||
+        c.name.toLowerCase().includes(query)
+      )
+      .slice(0, limit);
+
+    // Get parent info for each matched child
+    return Promise.all(matched.map(async (child) => {
+      const childParent = await ctx.db.get(child.parentId);
+      return {
+        _id: child._id,
+        name: child.name,
+        username: child.username,
+        parentName: childParent?.name || "Unknown",
+        parentEmail: childParent?.email || "",
+        createdAt: child.createdAt,
+        lastLoginAt: child.lastLoginAt,
+      };
+    }));
+  },
+});
+
+// Admin: Get detailed stats for any child
+export const adminGetChildStats = query({
+  args: { childId: v.id("children") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+
+    // Verify admin
+    const parent = await ctx.db
+      .query("parents")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    if (!parent || parent.role !== "admin") return null;
+
+    const child = await ctx.db.get(args.childId);
+    if (!child) return null;
+
+    const childParent = await ctx.db.get(child.parentId);
+    
+    const userData = await ctx.db
+      .query("users")
+      .withIndex("by_child_id", (q) => q.eq("childId", args.childId))
+      .first();
+
+    if (!userData) {
+      return {
+        child: {
+          name: child.name,
+          username: child.username,
+          createdAt: child.createdAt,
+          lastLoginAt: child.lastLoginAt,
+        },
+        parent: {
+          name: childParent?.name || "Unknown",
+          email: childParent?.email || "",
+        },
+        hasPlayed: false,
+      };
+    }
+
+    return {
+      child: {
+        name: child.name,
+        username: child.username,
+        createdAt: child.createdAt,
+        lastLoginAt: child.lastLoginAt,
+      },
+      parent: {
+        name: childParent?.name || "Unknown",
+        email: childParent?.email || "",
+      },
+      hasPlayed: true,
+      profile: {
+        mascot: userData.mascot,
+        xp: userData.xp,
+        streak: userData.streak,
+        lastLoginDate: userData.lastLoginDate,
+      },
+      gkStats: {
+        practiceTotal: userData.gkPracticeTotal,
+        practiceCorrect: userData.gkPracticeCorrect,
+        accuracy: userData.gkPracticeTotal > 0
+          ? Math.round((userData.gkPracticeCorrect / userData.gkPracticeTotal) * 100)
+          : 0,
+      },
+      wordleStats: {
+        gamesPlayed: userData.wordleGamesPlayed,
+        gamesWon: userData.wordleGamesWon,
+        currentStreak: userData.wordleCurrentStreak,
+        maxStreak: userData.wordleMaxStreak,
+      },
+      wordFinderStats: {
+        easyGamesPlayed: userData.wfEasyGamesPlayed,
+        hardGamesPlayed: userData.wfHardGamesPlayed,
+        totalXPEarned: userData.wfTotalXPEarned,
+      },
+    };
+  },
+});
+
 // Check if username is available
 export const checkUsernameAvailable = query({
   args: { username: v.string() },

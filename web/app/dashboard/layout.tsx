@@ -1,10 +1,12 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
+import { useQuery } from "convex/react";
+import { api } from "@convex/_generated/api";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, Trophy, Settings, Menu, X, Rocket, Sun, Moon } from "lucide-react";
-import { useState, useEffect } from "react";
+import { LayoutDashboard, Users, Trophy, Settings, Menu, X, Rocket, Sun, Moon, Package, Search } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { UserProfileMenu } from "./components/user-profile-menu";
@@ -19,6 +21,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { user } = useUser();
+  const isAdmin = useQuery(api.parents.isAdmin);
 
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -47,12 +50,21 @@ export default function DashboardLayout({
 
   const toggleDarkMode = () => setIsDarkMode(!isDarkMode);
 
-  const navigation = [
-    { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
-    // { name: "Children", href: "/dashboard/children", icon: Users }, // Merged into overview for now
-    // { name: "Achievements", href: "/dashboard/achievements", icon: Trophy }, // Future
-    // { name: "Settings", href: "/dashboard/settings", icon: Settings }, // Future
-  ];
+  // Build navigation based on role
+  const navigation = useMemo(() => {
+    const baseNav = [
+      { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
+    ];
+
+    if (isAdmin) {
+      baseNav.push(
+        { name: "Content", href: "/dashboard/content", icon: Package },
+        { name: "Students", href: "/dashboard/admin/students", icon: Search }
+      );
+    }
+
+    return baseNav;
+  }, [isAdmin]);
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900">

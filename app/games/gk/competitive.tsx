@@ -1,5 +1,5 @@
 // GK Competitive Mode - 10 questions, 30s timer, XP rewards
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
 import { useState, useEffect, useRef } from 'react';
@@ -16,12 +16,13 @@ import Animated, {
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { COLORS, SPACING, BORDER_RADIUS } from '../../../constants/theme';
-import { useGKStore } from '../../../stores/gk-store';
+import { useGKStore, type Question } from '../../../stores/gk-store';
 import { useUserStore } from '../../../stores/user-store';
 import { useUserActions, useGameStatsActions } from '../../../utils/useUserActions';
 import { useGameAudio } from '../../../utils/sound-manager';
 import { useTapFeedback } from '../../../utils/useTapFeedback';
 import Mascot from '../../../components/Mascot';
+import { useEnglishInsaneQuestions } from '../../../utils/content-hooks';
 
 const TIME_LIMIT = 30;
 const TOTAL_QUESTIONS = 10;
@@ -31,6 +32,10 @@ export default function CompetitiveScreen() {
   const { mascot } = useUserStore();
   const { addXP, addWeaponShards } = useUserActions();
   const { updateGKStats } = useGameStatsActions();
+  
+  // OTA Content
+  const { content: allQuestions, status: questionsStatus } = useEnglishInsaneQuestions();
+  
   const {
     quizState,
     currentQuestionIndex,
@@ -60,10 +65,12 @@ export default function CompetitiveScreen() {
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const timerProgress = useSharedValue(1);
-  const { triggerTap } = useTapFeedback();
+  const { triggerTap, triggerHapticOnly } = useTapFeedback();
 
   useEffect(() => {
-    const success = startQuiz('competitive');
+    if (!allQuestions || allQuestions.length === 0) return;
+    
+    const success = startQuiz('competitive', allQuestions as Question[]);
     if (!success) {
       router.back();
       return;
@@ -74,7 +81,7 @@ export default function CompetitiveScreen() {
       stopMusic(); // Stop music on exit
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, []);
+  }, [allQuestions]);
 
   // Start timer when question changes
   useEffect(() => {
@@ -133,7 +140,7 @@ export default function CompetitiveScreen() {
     if (showResult) return;
     if (timerRef.current) clearInterval(timerRef.current);
     
-    triggerTap('medium');
+    triggerHapticOnly('medium');
     setSelectedAnswer(index);
     
     const result = answerQuestion(index);
@@ -180,7 +187,7 @@ export default function CompetitiveScreen() {
       // Mark competitive as played today in Convex
       await updateGKStats({ playedCompetitive: true });
     } else {
-      nextQuestion();
+      nextQuestion(allQuestions as Question[]);
     }
   };
 

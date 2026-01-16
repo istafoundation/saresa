@@ -81,6 +81,14 @@ export const storage = {
       memoryStorage.clear();
     }
   },
+  getAllKeys: () => {
+    const s = getStorage();
+    if (s) {
+      return s.getAllKeys();
+    } else {
+      return Array.from(memoryStorage.keys());
+    }
+  },
 };
 
 // Helper functions for typed storage access

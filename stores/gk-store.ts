@@ -1,10 +1,21 @@
-// GK Quiz store - LOCAL STATE ONLY
+// English Insane (GK Quiz) store - LOCAL STATE ONLY
 // Stats are stored in Convex and synced via useConvexSync -> user-store.ts
+// Content is fetched via OTA (useEnglishInsaneQuestions)
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { zustandStorage } from '../utils/storage';
 import { getISTDate } from '../utils/dates';
-import { getRandomQuestions, type Question } from '../data/gk-questions';
+
+// Types (self-contained - no external imports for data)
+export interface Question {
+  id: string;
+  question: string;
+  options: string[];
+  correctIndex: number;
+  difficulty: 'easy' | 'medium' | 'hard';
+  category: string;
+  explanation: string;
+}
 
 export type GameMode = 'practice' | 'competitive';
 export type QuizState = 'idle' | 'playing' | 'finished';
@@ -31,10 +42,10 @@ export interface GKState {
   // Timer state
   questionStartTime: number;
   
-  // Actions
-  startQuiz: (mode: GameMode) => boolean; // returns false if competitive already played
+  // Actions - now accept OTA content as parameters
+  startQuiz: (mode: GameMode, allQuestions: Question[]) => boolean;
   answerQuestion: (answerIndex: number) => { correct: boolean; correctIndex: number };
-  nextQuestion: () => void;
+  nextQuestion: (allQuestions: Question[]) => void;
   finishQuiz: () => QuizResult;
   canPlayCompetitiveToday: () => boolean;
   resetQuiz: () => void;
@@ -42,6 +53,12 @@ export interface GKState {
 
 const COMPETITIVE_QUESTION_COUNT = 10;
 const TIME_LIMIT_SECONDS = 30;
+
+// Helper to get random questions from pool
+function getRandomQuestions(allQuestions: Question[], count: number): Question[] {
+  const shuffled = [...allQuestions].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, Math.min(count, shuffled.length));
+}
 
 export const useGKStore = create<GKState>()(
   persist(
@@ -56,13 +73,18 @@ export const useGKStore = create<GKState>()(
       lastCompetitiveDate: null,
       questionStartTime: 0,
       
-      startQuiz: (mode) => {
+      // Start quiz with OTA questions
+      startQuiz: (mode, allQuestions) => {
         if (mode === 'competitive' && !get().canPlayCompetitiveToday()) {
           return false;
         }
         
+        if (allQuestions.length === 0) {
+          return false;
+        }
+        
         const questionCount = mode === 'competitive' ? COMPETITIVE_QUESTION_COUNT : 5;
-        const questions = getRandomQuestions(questionCount);
+        const questions = getRandomQuestions(allQuestions, questionCount);
         
         set({
           mode,
@@ -92,9 +114,6 @@ export const useGKStore = create<GKState>()(
         
         const newTimePerQuestion = [...timePerQuestion, clampedTime];
         
-        // NOTE: Practice stats are updated in Convex via useGameStatsActions().updateGKStats()
-        // We no longer track them locally
-        
         set({
           answers: newAnswers,
           timePerQuestion: newTimePerQuestion,
@@ -103,12 +122,13 @@ export const useGKStore = create<GKState>()(
         return { correct, correctIndex: question.correctIndex };
       },
       
-      nextQuestion: () => {
+      // Next question - now accepts OTA questions for adding more in practice mode
+      nextQuestion: (allQuestions) => {
         const { currentQuestionIndex, questions, mode } = get();
         
         // In practice mode, add more questions when running low
         if (mode === 'practice' && currentQuestionIndex >= questions.length - 1) {
-          const moreQuestions = getRandomQuestions(5);
+          const moreQuestions = getRandomQuestions(allQuestions, 5);
           set({
             questions: [...get().questions, ...moreQuestions],
             answers: [...get().answers, ...new Array(moreQuestions.length).fill(null)],

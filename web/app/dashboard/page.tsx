@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation } from "convex/react";
 import { useEffect } from "react";
-import { api } from "../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
 import { ChildCard } from "./components/child-card";
 import { AddChildForm } from "./components/add-child-form";
