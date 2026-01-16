@@ -348,14 +348,23 @@ const FALLBACK_GD_QUESTIONS = [
   },
 ];
 
+// Type for Grammar Detective questions
+export interface GrammarDetectiveQuestion {
+  id: string;
+  sentence: string;
+  words: string[];
+  questionText: string;
+  correctIndices: number[];
+  explanation: string;
+}
+
 /**
  * Hook for Grammar Detective (Parts of Speech) questions
  */
-export function useGrammarDetectiveQuestions(): ContentResult<typeof FALLBACK_GD_QUESTIONS> {
+export function useGrammarDetectiveQuestions(): ContentResult<GrammarDetectiveQuestion[]> {
   const { token } = useChildAuth();
   
-  // Fetch ALL content for grammar-detective, then filter client-side
-  // (type filter was causing issues with the new pos_question type)
+  // Fetch ALL content for grammar-detective
   const serverContent = useQuery(
     api.content.getGameContent,
     token ? { gameId: 'grammar-detective' } : 'skip'
@@ -366,14 +375,12 @@ export function useGrammarDetectiveQuestions(): ContentResult<typeof FALLBACK_GD
     token ? { gameId: 'grammar-detective' } : 'skip'
   );
 
-  // Debug logging
-  console.log('[GDHook] Token:', !!token, 'ServerContent:', serverContent?.length, 'ServerVersion:', serverVersion?.version);
-
-  const [cachedData, setCachedData] = useState<typeof FALLBACK_GD_QUESTIONS | null>(null);
+  const [cachedData, setCachedData] = useState<GrammarDetectiveQuestion[] | null>(null);
   const [status, setStatus] = useState<ContentStatus>('loading');
 
+  // Load cached content on mount
   useEffect(() => {
-    getCachedContent<typeof FALLBACK_GD_QUESTIONS>('grammar-detective').then((cached) => {
+    getCachedContent<GrammarDetectiveQuestion[]>('grammar-detective').then((cached) => {
       if (cached) {
         setCachedData(cached.data);
         setStatus('cached');
@@ -381,34 +388,35 @@ export function useGrammarDetectiveQuestions(): ContentResult<typeof FALLBACK_GD
     });
   }, []);
 
+  // Transform server content - memoized to avoid recomputation
+  const transformedServerContent = useMemo(() => {
+    if (!serverContent || serverContent.length === 0) return null;
+    return serverContent.map((c: any) => ({
+      id: c._id,
+      ...c.data,
+    })) as GrammarDetectiveQuestion[];
+  }, [serverContent]);
+
+  // Update cache when server content arrives
   useEffect(() => {
-    if (serverContent && serverContent.length > 0) {
-      console.log('[GDHook] Received server content:', serverContent.length, 'items');
-      const transformedContent = serverContent.map((c: any) => ({
-        id: c._id,
-        ...c.data,
-      })) as typeof FALLBACK_GD_QUESTIONS;
-      setCachedData(transformedContent);
+    if (transformedServerContent && transformedServerContent.length > 0) {
+      setCachedData(transformedServerContent);
       setStatus('fresh');
       setCachedContent(
         'grammar-detective',
-        transformedContent,
+        transformedServerContent,
         serverVersion?.version ?? 0,
         serverVersion?.checksum ?? ''
       );
     }
-  }, [serverContent, serverVersion]);
+  }, [transformedServerContent, serverVersion]);
 
+  // Return content with priority: cached > server > fallback
   const content = useMemo(() => {
     if (cachedData && cachedData.length > 0) return cachedData;
-    if (serverContent && serverContent.length > 0) {
-      return serverContent.map((c: any) => ({
-        id: c._id,
-        ...c.data,
-      })) as typeof FALLBACK_GD_QUESTIONS;
-    }
+    if (transformedServerContent && transformedServerContent.length > 0) return transformedServerContent;
     return FALLBACK_GD_QUESTIONS;
-  }, [cachedData, serverContent]);
+  }, [cachedData, transformedServerContent]);
 
   const refresh = useCallback(async () => {
     setStatus('loading');
@@ -434,17 +442,17 @@ export function useGrammarDetectiveQuestions(): ContentResult<typeof FALLBACK_GD
 export function useContentTracking() {
   const trackContentView = useCallback((contentId: string, gameId: string) => {
     // TODO: Call mutation to track view
-    console.log('Content viewed:', contentId, gameId);
+    if (__DEV__) console.log('Content viewed:', contentId, gameId);
   }, []);
 
   const trackContentCorrect = useCallback((contentId: string, gameId: string) => {
     // TODO: Call mutation to track correct answer
-    console.log('Content correct:', contentId, gameId);
+    if (__DEV__) console.log('Content correct:', contentId, gameId);
   }, []);
 
   const trackContentIncorrect = useCallback((contentId: string, gameId: string) => {
     // TODO: Call mutation to track incorrect answer
-    console.log('Content incorrect:', contentId, gameId);
+    if (__DEV__) console.log('Content incorrect:', contentId, gameId);
   }, []);
 
   return {

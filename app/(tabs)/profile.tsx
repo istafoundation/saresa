@@ -21,7 +21,7 @@ export default function ProfileScreen() {
     soundEnabled, musicEnabled, sfxVolume, musicVolume,
     setSoundEnabled, setMusicEnabled, setSfxVolume, setMusicVolume,
     // Now reading game stats from Convex-synced data!
-    wordleStats, gkStats
+    wordleStats, gkStats, gdStats
   } = useUserStore();
   
   const levelInfo = getLevelForXP(xp);
@@ -166,6 +166,49 @@ export default function ProfileScreen() {
                     : 0}%
                 </Text>
                 <Text style={styles.gameStatLabel}>Accuracy</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Grammar Detective Stats - Unique Investigation Theme */}
+          <View style={[styles.gameStatCard, styles.gdCard]}>
+            <View style={styles.gameStatHeader}>
+              <Text style={styles.gameStatEmoji}>🔍</Text>
+              <Text style={styles.gameStatTitle}>Grammar Detective</Text>
+            </View>
+            
+            {/* Investigation Progress Bar */}
+            <View style={styles.gdProgressContainer}>
+              <View style={styles.gdProgressBar}>
+                <View 
+                  style={[
+                    styles.gdProgressFill, 
+                    { width: `${gdStats.questionsAnswered > 0 ? Math.min((gdStats.correctAnswers / gdStats.questionsAnswered) * 100, 100) : 0}%` }
+                  ]} 
+                />
+              </View>
+              <Text style={styles.gdProgressText}>
+                {gdStats.questionsAnswered > 0 
+                  ? Math.round((gdStats.correctAnswers / gdStats.questionsAnswered) * 100)
+                  : 0}% Cases Solved
+              </Text>
+            </View>
+            
+            <View style={styles.gdStatsRow}>
+              <View style={styles.gdStatBadge}>
+                <Ionicons name="help-circle" size={16} color={COLORS.primary} />
+                <Text style={styles.gdStatBadgeValue}>{gdStats.questionsAnswered}</Text>
+                <Text style={styles.gdStatBadgeLabel}>Investigated</Text>
+              </View>
+              <View style={styles.gdStatBadge}>
+                <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
+                <Text style={styles.gdStatBadgeValue}>{gdStats.correctAnswers}</Text>
+                <Text style={styles.gdStatBadgeLabel}>Solved</Text>
+              </View>
+              <View style={styles.gdStatBadge}>
+                <Ionicons name="flash" size={16} color={COLORS.accentGold} />
+                <Text style={styles.gdStatBadgeValue}>{gdStats.totalXPEarned}</Text>
+                <Text style={styles.gdStatBadgeLabel}>XP</Text>
               </View>
             </View>
           </View>
@@ -577,5 +620,50 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     width: 45,
     textAlign: 'right',
+  },
+  // Grammar Detective unique styles
+  gdCard: {
+    borderWidth: 1,
+    borderColor: COLORS.primary + '30',
+    backgroundColor: COLORS.surface,
+  },
+  gdProgressContainer: {
+    marginBottom: SPACING.md,
+  },
+  gdProgressBar: {
+    height: 8,
+    backgroundColor: COLORS.backgroundCard,
+    borderRadius: BORDER_RADIUS.full,
+    overflow: 'hidden',
+    marginBottom: SPACING.xs,
+  },
+  gdProgressFill: {
+    height: '100%',
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.full,
+  },
+  gdProgressText: {
+    fontSize: 12,
+    color: COLORS.primary,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  gdStatsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  gdStatBadge: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  gdStatBadgeValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  gdStatBadgeLabel: {
+    fontSize: 10,
+    color: COLORS.textMuted,
+    textTransform: 'uppercase',
   },
 });

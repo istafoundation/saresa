@@ -67,6 +67,11 @@ export interface UserState extends LocalSettings {
     hardCorrectAnswers: number;
     totalXPEarned: number;
   };
+  gdStats: {
+    questionsAnswered: number;
+    correctAnswers: number;
+    totalXPEarned: number;
+  };
   
   // Actions for synced data
   setSyncedData: (data: SyncedUserData | null) => void;
@@ -129,6 +134,11 @@ export const useUserStore = create<UserState>()(
         hardCorrectAnswers: 0,
         totalXPEarned: 0,
       },
+      gdStats: {
+        questionsAnswered: 0,
+        correctAnswers: 0,
+        totalXPEarned: 0,
+      },
       
       // Synced data actions
       setSyncedData: (data) => {
@@ -178,6 +188,11 @@ export const useUserStore = create<UserState>()(
             hardGamesPlayed: stats?.wfHardGamesPlayed ?? 0,
             hardCorrectAnswers: stats?.wfHardCorrectAnswers ?? 0,
             totalXPEarned: stats?.wfTotalXPEarned ?? 0,
+          },
+          gdStats: {
+            questionsAnswered: stats?.gdQuestionsAnswered ?? 0,
+            correctAnswers: stats?.gdCorrectAnswers ?? 0,
+            totalXPEarned: stats?.gdTotalXPEarned ?? 0,
           },
         });
       },

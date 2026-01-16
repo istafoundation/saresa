@@ -164,7 +164,7 @@ export default function ChildStatsPage() {
             </div>
             
             {/* Gameplay Frequency (Word Finder Focus) */}
-            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 lg:col-span-2">
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
                  <div className="flex items-center justify-between mb-6">
                     <div>
                         <h3 className="font-bold text-lg text-slate-900">Word Finder Mastery</h3>
@@ -203,6 +203,56 @@ export default function ChildStatsPage() {
                           ]} color="#8b5cf6" />
                     </div>
                  </div>
+            </div>
+            
+            {/* Grammar Detective Stats - Investigation Theme */}
+            <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-6 rounded-3xl shadow-sm border border-indigo-100">
+               <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                     <div className="w-12 h-12 bg-indigo-100 rounded-2xl flex items-center justify-center text-2xl">🔍</div>
+                     <div>
+                        <h3 className="font-bold text-lg text-slate-900">Grammar Detective</h3>
+                        <p className="text-slate-500 text-xs">Parts of speech investigations</p>
+                     </div>
+                  </div>
+                  <div className="bg-indigo-100 text-indigo-800 px-4 py-2 rounded-xl font-bold">
+                     {detailedStats.grammarDetectiveStats?.accuracy ?? 0}% Accuracy
+                  </div>
+               </div>
+               
+               {/* Progress Bar */}
+               <div className="mb-6">
+                  <div className="flex justify-between text-sm text-slate-600 mb-2">
+                     <span>Cases Solved</span>
+                     <span>{detailedStats.grammarDetectiveStats?.correctAnswers ?? 0} / {detailedStats.grammarDetectiveStats?.questionsAnswered ?? 0}</span>
+                  </div>
+                  <div className="h-3 bg-white rounded-full overflow-hidden shadow-inner">
+                     <div 
+                        className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-500"
+                        style={{ 
+                           width: `${(detailedStats.grammarDetectiveStats?.questionsAnswered ?? 0) > 0 
+                              ? Math.min((detailedStats.grammarDetectiveStats?.correctAnswers ?? 0) / (detailedStats.grammarDetectiveStats?.questionsAnswered ?? 0) * 100, 100)
+                              : 0}%` 
+                        }}
+                     />
+                  </div>
+               </div>
+               
+               {/* Stats Badges */}
+               <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-white p-4 rounded-2xl text-center shadow-sm">
+                     <div className="text-3xl font-bold text-indigo-600">{detailedStats.grammarDetectiveStats?.questionsAnswered ?? 0}</div>
+                     <div className="text-xs text-slate-500 mt-1 uppercase tracking-wider">Investigated</div>
+                  </div>
+                  <div className="bg-white p-4 rounded-2xl text-center shadow-sm">
+                     <div className="text-3xl font-bold text-emerald-600">{detailedStats.grammarDetectiveStats?.correctAnswers ?? 0}</div>
+                     <div className="text-xs text-slate-500 mt-1 uppercase tracking-wider">Solved</div>
+                  </div>
+                  <div className="bg-white p-4 rounded-2xl text-center shadow-sm">
+                     <div className="text-3xl font-bold text-amber-600">{detailedStats.grammarDetectiveStats?.totalXPEarned ?? 0}</div>
+                     <div className="text-xs text-slate-500 mt-1 uppercase tracking-wider">XP Earned</div>
+                  </div>
+               </div>
             </div>
           </div>
         </>

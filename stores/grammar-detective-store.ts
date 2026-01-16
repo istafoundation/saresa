@@ -4,6 +4,9 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { zustandStorage } from '../utils/storage';
 
+// Shared constant - exported for use in game screen
+export const XP_PER_CORRECT = 2;
+
 // Types
 export interface GDQuestion {
   id: string;
@@ -49,12 +52,9 @@ export interface GrammarDetectiveState {
   toggleWordSelection: (index: number) => void;
   submitAnswer: (question: GDQuestion) => { correct: boolean };
   nextQuestion: () => void;
-  getCurrentQuestion: (questions: GDQuestion[]) => GDQuestion | null;
   resetGame: () => void;
   syncFromConvex: (serverStats: { questionsAnswered: number; correctAnswers: number; totalXPEarned: number; currentQuestionIndex: number }) => void;
 }
-
-const XP_PER_CORRECT = 2;
 
 // Shuffle array using Fisher-Yates
 function shuffleArray<T>(array: T[]): T[] {
@@ -147,22 +147,22 @@ export const useGrammarDetectiveStore = create<GrammarDetectiveState>()(
         const correct = arraysMatch(selectedIndices, question.correctIndices);
         const xpEarned = correct ? XP_PER_CORRECT : 0;
         
-        set({
+        set((state) => ({
           gameState: 'reviewing',
           lastResult: {
             correct,
             correctIndices: question.correctIndices,
             explanation: question.explanation,
           },
-          sessionAnswered: get().sessionAnswered + 1,
-          sessionCorrect: get().sessionCorrect + (correct ? 1 : 0),
-          sessionXP: get().sessionXP + xpEarned,
+          sessionAnswered: state.sessionAnswered + 1,
+          sessionCorrect: state.sessionCorrect + (correct ? 1 : 0),
+          sessionXP: state.sessionXP + xpEarned,
           stats: {
             totalAnswered: stats.totalAnswered + 1,
             totalCorrect: stats.totalCorrect + (correct ? 1 : 0),
             totalXPEarned: stats.totalXPEarned + xpEarned,
           },
-        });
+        }));
         
         return { correct };
       },
@@ -182,15 +182,6 @@ export const useGrammarDetectiveStore = create<GrammarDetectiveState>()(
         });
       },
 
-      getCurrentQuestion: (questions) => {
-        const { shuffledQuestionIds, currentQuestionIndex } = get();
-        if (shuffledQuestionIds.length === 0 || currentQuestionIndex >= shuffledQuestionIds.length) {
-          return null;
-        }
-        const currentId = shuffledQuestionIds[currentQuestionIndex];
-        return questions.find(q => q.id === currentId) || null;
-      },
-
       resetGame: () => {
         set({
           gameState: 'idle',
@@ -207,8 +198,6 @@ export const useGrammarDetectiveStore = create<GrammarDetectiveState>()(
         // CRITICAL: Do NOT update index if we are in 'reviewing' state.
         // This prevents the UI from switching to the next question in the background
         // while the user is looking at the result card of the current question.
-        // This happens because we update stats (and server index) immediately on submit,
-        // which triggers a subscription update before the user clicks "Continue".
         const shouldUpdateIndex = get().gameState !== 'reviewing';
         
         set({

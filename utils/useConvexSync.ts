@@ -39,6 +39,11 @@ export interface SyncedGameStats {
   wfLastEasyDate: string | null;
   wfLastHardDate: string | null;
   wfEasyAttemptsToday: number;
+  
+  // Grammar Detective
+  gdQuestionsAnswered: number;
+  gdCorrectAnswers: number;
+  gdTotalXPEarned: number;
 }
 
 export function useConvexSync() {
@@ -125,6 +130,11 @@ export function useConvexSync() {
       wfLastEasyDate: userData.wfLastEasyDate ?? null,
       wfLastHardDate: userData.wfLastHardDate ?? null,
       wfEasyAttemptsToday: userData.wfEasyAttemptsToday ?? 0,
+      
+      // Grammar Detective
+      gdQuestionsAnswered: userData.gdQuestionsAnswered ?? 0,
+      gdCorrectAnswers: userData.gdCorrectAnswers ?? 0,
+      gdTotalXPEarned: userData.gdTotalXPEarned ?? 0,
     };
 
     logSync('Game stats synced from Convex', {
