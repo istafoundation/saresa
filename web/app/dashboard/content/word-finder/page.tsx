@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import Link from "next/link";
@@ -29,6 +29,14 @@ interface HardQuestion {
 type ContentType = "word_set" | "hard_question";
 
 export default function WordFinderContentPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>}>
+      <WordFinderContent />
+    </Suspense>
+  );
+}
+
+function WordFinderContent() {
   const searchParams = useSearchParams();
   const action = searchParams.get("action");
 

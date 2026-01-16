@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import Link from "next/link";
@@ -25,6 +25,14 @@ interface WordleWord {
 }
 
 export default function WordleContentPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div></div>}>
+      <WordleContent />
+    </Suspense>
+  );
+}
+
+function WordleContent() {
   const searchParams = useSearchParams();
   const action = searchParams.get("action");
 
