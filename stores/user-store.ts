@@ -72,6 +72,11 @@ export interface UserState extends LocalSettings {
     correctAnswers: number;
     totalXPEarned: number;
   };
+  explorerStats: {
+    correctAnswers: number;
+    totalXPEarned: number;
+    lastPlayedDate: string | null;
+  };
   
   // Actions for synced data
   setSyncedData: (data: SyncedUserData | null) => void;
@@ -139,6 +144,11 @@ export const useUserStore = create<UserState>()(
         correctAnswers: 0,
         totalXPEarned: 0,
       },
+      explorerStats: {
+        correctAnswers: 0,
+        totalXPEarned: 0,
+        lastPlayedDate: null,
+      },
       
       // Synced data actions
       setSyncedData: (data) => {
@@ -193,6 +203,11 @@ export const useUserStore = create<UserState>()(
             questionsAnswered: stats?.gdQuestionsAnswered ?? 0,
             correctAnswers: stats?.gdCorrectAnswers ?? 0,
             totalXPEarned: stats?.gdTotalXPEarned ?? 0,
+          },
+          explorerStats: {
+            correctAnswers: stats?.expCorrectAnswers ?? 0,
+            totalXPEarned: stats?.expTotalXPEarned ?? 0,
+            lastPlayedDate: stats?.expLastPlayedDate ?? null,
           },
         });
       },

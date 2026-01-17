@@ -236,6 +236,11 @@ export const adminGetChildStats = query({
         hardGamesPlayed: userData.wfHardGamesPlayed,
         totalXPEarned: userData.wfTotalXPEarned,
       },
+      explorerStats: {
+        correctAnswers: userData.expCorrectAnswers ?? 0,
+        totalXPEarned: userData.expTotalXPEarned ?? 0,
+        lastPlayedDate: userData.expLastPlayedDate ?? null,
+      },
     };
   },
 });
@@ -601,6 +606,11 @@ export const getChildStats = query({
         accuracy: (userData.gdQuestionsAnswered ?? 0) > 0
           ? Math.round(((userData.gdCorrectAnswers ?? 0) / (userData.gdQuestionsAnswered ?? 0)) * 100)
           : 0,
+      },
+      explorerStats: {
+        correctAnswers: userData.expCorrectAnswers ?? 0,
+        totalXPEarned: userData.expTotalXPEarned ?? 0,
+        lastPlayedDate: userData.expLastPlayedDate ?? null,
       },
     };
   },

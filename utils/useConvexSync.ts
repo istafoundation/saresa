@@ -49,6 +49,11 @@ export interface SyncedGameStats {
   gdQuestionsAnswered: number;
   gdCorrectAnswers: number;
   gdTotalXPEarned: number;
+  
+  // Explorer
+  expCorrectAnswers: number;
+  expTotalXPEarned: number;
+  expLastPlayedDate: string | null;
 }
 
 export function useConvexSync() {
@@ -147,6 +152,11 @@ export function useConvexSync() {
       gdQuestionsAnswered: userData.gdQuestionsAnswered ?? 0,
       gdCorrectAnswers: userData.gdCorrectAnswers ?? 0,
       gdTotalXPEarned: userData.gdTotalXPEarned ?? 0,
+      
+      // Explorer
+      expCorrectAnswers: userData.expCorrectAnswers ?? 0,
+      expTotalXPEarned: userData.expTotalXPEarned ?? 0,
+      expLastPlayedDate: userData.expLastPlayedDate ?? null,
     };
 
     logSync('Game stats synced from Convex', {
