@@ -277,9 +277,7 @@ export const useWordFinderStore = create<WordFinderState>()(
       
       // Start Easy game with OTA word sets
       startEasyGame: (wordSets) => {
-        if (!get().canPlayEasyToday()) {
-          return false;
-        }
+        // PERMISSION CHECK MOVED TO UI (Convex is source of truth)
         
         const wordSet = getRandomItem(wordSets);
         if (!wordSet) return false;
@@ -303,9 +301,7 @@ export const useWordFinderStore = create<WordFinderState>()(
       
       // Start Hard game with OTA questions
       startHardGame: (questions) => {
-        if (!get().canPlayHardToday()) {
-          return false;
-        }
+        // PERMISSION CHECK MOVED TO UI (Convex is source of truth)
         
         const question = getRandomQuestion(questions, []);
         if (!question) return false;

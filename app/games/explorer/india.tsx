@@ -1,5 +1,6 @@
 // India Explorer - Identify states and union territories on the map
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
 import { View, Text, StyleSheet, Pressable, Dimensions, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -12,7 +13,7 @@ import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../../../constants/them
 import { useExplorerStore } from '../../../stores/explorer-store';
 import { useChildAuth } from '../../../utils/childAuth';
 import { useTapFeedback } from '../../../utils/useTapFeedback';
-import { useSoundEffects } from '../../../utils/sound-manager';
+import { useGameAudio } from '../../../utils/sound-manager';
 import { useUserStore } from '../../../stores/user-store';
 import { TOTAL_REGIONS, XP_PER_CORRECT, MAX_XP, calculateXP } from '../../../data/india-states';
 import IndiaMap from '../../../components/IndiaMap';
@@ -20,11 +21,20 @@ import Mascot from '../../../components/Mascot';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+// Helper to getting IST date string (YYYY-MM-DD)
+// Matches backend logic: UTC + 5:30
+const getClientISTDate = () => {
+  const now = new Date();
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  return new Date(now.getTime() + istOffset).toISOString().split("T")[0];
+};
+
 export default function IndiaExplorerScreen() {
   const router = useRouter();
   const { token } = useChildAuth();
   const { triggerTap } = useTapFeedback();
-  const { playTap, playCorrect, playWrong, playWin } = useSoundEffects();
+  // Use combined audio hook for music + SFX
+  const { playTap, playCorrect, playWrong, playWin, startMusic, stopMusic } = useGameAudio();
   const { mascot } = useUserStore();
   const [isStarting, setIsStarting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -51,15 +61,64 @@ export default function IndiaExplorerScreen() {
     resetGame,
   } = useExplorerStore();
   
-  // Convex queries and mutations
+  // Track "today" in IST to force query refresh at midnight
+  const [todayStr, setTodayStr] = useState(getClientISTDate());
+
+  // Check for day change when app comes to foreground or every minute
+  useEffect(() => {
+    // interval check
+    const interval = setInterval(() => {
+      const current = getClientISTDate();
+      if (current !== todayStr) {
+        setTodayStr(current);
+      }
+    }, 60000); // Check every minute
+
+    // App state listener (for when returning from background)
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        const current = getClientISTDate();
+        if (current !== todayStr) {
+          setTodayStr(current);
+        }
+      }
+    });
+
+    return () => {
+      clearInterval(interval);
+      subscription.remove();
+    };
+  }, [todayStr]);
+
+  // Convex queries and mutations -- NOW DEPENDS ON todayStr
   const progress = useQuery(api.gameStats.getExplorerProgress, 
-    token ? { token } : 'skip'
+    token ? { token, clientDate: todayStr } : 'skip'
   );
   const updateStats = useMutation(api.gameStats.updateExplorerStats);
   
   // Check if already completed today
   const isCompletedToday = progress?.isCompletedToday ?? false;
   const remaining = TOTAL_REGIONS - (progress?.guessedToday?.length ?? 0);
+
+  // Handle background music
+  useEffect(() => {
+    // Only play music if:
+    // 1. Progress is loaded
+    // 2. Not completed today
+    // 3. User is not in 'finished' state from this session
+    // 4. Game is actually active (not just on start screen, but we might want it on start screen too?)
+    // Let's match other games: play as long as we are in the screen and not completed
+    
+    if (progress && !isCompletedToday && gameState === 'playing') {
+      startMusic();
+    } else {
+      stopMusic();
+    }
+    
+    return () => {
+      stopMusic();
+    };
+  }, [progress, isCompletedToday, gameState]);
   
   // Calculate session result (must be before early returns to maintain hook order)
   const sessionResult = useMemo(() => {
@@ -155,16 +214,18 @@ export default function IndiaExplorerScreen() {
       if (correctCount >= guessedToday.length / 2) {
         playWin();
       }
+      stopMusic(); // Stop music when finishing
       finishGame();
     }
-  }, [closeFeedback, nextQuestion, finishGame, triggerTap, playTap, playWin, correctCount, guessedToday.length]);
+  }, [closeFeedback, nextQuestion, finishGame, triggerTap, playTap, playWin, correctCount, guessedToday.length, stopMusic]);
   
   // Back to games
   const handleBack = useCallback(() => {
     triggerTap('medium');
+    stopMusic(); // Ensure music stops on back
     resetGame();
     router.back();
-  }, [resetGame, router, triggerTap]);
+  }, [resetGame, router, triggerTap, stopMusic]);
   
   // Loading state
   if (!progress) {

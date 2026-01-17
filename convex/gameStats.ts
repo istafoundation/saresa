@@ -129,7 +129,10 @@ export const updateWordleStats = mutation({
 
 // Check if Wordle is available today
 export const canPlayWordle = query({
-  args: { token: v.string() },
+  args: { 
+    token: v.string(),
+    clientDate: v.optional(v.string()) // Used to force re-query on day change
+  },
   handler: async (ctx, args) => {
     const childId = await getChildIdFromSession(ctx, args.token);
     if (!childId) return false;
@@ -317,12 +320,15 @@ export const getGrammarDetectiveProgress = query({
 // ============================================
 
 // Total regions in India Explorer (28 states + 8 UTs)
-// Keep in sync with data/india-states.ts TOTAL_REGIONS
+// CRITICAL: Keep in sync with data/india-states.ts TOTAL_REGIONS via Shared Code or manual update
 const TOTAL_EXPLORER_REGIONS = 36;
 
 // Get Explorer progress for today (which states/UTs have been guessed)
 export const getExplorerProgress = query({
-  args: { token: v.string() },
+  args: { 
+    token: v.string(),
+    clientDate: v.optional(v.string()) // Used to force re-query on day change
+  },
   handler: async (ctx, args) => {
     const childId = await getChildIdFromSession(ctx, args.token);
     if (!childId) return null;

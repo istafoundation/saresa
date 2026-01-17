@@ -5,6 +5,11 @@ import { useQuery } from 'convex/react';
 import { api } from '../convex/_generated/api';
 import { useUserStore, type SyncedUserData } from '../stores/user-store';
 import { useChildAuth } from './childAuth';
+import { useWordFinderStore } from '../stores/word-finder-store';
+import { useGKStore } from '../stores/gk-store';
+import { useGrammarDetectiveStore } from '../stores/grammar-detective-store';
+import { useExplorerStore } from '../stores/explorer-store';
+import { useWordleStore } from '../stores/wordle-store';
 
 // Enable/disable debug logging (only in development)
 const DEBUG_SYNC = __DEV__;
@@ -62,6 +67,13 @@ export function useConvexSync() {
       setSyncedData(null);
       if (setSyncedGameStats) setSyncedGameStats(null);
       setLoading(false);
+
+      // Reset all game stores to prevent data leakage between users
+      useWordFinderStore.getState().resetGame();
+      useGKStore.getState().resetQuiz();
+      useGrammarDetectiveStore.getState().resetGame();
+      useExplorerStore.getState().resetGame();
+      useWordleStore.getState().reset();
       return;
     }
 

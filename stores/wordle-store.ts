@@ -47,6 +47,7 @@ export interface WordleState {
   initGame: (todaysWord: string, todaysHint: string) => void;
   canPlayToday: () => boolean;
   resetGame: (todaysWord: string, todaysHint: string) => void;
+  reset: () => void;
   useHint: () => void;
   setHintUsedFromServer: (used: boolean) => void;
 }
@@ -205,6 +206,22 @@ export const useWordleStore = create<WordleState>()(
         set({
           targetWord: todaysWord,
           targetHint: todaysHint,
+          currentGuess: '',
+          guesses: [],
+          gameState: 'playing',
+          letterStates: {},
+          lastPlayedDate: null,
+          gameStartedDate: null,
+          hintUsed: false,
+          hintRevealed: false,
+        });
+      },
+
+      // Full reset for logout
+      reset: () => {
+        set({
+          targetWord: '',
+          targetHint: '',
           currentGuess: '',
           guesses: [],
           gameState: 'playing',

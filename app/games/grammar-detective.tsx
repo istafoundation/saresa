@@ -33,7 +33,7 @@ export default function GrammarDetectiveScreen() {
   const router = useRouter();
   const { token } = useChildAuth();
   const { addXP } = useUserActions();
-  const { playCorrect, playWrong } = useGameAudio();
+  const { playCorrect, playWrong, startMusic, stopMusic } = useGameAudio();
   const { triggerTap, triggerHapticOnly } = useTapFeedback();
 
   // OTA Content
@@ -119,6 +119,17 @@ export default function GrammarDetectiveScreen() {
     }
   }, [contentIds, allQuestions, shuffledQuestionIds, startGame]);
 
+  // Background music effect
+  useEffect(() => {
+    if (gameState === "playing" && currentQuestion) {
+      startMusic();
+    }
+    
+    return () => {
+      stopMusic();
+    };
+  }, [gameState, currentQuestion, startMusic, stopMusic]);
+
   const handleWordPress = useCallback(
     (index: number) => {
       if (gameState !== "playing") return;
@@ -179,9 +190,10 @@ export default function GrammarDetectiveScreen() {
 
   const handleBack = useCallback(() => {
     triggerTap();
+    stopMusic();
     resetGame();
     router.back();
-  }, [triggerTap, resetGame, router]);
+  }, [triggerTap, stopMusic, resetGame, router]);
 
   // Loading state - only show if we have no content at all
   if (!allQuestions || allQuestions.length === 0) {

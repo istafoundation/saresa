@@ -29,7 +29,7 @@ export default function WordFinderScreen() {
   const router = useRouter();
   const { mode: urlMode } = useLocalSearchParams<{ mode?: string }>();
   const { triggerTap } = useTapFeedback();
-  const { playCorrect, playWrong, playWin } = useGameAudio();
+  const { playCorrect, playWrong, playWin, startMusic, stopMusic } = useGameAudio();
   const { addXP } = useUserActions();
   const { updateWordFinderStats } = useGameStatsActions();
   
@@ -154,6 +154,19 @@ export default function WordFinderScreen() {
     };
   }, [gameState]);
   
+  // Background music effect
+  useEffect(() => {
+    if (gameState === 'playing') {
+      startMusic();
+    } else if (gameState === 'finished') {
+      stopMusic();
+    }
+    
+    return () => {
+      stopMusic();
+    };
+  }, [gameState, startMusic, stopMusic]);
+  
   // Handle game state changes
   useEffect(() => {
     if (gameState === 'finished' && !showResult) {
@@ -211,6 +224,7 @@ export default function WordFinderScreen() {
     if (timerRef.current) {
       clearInterval(timerRef.current);
     }
+    stopMusic();
     resetGame();
     router.back();
   };

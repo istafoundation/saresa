@@ -12,6 +12,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
+import { AppState } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useQuery } from 'convex/react';
 import { api } from '../../convex/_generated/api';
@@ -24,8 +25,9 @@ import { useChildAuth } from '../../utils/childAuth';
 import { isValidWord } from '../../data/wordle-words';
 import HowToPlayModal from '../../components/games/HowToPlayModal';
 import ShareButton from '../../components/games/ShareResults';
-import { useGameAudio } from '../../utils/sound-manager';
+import { useWordleContent } from '../../utils/content-hooks';
 import { useTapFeedback } from '../../utils/useTapFeedback';
+import { useGameAudio } from '../../utils/sound-manager';
 
 const KEYBOARD_ROWS = [
   ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
@@ -42,6 +44,14 @@ const LETTER_COLORS: Record<LetterState, string> = {
 
 // Use centralized rewards
 const { XP_FULL, XP_WITH_HINT, SHARDS_FULL, SHARDS_WITH_HINT } = WORDLE_REWARDS;
+
+// Helper to getting IST date string (YYYY-MM-DD)
+// Matches backend logic: UTC + 5:30
+const getClientISTDate = () => {
+  const now = new Date();
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  return new Date(now.getTime() + istOffset).toISOString().split("T")[0];
+};
 
 export default function WordleScreen() {
   const router = useRouter();
@@ -71,12 +81,43 @@ export default function WordleScreen() {
   const { wordleStats } = useUserStore();
   
   // CONVEX IS SOURCE OF TRUTH - Check if user can play today
+  // Track "today" in IST to force query refresh at midnight
+  const [todayStr, setTodayStr] = useState(getClientISTDate());
+  
+  // Check for day change when app comes to foreground or every minute
+  useEffect(() => {
+    // interval check
+    const interval = setInterval(() => {
+      const current = getClientISTDate();
+      if (current !== todayStr) {
+        setTodayStr(current);
+      }
+    }, 60000); // Check every minute
+    
+    // App state listener (for when returning from background)
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        const current = getClientISTDate();
+        if (current !== todayStr) {
+          setTodayStr(current);
+        }
+      }
+    });
+    
+    return () => {
+      clearInterval(interval);
+      subscription.remove();
+    };
+  }, [todayStr]);
+
   const canPlayTodayFromServer = useQuery(api.gameStats.canPlayWordle,
-    token ? { token } : 'skip'
+    token ? { token, clientDate: todayStr } : 'skip'
   );
   
-  // OTA: Get today's word from server (same for all users)
-  const todaysWordData = useQuery(api.content.getTodaysWordleWord);
+  // OTA: Get today's word from content hook (handles caching & fallback)
+  // This replaces direct useQuery to ensure we have cache/fallback and avoid infinite loading
+  const { content: wordleContent, refresh } = useWordleContent();
+  const todaysData = wordleContent?.[0];
   
   // Check if hint was used today (from Convex - for restoring state after app restart)
   const didUseHintToday = useQuery(api.gameStats.didUseWordleHint, 
@@ -101,33 +142,40 @@ export default function WordleScreen() {
   const shakeX = useSharedValue(0);
   const { triggerTap } = useTapFeedback();
 
-  // Initialize game when we have today's word from OTA
+  // Initialize game when we have today's word
   useEffect(() => {
-    if (todaysWordData) {
-      initGame(todaysWordData.word, todaysWordData.hint);
+    if (todaysData) {
+      initGame(todaysData.word, todaysData.hint);
     }
     // Don't start music yet - wait for Convex check
     // Show how-to-play on first visit (check Convex stats)
     if (wordleStats.gamesPlayed === 0) {
       setShowHowToPlay(true);
     }
-    return () => {
-      stopMusic(); // Stop music on exit
-    };
-  }, [todaysWordData]);
+  }, [todaysData]);
 
-  // SYNC WITH CONVEX: Handle game availability and music
+  // SYNC WITH CONVEX: Handle game availability
   useEffect(() => {
     if (canPlayTodayFromServer === false) {
-      // User already played today according to Convex
       setAlreadyPlayedToday(true);
-      stopMusic(); // Ensure music is stopped
     } else if (canPlayTodayFromServer === true) {
-      // User can play
       setAlreadyPlayedToday(false);
-      startMusic(); // Start music only when we confirm we can play
     }
   }, [canPlayTodayFromServer]);
+
+  // Handle Background Music
+  useEffect(() => {
+    // Play music only upon active gameplay
+    if (canPlayTodayFromServer === true && gameState === 'playing' && !showResult) {
+      startMusic();
+    } else {
+      stopMusic();
+    }
+    
+    return () => {
+      stopMusic();
+    };
+  }, [canPlayTodayFromServer, gameState, showResult]);
 
   // Sync hint state from Convex on load
   useEffect(() => {
@@ -265,17 +313,7 @@ export default function WordleScreen() {
   const xpReward = hintUsed ? XP_WITH_HINT : XP_FULL;
   const shardReward = hintUsed ? SHARDS_WITH_HINT : SHARDS_FULL;
 
-  // Loading state while fetching today's word from OTA
-  if (!todaysWordData) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>Loading today's word...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  // No loading state needed - useWordleContent handles fallback/cache internally assignment
 
   // If server confirms already played, show the overlay
   if (alreadyPlayedToday && gameState === 'playing') {

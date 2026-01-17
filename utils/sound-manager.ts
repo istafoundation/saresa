@@ -141,13 +141,20 @@ export function useBackgroundMusic() {
           } catch (e) {
             // Player may have been released
           }
+        } else if (nextAppState === 'active' && musicEnabled) {
+          // Resume music when coming back to foreground
+          try {
+            musicPlayerRef.current.play();
+          } catch (e) {
+            // Player may have been released or failed to resume
+          }
         }
       }
     };
     
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     return () => subscription?.remove();
-  }, []);
+  }, [musicEnabled]);
   
   const startMusic = useCallback(() => {
     if (!musicEnabled || !musicPlayer || isUnmountedRef.current) return;
