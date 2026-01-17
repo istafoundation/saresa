@@ -237,8 +237,11 @@ export const adminGetChildStats = query({
         totalXPEarned: userData.wfTotalXPEarned,
       },
       explorerStats: {
-        correctAnswers: userData.expCorrectAnswers ?? 0,
-        totalXPEarned: userData.expTotalXPEarned ?? 0,
+        guessedTodayCount:
+          userData.expLastPlayedDate === getISTDate()
+            ? userData.expGuessedToday?.length ?? 0
+            : 0,
+        totalRegions: 36, // Total regions (states + UTs)
         lastPlayedDate: userData.expLastPlayedDate ?? null,
       },
     };
@@ -608,8 +611,11 @@ export const getChildStats = query({
           : 0,
       },
       explorerStats: {
-        correctAnswers: userData.expCorrectAnswers ?? 0,
-        totalXPEarned: userData.expTotalXPEarned ?? 0,
+        guessedTodayCount:
+          userData.expLastPlayedDate === getISTDate()
+            ? userData.expGuessedToday?.length ?? 0
+            : 0,
+        totalRegions: 36, // Total regions (states + UTs)
         lastPlayedDate: userData.expLastPlayedDate ?? null,
       },
     };

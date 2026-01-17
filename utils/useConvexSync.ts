@@ -10,6 +10,7 @@ import { useGKStore } from '../stores/gk-store';
 import { useGrammarDetectiveStore } from '../stores/grammar-detective-store';
 import { useExplorerStore } from '../stores/explorer-store';
 import { useWordleStore } from '../stores/wordle-store';
+import { getISTDate } from './dates';
 
 // Enable/disable debug logging (only in development)
 const DEBUG_SYNC = __DEV__;
@@ -51,8 +52,8 @@ export interface SyncedGameStats {
   gdTotalXPEarned: number;
   
   // Explorer
-  expCorrectAnswers: number;
-  expTotalXPEarned: number;
+  expGuessedTodayCount: number;
+  expTotalRegions: number;
   expLastPlayedDate: string | null;
 }
 
@@ -154,8 +155,10 @@ export function useConvexSync() {
       gdTotalXPEarned: userData.gdTotalXPEarned ?? 0,
       
       // Explorer
-      expCorrectAnswers: userData.expCorrectAnswers ?? 0,
-      expTotalXPEarned: userData.expTotalXPEarned ?? 0,
+      expGuessedTodayCount: userData.expLastPlayedDate === getISTDate() 
+        ? (userData.expGuessedToday?.length ?? 0) 
+        : 0,
+      expTotalRegions: 36,
       expLastPlayedDate: userData.expLastPlayedDate ?? null,
     };
 

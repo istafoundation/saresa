@@ -73,8 +73,8 @@ export interface UserState extends LocalSettings {
     totalXPEarned: number;
   };
   explorerStats: {
-    correctAnswers: number;
-    totalXPEarned: number;
+    guessedTodayCount: number;
+    totalRegions: number;
     lastPlayedDate: string | null;
   };
   
@@ -145,8 +145,8 @@ export const useUserStore = create<UserState>()(
         totalXPEarned: 0,
       },
       explorerStats: {
-        correctAnswers: 0,
-        totalXPEarned: 0,
+        guessedTodayCount: 0,
+        totalRegions: 36,
         lastPlayedDate: null,
       },
       
@@ -205,8 +205,8 @@ export const useUserStore = create<UserState>()(
             totalXPEarned: stats?.gdTotalXPEarned ?? 0,
           },
           explorerStats: {
-            correctAnswers: stats?.expCorrectAnswers ?? 0,
-            totalXPEarned: stats?.expTotalXPEarned ?? 0,
+            guessedTodayCount: stats?.expGuessedTodayCount ?? 0,
+            totalRegions: stats?.expTotalRegions ?? 36,
             lastPlayedDate: stats?.expLastPlayedDate ?? null,
           },
         });

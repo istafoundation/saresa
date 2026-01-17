@@ -254,6 +254,40 @@ export default function ChildStatsPage() {
                   </div>
                </div>
             </div>
+
+            {/* Explorer India Stats */}
+            <div className="bg-orange-50 p-6 rounded-3xl shadow-sm border border-orange-100">
+               <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                     <div className="w-12 h-12 bg-orange-100 rounded-2xl flex items-center justify-center text-2xl">🇮🇳</div>
+                     <div>
+                        <h3 className="font-bold text-lg text-slate-900">Explore India</h3>
+                        <p className="text-slate-500 text-xs">Daily progress</p>
+                     </div>
+                  </div>
+               </div>
+               
+               {/* Progress Bar */}
+               <div className="mb-6">
+                  <div className="flex justify-between text-sm text-slate-600 mb-2">
+                     <span>Regions Found Today</span>
+                     <span>{detailedStats.explorerStats?.guessedTodayCount ?? 0} / {detailedStats.explorerStats?.totalRegions ?? 36}</span>
+                  </div>
+                  <div className="h-3 bg-white rounded-full overflow-hidden shadow-inner">
+                     <div 
+                        className="h-full bg-gradient-to-r from-orange-400 to-red-500 rounded-full transition-all duration-500"
+                        style={{ 
+                           width: `${Math.min(((detailedStats.explorerStats?.guessedTodayCount ?? 0) / (detailedStats.explorerStats?.totalRegions ?? 36)) * 100, 100)}%` 
+                        }}
+                     />
+                  </div>
+               </div>
+
+               <div className="flex items-center gap-2 text-xs text-slate-500 bg-white p-3 rounded-xl">
+                   <span className="font-bold text-orange-600">Last Played:</span>
+                   <span>{detailedStats.explorerStats?.lastPlayedDate ?? "Never"}</span>
+               </div>
+            </div>
           </div>
         </>
       )}
