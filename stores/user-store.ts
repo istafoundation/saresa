@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { zustandStorage } from '../utils/storage';
 import { getLevelForXP } from '../constants/levels';
-import type { SyncedGameStats } from '../utils/useConvexSync';
+import type { SyncedGameStats, ComputedGameLimits } from '../utils/useConvexSync';
 
 export type MascotType = 'male' | 'female';
 
@@ -78,6 +78,9 @@ export interface UserState extends LocalSettings {
     lastPlayedDate: string | null;
   };
   
+  // OPTIMIZATION: Pre-computed daily game limits (eliminates separate Convex queries)
+  gameLimits: ComputedGameLimits;
+  
   // Actions for synced data
   setSyncedData: (data: SyncedUserData | null) => void;
   setSyncedGameStats: (stats: SyncedGameStats | null) => void;
@@ -150,6 +153,18 @@ export const useUserStore = create<UserState>()(
         lastPlayedDate: null,
       },
       
+      // Default game limits (all games available until synced)
+      gameLimits: {
+        canPlayGKCompetitive: true,
+        canPlayWordle: true,
+        canPlayWordFinderEasy: true,
+        canPlayWordFinderHard: true,
+        didUseWordleHintToday: false,
+        explorerGuessedToday: [],
+        explorerRemaining: 36,
+        explorerIsComplete: false,
+      },
+      
       // Synced data actions
       setSyncedData: (data) => {
         console.log('[UserStore] Setting syncedData:', data ? `XP:${data.xp} Streak:${data.streak}` : 'null');
@@ -208,6 +223,17 @@ export const useUserStore = create<UserState>()(
             guessedTodayCount: stats?.expGuessedTodayCount ?? 0,
             totalRegions: stats?.expTotalRegions ?? 36,
             lastPlayedDate: stats?.expLastPlayedDate ?? null,
+          },
+          // OPTIMIZATION: Game limits from Convex computed fields
+          gameLimits: stats?.limits ?? {
+            canPlayGKCompetitive: true,
+            canPlayWordle: true,
+            canPlayWordFinderEasy: true,
+            canPlayWordFinderHard: true,
+            didUseWordleHintToday: false,
+            explorerGuessedToday: [],
+            explorerRemaining: 36,
+            explorerIsComplete: false,
           },
         });
       },

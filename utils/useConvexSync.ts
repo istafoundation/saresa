@@ -1,6 +1,7 @@
 // Hook to sync Convex user data to local Zustand store
 // Now also syncs game stats from Convex!
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { AppState } from 'react-native';
 import { useQuery } from 'convex/react';
 import { api } from '../convex/_generated/api';
 import { useUserStore, type SyncedUserData } from '../stores/user-store';
@@ -19,6 +20,19 @@ function logSync(message: string, data?: any) {
   if (DEBUG_SYNC) {
     console.log(`[ConvexSync] ${message}`, data ?? '');
   }
+}
+
+// Pre-computed daily game limits (from getMyData.computed)
+// OPTIMIZATION: These eliminate 5+ separate Convex queries
+export interface ComputedGameLimits {
+  canPlayGKCompetitive: boolean;
+  canPlayWordle: boolean;
+  canPlayWordFinderEasy: boolean;
+  canPlayWordFinderHard: boolean;
+  didUseWordleHintToday: boolean;
+  explorerGuessedToday: string[];
+  explorerRemaining: number;
+  explorerIsComplete: boolean;
 }
 
 // Extended synced data including game stats
@@ -55,13 +69,44 @@ export interface SyncedGameStats {
   expGuessedTodayCount: number;
   expTotalRegions: number;
   expLastPlayedDate: string | null;
+  
+  // OPTIMIZATION: Pre-computed daily limits (eliminates separate queries)
+  limits: ComputedGameLimits;
 }
 
 export function useConvexSync() {
   const { isAuthenticated, isLoading: authLoading, token } = useChildAuth();
+  
+  // Track "today" in IST to force query refresh at midnight
+  // This replaces the individual date checks in each game component
+  const [todayStr, setTodayStr] = useState(getISTDate());
+  
+  useEffect(() => {
+    const checkDate = () => {
+      const current = getISTDate();
+      if (current !== todayStr) {
+        logSync('Day changed, updating query date', current);
+        setTodayStr(current);
+      }
+    };
+    
+    // Check every minute
+    const interval = setInterval(checkDate, 60000);
+    
+    // Check on app resume
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') checkDate();
+    });
+    
+    return () => {
+      clearInterval(interval);
+      subscription.remove();
+    };
+  }, [todayStr]);
+
   const userData = useQuery(
     api.users.getMyData,
-    isAuthenticated && token ? { token } : "skip"
+    isAuthenticated && token ? { token, clientDate: todayStr } : "skip" // added clientDate
   );
   const { setSyncedData, setLoading, setSyncedGameStats } = useUserStore();
 
@@ -124,6 +169,29 @@ export function useConvexSync() {
       rawXP: userData.xp, // Debug: check what raw data has
     });
 
+    // Extract computed limits from server (pre-computed in getMyData)
+    const computed = (userData as any).computed;
+    const limits: ComputedGameLimits = computed ? {
+      canPlayGKCompetitive: computed.canPlayGKCompetitive ?? true,
+      canPlayWordle: computed.canPlayWordle ?? true,
+      canPlayWordFinderEasy: computed.canPlayWordFinderEasy ?? true,
+      canPlayWordFinderHard: computed.canPlayWordFinderHard ?? true,
+      didUseWordleHintToday: computed.didUseWordleHintToday ?? false,
+      explorerGuessedToday: computed.explorerGuessedToday ?? [],
+      explorerRemaining: computed.explorerRemaining ?? 36,
+      explorerIsComplete: computed.explorerIsComplete ?? false,
+    } : {
+      // Fallback: compute locally if server doesn't provide (backward compat)
+      canPlayGKCompetitive: userData.gkLastCompetitiveDate !== getISTDate(),
+      canPlayWordle: userData.wordleLastPlayedDate !== getISTDate(),
+      canPlayWordFinderEasy: userData.wfLastEasyDate !== getISTDate() || userData.wfEasyAttemptsToday < 2,
+      canPlayWordFinderHard: userData.wfLastHardDate !== getISTDate(),
+      didUseWordleHintToday: userData.wordleHintUsedDate === getISTDate(),
+      explorerGuessedToday: userData.expLastPlayedDate === getISTDate() ? (userData.expGuessedToday ?? []) : [],
+      explorerRemaining: userData.expLastPlayedDate === getISTDate() ? 36 - (userData.expGuessedToday?.length ?? 0) : 36,
+      explorerIsComplete: userData.expLastPlayedDate === getISTDate() ? (userData.expGuessedToday?.length ?? 0) >= 36 : false,
+    };
+
     // Map GAME STATS from Convex
     const gameStats: SyncedGameStats = {
       // GK
@@ -155,11 +223,12 @@ export function useConvexSync() {
       gdTotalXPEarned: userData.gdTotalXPEarned ?? 0,
       
       // Explorer
-      expGuessedTodayCount: userData.expLastPlayedDate === getISTDate() 
-        ? (userData.expGuessedToday?.length ?? 0) 
-        : 0,
+      expGuessedTodayCount: limits.explorerGuessedToday.length,
       expTotalRegions: 36,
       expLastPlayedDate: userData.expLastPlayedDate ?? null,
+      
+      // OPTIMIZATION: Pre-computed limits from server
+      limits,
     };
 
     logSync('Game stats synced from Convex', {

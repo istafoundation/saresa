@@ -1,57 +1,30 @@
 // Games Hub - GK Quiz and Wordle access
+// OPTIMIZED: Uses synced gameLimits instead of 5 separate Convex queries
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView } from 'moti';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from 'convex/react';
-import { api } from '../../convex/_generated/api';
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants/theme';
 import { useUserStore } from '../../stores/user-store';
-import { useChildAuth } from '../../utils/childAuth';
 import { useTapFeedback } from '../../utils/useTapFeedback';
 import Mascot from '../../components/Mascot';
-import { getISTDate } from '../../utils/dates';
-import { TOTAL_REGIONS } from '../../data/india-states';
 
 export default function FunScreen() {
   const router = useRouter();
-  const { token } = useChildAuth();
-  const { mascot } = useUserStore();
+  const { mascot, gameLimits } = useUserStore();
   const { triggerTap } = useTapFeedback();
   
-  // CONVEX IS SOURCE OF TRUTH for all daily games
-  const canPlayCompetitiveFromServer = useQuery(api.gameStats.canPlayGKCompetitive,
-    token ? { token } : 'skip'
-  );
-  const canPlayCompetitive = canPlayCompetitiveFromServer ?? true;
-  
-  const canPlayWordleFromServer = useQuery(api.gameStats.canPlayWordle,
-    token ? { token } : 'skip'
-  );
-  const canPlayWordle = canPlayWordleFromServer ?? true;
-  
-  const canPlayWordFinderEasyFromServer = useQuery(api.gameStats.canPlayWordFinder,
-    token ? { token, mode: 'easy' as const } : 'skip'
-  );
-  const canPlayWordFinderEasy = canPlayWordFinderEasyFromServer ?? true;
-  
-  const canPlayWordFinderHardFromServer = useQuery(api.gameStats.canPlayWordFinder,
-    token ? { token, mode: 'hard' as const } : 'skip'
-  );
-  const canPlayWordFinderHard = canPlayWordFinderHardFromServer ?? true;
-
-  // Explorer Progress
-  const todayStr = getISTDate();
-  const explorerProgress = useQuery(api.gameStats.getExplorerProgress, 
-    token ? { token, clientDate: todayStr } : 'skip'
-  );
-  
-  const explorerRemaining = explorerProgress 
-    ? TOTAL_REGIONS - (explorerProgress.guessedToday?.length ?? 0)
-    : TOTAL_REGIONS;
-  const isExplorerStarted = (explorerProgress?.guessedToday?.length ?? 0) > 0;
+  // OPTIMIZATION: Use pre-computed limits from useConvexSync instead of 5 separate queries!
+  // This eliminates: canPlayGKCompetitive, canPlayWordle, canPlayWordFinder(easy), 
+  // canPlayWordFinder(hard), and getExplorerProgress queries
+  const canPlayCompetitive = gameLimits.canPlayGKCompetitive;
+  const canPlayWordle = gameLimits.canPlayWordle;
+  const canPlayWordFinderEasy = gameLimits.canPlayWordFinderEasy;
+  const canPlayWordFinderHard = gameLimits.canPlayWordFinderHard;
+  const explorerRemaining = gameLimits.explorerRemaining;
+  const isExplorerStarted = gameLimits.explorerGuessedToday.length > 0;
   
   const handleGamePress = (route: string) => {
     triggerTap('medium');
@@ -385,9 +358,7 @@ export default function FunScreen() {
                        Explore India
                     </Text>
                     <Text style={styles.modeButtonDesc}>
-                      {explorerProgress 
-                        ? `${explorerRemaining} remaining today • ${isExplorerStarted ? 'Continue' : 'Start'}`
-                        : 'Identify states on the map • Max 360 XP'}
+                      {`${explorerRemaining} remaining today • ${isExplorerStarted ? 'Continue' : 'Start'}`}
                     </Text>
                   </View>
                 </View>

@@ -20,8 +20,13 @@ async function getChildIdFromSession(
 }
 
 // Get current user data (for child app)
+// OPTIMIZED: Returns pre-computed daily limits to eliminate separate queries
 export const getMyData = query({
-  args: { token: v.string() },
+  args: { 
+    token: v.string(),
+    // Optional date string to force re-evaluation when day changes at midnight
+    clientDate: v.optional(v.string()) 
+  },
   handler: async (ctx, args) => {
     const childId = await getChildIdFromSession(ctx, args.token);
     if (!childId) return null;
@@ -31,7 +36,33 @@ export const getMyData = query({
       .withIndex("by_child_id", (q) => q.eq("childId", childId))
       .first();
 
-    return user;
+    if (!user) return null;
+
+    // Pre-compute all daily limits (IST-based) to avoid separate queries
+    const today = getISTDate();
+    const TOTAL_REGIONS = 36; // Sync with data/india-states.ts
+
+    return {
+      ...user,
+      // Computed daily availability fields (eliminates 5+ separate queries)
+      computed: {
+        canPlayGKCompetitive: user.gkLastCompetitiveDate !== today,
+        canPlayWordle: user.wordleLastPlayedDate !== today,
+        canPlayWordFinderEasy: user.wfLastEasyDate !== today || user.wfEasyAttemptsToday < 2,
+        canPlayWordFinderHard: user.wfLastHardDate !== today,
+        didUseWordleHintToday: user.wordleHintUsedDate === today,
+        // Explorer progress
+        explorerGuessedToday: user.expLastPlayedDate === today 
+          ? (user.expGuessedToday ?? []) 
+          : [],
+        explorerRemaining: user.expLastPlayedDate === today 
+          ? TOTAL_REGIONS - (user.expGuessedToday?.length ?? 0) 
+          : TOTAL_REGIONS,
+        explorerIsComplete: user.expLastPlayedDate === today 
+          ? (user.expGuessedToday?.length ?? 0) >= TOTAL_REGIONS
+          : false,
+      },
+    };
   },
 });
 
