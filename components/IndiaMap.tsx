@@ -352,7 +352,7 @@ const styles = StyleSheet.create({
   },
   resetButton: {
     position: 'absolute',
-    bottom: 16,
+    top: 16,
     right: 16,
     backgroundColor: COLORS.surface,
     padding: 8,

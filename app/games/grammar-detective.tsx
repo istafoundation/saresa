@@ -121,14 +121,14 @@ export default function GrammarDetectiveScreen() {
 
   // Background music effect
   useEffect(() => {
-    if (gameState === "playing" && currentQuestion) {
+    if (allQuestions && allQuestions.length > 0) {
       startMusic();
     }
     
     return () => {
       stopMusic();
     };
-  }, [gameState, currentQuestion, startMusic, stopMusic]);
+  }, [allQuestions, startMusic, stopMusic]);
 
   const handleWordPress = useCallback(
     (index: number) => {

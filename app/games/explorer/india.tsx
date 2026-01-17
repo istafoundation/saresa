@@ -15,19 +15,16 @@ import { useChildAuth } from '../../../utils/childAuth';
 import { useTapFeedback } from '../../../utils/useTapFeedback';
 import { useGameAudio } from '../../../utils/sound-manager';
 import { useUserStore } from '../../../stores/user-store';
-import { TOTAL_REGIONS, XP_PER_CORRECT, MAX_XP, calculateXP } from '../../../data/india-states';
+import { TOTAL_REGIONS, XP_PER_CORRECT, MAX_XP, calculateXP, INDIA_REGIONS } from '../../../data/india-states';
 import IndiaMap from '../../../components/IndiaMap';
 import Mascot from '../../../components/Mascot';
+import { getISTDate } from '../../../utils/dates';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // Helper to getting IST date string (YYYY-MM-DD)
 // Matches backend logic: UTC + 5:30
-const getClientISTDate = () => {
-  const now = new Date();
-  const istOffset = 5.5 * 60 * 60 * 1000;
-  return new Date(now.getTime() + istOffset).toISOString().split("T")[0];
-};
+const getClientISTDate = getISTDate;
 
 export default function IndiaExplorerScreen() {
   const router = useRouter();
@@ -101,24 +98,27 @@ export default function IndiaExplorerScreen() {
   const remaining = TOTAL_REGIONS - (progress?.guessedToday?.length ?? 0);
 
   // Handle background music
+  // Handle background music
   useEffect(() => {
     // Only play music if:
     // 1. Progress is loaded
     // 2. Not completed today
-    // 3. User is not in 'finished' state from this session
-    // 4. Game is actually active (not just on start screen, but we might want it on start screen too?)
-    // Let's match other games: play as long as we are in the screen and not completed
+    // 3. User is in 'playing' or 'answering' state (keep playing during feedback)
+    const shouldPlay = progress && !isCompletedToday && (gameState === 'playing' || gameState === 'answering');
     
-    if (progress && !isCompletedToday && gameState === 'playing') {
+    if (shouldPlay) {
       startMusic();
     } else {
       stopMusic();
     }
-    
+  }, [progress, isCompletedToday, gameState, startMusic, stopMusic]);
+
+  // Separate cleanup effect to stop music ONLY when leaving the screen
+  useEffect(() => {
     return () => {
       stopMusic();
     };
-  }, [progress, isCompletedToday, gameState]);
+  }, [stopMusic]);
   
   // Calculate session result (must be before early returns to maintain hook order)
   const sessionResult = useMemo(() => {
@@ -131,6 +131,13 @@ export default function IndiaExplorerScreen() {
   const filteredGuessedRegions = useMemo(() => {
     return guessedToday.filter(id => id !== currentRegion?.id);
   }, [guessedToday, currentRegion?.id]);
+
+  // Get selected region name for feedback
+  const selectedRegionName = useMemo(() => {
+    if (!selectedRegion) return '';
+    const region = INDIA_REGIONS.find(r => r.id === selectedRegion);
+    return region?.name || 'Unknown';
+  }, [selectedRegion]);
   
   // Start or continue game
   const handleStartGame = useCallback(() => {
@@ -255,67 +262,21 @@ export default function IndiaExplorerScreen() {
     );
   }
   
-  // Idle state - show start screen
+  // Auto-start game if in idle state
+  useEffect(() => {
+    if (gameState === 'idle' && progress && !isStarting && !isCompletedToday) {
+      handleStartGame();
+    }
+  }, [gameState, progress, isStarting, isCompletedToday, handleStartGame]);
+
+  // Idle state - show loading while starting
   if (gameState === 'idle') {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <Pressable onPress={handleBack} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-          </Pressable>
-          <Text style={styles.title}>India Explorer</Text>
-          <View style={{ width: 40 }} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.loadingText}>Starting exploration...</Text>
         </View>
-        
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          <MotiView
-            from={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: 'spring' }}
-            style={styles.startCard}
-          >
-            <LinearGradient
-              colors={['#1abc9c', '#16a085']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.startCardGradient}
-            >
-              <Text style={styles.startEmoji}>🗺️</Text>
-              <Text style={styles.startTitle}>Explore India</Text>
-              <Text style={styles.startSubtitle}>
-                Identify all {TOTAL_REGIONS} states and union territories
-              </Text>
-            </LinearGradient>
-            
-            <View style={styles.startInfo}>
-              <View style={styles.startInfoItem}>
-                <Ionicons name="location" size={20} color={COLORS.primary} />
-                <Text style={styles.startInfoText}>{remaining} remaining today</Text>
-              </View>
-              <View style={styles.startInfoItem}>
-                <Ionicons name="star" size={20} color={COLORS.accentGold} />
-                <Text style={styles.startInfoText}>Max {MAX_XP} XP</Text>
-              </View>
-            </View>
-            
-            <Pressable
-              style={styles.startButton}
-              onPress={handleStartGame}
-              disabled={isStarting}
-            >
-              {isStarting ? (
-                <ActivityIndicator color={COLORS.text} />
-              ) : (
-                <>
-                  <Text style={styles.startButtonText}>
-                    {progress.guessedToday.length > 0 ? 'Continue' : 'Start Exploring'}
-                  </Text>
-                  <Ionicons name="arrow-forward" size={20} color={COLORS.text} />
-                </>
-              )}
-            </Pressable>
-          </MotiView>
-        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -372,6 +333,7 @@ export default function IndiaExplorerScreen() {
     );
   }
   
+
   // Playing state
   return (
     <SafeAreaView style={styles.container}>
@@ -456,33 +418,55 @@ export default function IndiaExplorerScreen() {
           transition={{ type: 'spring' }}
           style={styles.feedbackContainer}
         >
-          <View style={[
-            styles.feedbackCard,
-            { backgroundColor: wasCorrect ? COLORS.success : COLORS.error }
-          ]}>
-            <Text style={styles.feedbackEmoji}>
-              {wasCorrect ? '✅' : '❌'}
-            </Text>
-            <Text style={styles.feedbackTitle}>
-              {wasCorrect ? 'Correct!' : 'Not quite...'}
-            </Text>
+          <LinearGradient
+            colors={wasCorrect ? [COLORS.success, '#15803d'] : [COLORS.error, '#b91c1c']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.feedbackCard}
+          >
+            <View style={styles.feedbackHeader}>
+              <View style={styles.feedbackIconBg}>
+                <Text style={styles.feedbackEmoji}>
+                  {wasCorrect ? '🎉' : '🤔'}
+                </Text>
+              </View>
+              <View style={styles.feedbackTextContainer}>
+                <Text style={styles.feedbackTitle}>
+                  {wasCorrect ? 'Excellent!' : 'Not quite!'}
+                </Text>
+                {wasCorrect ? (
+                  <Text style={styles.feedbackSubtitle}>
+                    You found {currentRegion?.name}
+                  </Text>
+                ) : (
+                  <Text style={styles.feedbackSubtitle}>
+                    That was {selectedRegionName}
+                  </Text>
+                )}
+              </View>
+            </View>
+
             {wasCorrect ? (
-              <View style={styles.xpBadge}>
+              <View style={styles.xpPill}>
                 <Ionicons name="star" size={16} color={COLORS.accentGold} />
-                <Text style={styles.xpBadgeText}>+{XP_PER_CORRECT} XP</Text>
+                <Text style={styles.xpPillText}>+{XP_PER_CORRECT} XP Earned</Text>
               </View>
             ) : (
-              <Text style={styles.feedbackHint}>
-                {currentRegion?.name} is highlighted in green
-              </Text>
+              <View style={styles.hintContainer}>
+                <Ionicons name="eye-outline" size={20} color="rgba(255,255,255,0.8)" />
+                <Text style={styles.feedbackHint}>
+                  The one highlighted in green is {currentRegion?.name}
+                </Text>
+              </View>
             )}
+
             <Pressable style={styles.feedbackButton} onPress={handleContinue}>
               <Text style={styles.feedbackButtonText}>
-                {guessedToday.length >= TOTAL_REGIONS ? 'Finish' : 'Next'}
+                {guessedToday.length >= TOTAL_REGIONS ? 'Finish Game' : 'Continue'}
               </Text>
-              <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+              <Ionicons name="arrow-forward-circle" size={24} color={wasCorrect ? COLORS.success : COLORS.error} />
             </Pressable>
-          </View>
+          </LinearGradient>
         </MotiView>
       )}
     </SafeAreaView>
@@ -702,8 +686,9 @@ const styles = StyleSheet.create({
   mapContainer: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     paddingHorizontal: SPACING.xs,
+    marginTop: SPACING.sm,
   },
   
   // Feedback
@@ -713,40 +698,114 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     padding: SPACING.md,
+    paddingBottom: SPACING.xl, // Extra padding for safe area
   },
   feedbackCard: {
-    borderRadius: BORDER_RADIUS.xl,
+    borderRadius: BORDER_RADIUS.xl + 4,
     padding: SPACING.lg,
+    ...SHADOWS.lg,
+  },
+  feedbackHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: SPACING.md,
+    marginBottom: SPACING.md,
+  },
+  feedbackIconBg: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   feedbackEmoji: {
-    fontSize: 40,
-    marginBottom: SPACING.sm,
+    fontSize: 28,
+  },
+  feedbackTextContainer: {
+    flex: 1,
   },
   feedbackTitle: {
-    fontSize: 20,
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  feedbackSubtitle: {
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.9)',
+    fontWeight: '500',
+  },
+  xpPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: SPACING.xs,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs + 2,
+    borderRadius: BORDER_RADIUS.full,
+    marginBottom: SPACING.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  xpPillText: {
+    fontSize: 14,
     fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
+    color: '#FFFFFF',
+  },
+  hintContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    marginBottom: SPACING.lg,
   },
   feedbackHint: {
+    flex: 1,
     fontSize: 14,
-    color: COLORS.text + 'CC',
-    marginBottom: SPACING.md,
+    color: 'rgba(255,255,255,0.9)',
+    lineHeight: 20,
   },
   feedbackButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.xs,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.sm,
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    padding: SPACING.md,
     borderRadius: BORDER_RADIUS.lg,
   },
   feedbackButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  
+  // Submit button
+  submitContainer: {
+    position: 'absolute',
+    bottom: SPACING.xl,
+    alignSelf: 'center',
+  },
+  submitButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.full,
+    ...SHADOWS.md,
+  },
+  submitButtonDisabled: {
+    opacity: 0.8,
+  },
+  submitButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.text,
   },
   
   // Result
@@ -757,53 +816,52 @@ const styles = StyleSheet.create({
     padding: SPACING.xl,
   },
   resultEmoji: {
-    fontSize: 64,
-    textAlign: 'center',
+    fontSize: 80,
     marginBottom: SPACING.md,
   },
   resultTitle: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: '700',
     color: COLORS.text,
-    textAlign: 'center',
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.xl,
   },
   resultStats: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.xl,
     padding: SPACING.lg,
-    marginBottom: SPACING.lg,
+    borderRadius: BORDER_RADIUS.xl,
+    marginBottom: SPACING.xl,
+    gap: SPACING.lg,
   },
   resultStatItem: {
     alignItems: 'center',
-    paddingHorizontal: SPACING.lg,
+    gap: 4,
   },
   resultStatValue: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '700',
-    color: COLORS.text,
+    color: COLORS.primary,
   },
   resultStatLabel: {
     fontSize: 12,
     color: COLORS.textSecondary,
-    marginTop: SPACING.xs,
+    fontWeight: '500',
   },
   resultStatDivider: {
     width: 1,
-    height: 40,
-    backgroundColor: COLORS.textMuted,
+    height: 30,
+    backgroundColor: COLORS.text + '20',
   },
   resultHint: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
     textAlign: 'center',
+    color: COLORS.textSecondary,
+    fontSize: 14,
     marginBottom: SPACING.xl,
   },
   resultButton: {
     backgroundColor: COLORS.primary,
-    paddingHorizontal: SPACING.xl,
+    paddingHorizontal: SPACING.xl * 2,
     paddingVertical: SPACING.md,
     borderRadius: BORDER_RADIUS.lg,
   },
@@ -811,46 +869,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: COLORS.text,
-  },
-  
-  // Submit button
-  submitContainer: {
-    paddingHorizontal: SPACING.md,
-    paddingBottom: SPACING.md,
-  },
-  submitButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.sm,
-    backgroundColor: COLORS.success,
-    padding: SPACING.md,
-    borderRadius: BORDER_RADIUS.lg,
-    ...SHADOWS.md,
-  },
-  submitButtonDisabled: {
-    opacity: 0.7,
-  },
-  submitButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
-  
-  // XP Badge
-  xpBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs,
-    borderRadius: BORDER_RADIUS.full,
-    marginBottom: SPACING.sm,
-  },
-  xpBadgeText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.accentGold,
   },
 });

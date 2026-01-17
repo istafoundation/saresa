@@ -12,6 +12,8 @@ import { useUserStore } from '../../stores/user-store';
 import { useChildAuth } from '../../utils/childAuth';
 import { useTapFeedback } from '../../utils/useTapFeedback';
 import Mascot from '../../components/Mascot';
+import { getISTDate } from '../../utils/dates';
+import { TOTAL_REGIONS } from '../../data/india-states';
 
 export default function FunScreen() {
   const router = useRouter();
@@ -39,8 +41,17 @@ export default function FunScreen() {
     token ? { token, mode: 'hard' as const } : 'skip'
   );
   const canPlayWordFinderHard = canPlayWordFinderHardFromServer ?? true;
+
+  // Explorer Progress
+  const todayStr = getISTDate();
+  const explorerProgress = useQuery(api.gameStats.getExplorerProgress, 
+    token ? { token, clientDate: todayStr } : 'skip'
+  );
   
-  
+  const explorerRemaining = explorerProgress 
+    ? TOTAL_REGIONS - (explorerProgress.guessedToday?.length ?? 0)
+    : TOTAL_REGIONS;
+  const isExplorerStarted = (explorerProgress?.guessedToday?.length ?? 0) > 0;
   
   const handleGamePress = (route: string) => {
     triggerTap('medium');
@@ -370,9 +381,13 @@ export default function FunScreen() {
                 <View style={styles.modeButtonContent}>
                   <Text style={{ fontSize: 24 }}>🇮🇳</Text>
                   <View style={styles.modeButtonText}>
-                    <Text style={styles.modeButtonTitle}>Explore India</Text>
+                    <Text style={styles.modeButtonTitle}>
+                       Explore India
+                    </Text>
                     <Text style={styles.modeButtonDesc}>
-                      Identify states on the map • Max 360 XP
+                      {explorerProgress 
+                        ? `${explorerRemaining} remaining today • ${isExplorerStarted ? 'Continue' : 'Start'}`
+                        : 'Identify states on the map • Max 360 XP'}
                     </Text>
                   </View>
                 </View>
