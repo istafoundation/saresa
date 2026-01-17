@@ -2,7 +2,7 @@
   "expo": {
     "name": "Saresa",
     "slug": "saresa",
-    "version": "1.0.6",
+    "version": "1.0.11",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -23,7 +23,7 @@
         "backgroundColor": "#1A0A2E"
       },
       "package": "in.istafoundation.saresa",
-      "versionCode": 7
+      "versionCode": 12
     },
     "web": {
       "favicon": "./assets/favicon.png",
