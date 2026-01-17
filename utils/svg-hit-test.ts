@@ -5,8 +5,14 @@
  * but the India map data provided is purely linear segments essentially.
  */
 
-export function isPointInSvgPath(pathD: string, x: number, y: number): boolean {
+export interface HitTestResult {
+  inside: boolean;
+  distance: number;
+}
+
+export function getDistanceToSvgPath(pathD: string, x: number, y: number): HitTestResult {
   let inside = false;
+  let minDistance = Infinity;
   
   // Current pen position
   let cx = 0;
@@ -18,7 +24,7 @@ export function isPointInSvgPath(pathD: string, x: number, y: number): boolean {
   
   // Parse tokens: command chars or numbers
   const tokens = pathD.match(/([a-zA-Z])|([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)/g);
-  if (!tokens) return false;
+  if (!tokens) return { inside: false, distance: Infinity };
   
   let i = 0;
   let currentCmd = 'M'; // Default to Move
@@ -33,7 +39,6 @@ export function isPointInSvgPath(pathD: string, x: number, y: number): boolean {
     }
     
     // Process command
-    // Note: M/m becomes L/l for subsequent coordinate pairs
     switch (currentCmd) {
       case 'M': // Move Absolute
         cx = parseFloat(tokens[i++]);
@@ -56,6 +61,7 @@ export function isPointInSvgPath(pathD: string, x: number, y: number): boolean {
           const nx = parseFloat(tokens[i++]);
           const ny = parseFloat(tokens[i++]);
           if (rayIntersects(x, y, cx, cy, nx, ny)) inside = !inside;
+          minDistance = Math.min(minDistance, pointToSegmentDistance(x, y, cx, cy, nx, ny));
           cx = nx;
           cy = ny;
         }
@@ -68,6 +74,7 @@ export function isPointInSvgPath(pathD: string, x: number, y: number): boolean {
           const nx = cx + dx;
           const ny = cy + dy;
           if (rayIntersects(x, y, cx, cy, nx, ny)) inside = !inside;
+          minDistance = Math.min(minDistance, pointToSegmentDistance(x, y, cx, cy, nx, ny));
           cx = nx;
           cy = ny;
         }
@@ -77,6 +84,7 @@ export function isPointInSvgPath(pathD: string, x: number, y: number): boolean {
         {
           const nx = parseFloat(tokens[i++]);
           if (rayIntersects(x, y, cx, cy, nx, cy)) inside = !inside;
+          minDistance = Math.min(minDistance, pointToSegmentDistance(x, y, cx, cy, nx, cy));
           cx = nx;
         }
         break;
@@ -86,6 +94,7 @@ export function isPointInSvgPath(pathD: string, x: number, y: number): boolean {
           const dx = parseFloat(tokens[i++]);
           const nx = cx + dx;
           if (rayIntersects(x, y, cx, cy, nx, cy)) inside = !inside;
+          minDistance = Math.min(minDistance, pointToSegmentDistance(x, y, cx, cy, nx, cy));
           cx = nx;
         }
         break;
@@ -94,6 +103,7 @@ export function isPointInSvgPath(pathD: string, x: number, y: number): boolean {
         {
           const ny = parseFloat(tokens[i++]);
           if (rayIntersects(x, y, cx, cy, cx, ny)) inside = !inside;
+          minDistance = Math.min(minDistance, pointToSegmentDistance(x, y, cx, cy, cx, ny));
           cy = ny;
         }
         break;
@@ -103,6 +113,7 @@ export function isPointInSvgPath(pathD: string, x: number, y: number): boolean {
           const dy = parseFloat(tokens[i++]);
           const ny = cy + dy;
           if (rayIntersects(x, y, cx, cy, cx, ny)) inside = !inside;
+          minDistance = Math.min(minDistance, pointToSegmentDistance(x, y, cx, cy, cx, ny));
           cy = ny;
         }
         break;
@@ -110,23 +121,24 @@ export function isPointInSvgPath(pathD: string, x: number, y: number): boolean {
       case 'Z': // Close Path
       case 'z':
         if (rayIntersects(x, y, cx, cy, startX, startY)) inside = !inside;
+        minDistance = Math.min(minDistance, pointToSegmentDistance(x, y, cx, cy, startX, startY));
         cx = startX;
         cy = startY;
-        // Z doesn't have args, so we don't consume/implicit anything
-        // But we need to define what happens if numbers follow Z?
-        // Usually a new subpath (M) is expected, but if numbers follow Z, it's invalid in strict SVG.
-        // We just break.
         break;
         
       default:
-        // Skip unknown command (or curve args if we decide to ignore proper curve logic)
-        // For this dataset, we shouldn't hit this.
+        // Skip unknown command
         i++;
         break;
     }
   }
   
-  return inside;
+  return { inside, distance: inside ? 0 : minDistance };
+}
+
+// Keep the original function for backward compatibility if needed, but adapt it
+export function isPointInSvgPath(pathD: string, x: number, y: number): boolean {
+  return getDistanceToSvgPath(pathD, x, y).inside;
 }
 
 // Ray-Casting algorithm
@@ -142,3 +154,19 @@ function rayIntersects(pointX: number, pointY: number, startX: number, startY: n
   }
   return false;
 }
+
+// Point to Line Segment Distance
+function pointToSegmentDistance(px: number, py: number, x1: number, y1: number, x2: number, y2: number): number {
+  const l2 = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
+  
+  if (l2 === 0) return Math.sqrt((px - x1) * (px - x1) + (py - y1) * (py - y1));
+  
+  let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+  t = Math.max(0, Math.min(1, t));
+  
+  const projX = x1 + t * (x2 - x1);
+  const projY = y1 + t * (y2 - y1);
+  
+  return Math.sqrt((px - projX) * (px - projX) + (py - projY) * (py - projY));
+}
+

@@ -3,12 +3,14 @@ import React, { useRef, useCallback, useMemo, useEffect } from 'react';
 import { View, StyleSheet, Text, Dimensions, Pressable, type GestureResponderEvent } from 'react-native';
 import Svg, { Path, G } from 'react-native-svg';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, useAnimatedProps, withSpring, runOnJS } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { INDIA_REGIONS, validateRegionsWithPaths } from '../data/india-states';
 import { INDIA_SVG_PATHS } from '../data/india-svg-paths';
+import { REGION_CENTROIDS } from '../data/region-centroids';
+import { REGION_BOUNDS, isPointInBounds } from '../data/svg-region-bounds';
 import { COLORS, BORDER_RADIUS, SHADOWS } from '../constants/theme';
-import { isPointInSvgPath } from '../utils/svg-hit-test';
+import { isPointInSvgPath, getDistanceToSvgPath } from '../utils/svg-hit-test';
 
 interface IndiaMapProps {
   targetRegion?: string;       // The region user should find
@@ -25,8 +27,12 @@ const MAP_WIDTH = SCREEN_WIDTH; // Full width for larger map
 const MAP_HEIGHT = MAP_WIDTH * 1.14; // Aspect ratio from SVG
 
 // SVG viewBox dimensions
-const SVG_VIEWBOX_WIDTH = 612;
-const SVG_VIEWBOX_HEIGHT = 696;
+const SVG_VIEWBOX_WIDTH = 800;
+const SVG_VIEWBOX_HEIGHT = 820;
+const SVG_MIN_X = -20;
+const SVG_MIN_Y = -20;
+
+const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 export default function IndiaMap({
   targetRegion,
@@ -46,6 +52,20 @@ export default function IndiaMap({
   const translateY = useSharedValue(0);
   const savedTranslateY = useSharedValue(0);
 
+  // Dynamic Stroke Width: Keeps lines thin relative to screen even when zoomed
+  // Base width 1.5 -> at 4x zoom effectively scaled down to 1.5/4 units to look like 1.5px
+  const animatedStrokeProps = useAnimatedProps(() => {
+    return {
+      strokeWidth: 1.5 / scale.value,
+    };
+  });
+  
+  const animatedSelectedStrokeProps = useAnimatedProps(() => {
+    return {
+      strokeWidth: 3 / scale.value,
+    };
+  });
+
   // Reset map to default state
   const resetMap = useCallback(() => {
     scale.value = withSpring(1);
@@ -62,10 +82,11 @@ export default function IndiaMap({
   }, [targetRegion, correctRegion, wrongRegion, resetMap]);
 
   // Animated style for the map container
-  // Animated style for the map container
-  // We double-clamp here to ensure visual correctness even during mixed interactions
+  // TRANSFORMS ORDER: Scale then Translate
+  // This ensures 1:1 panning feel (translation happens in screen space AFTER scaling)
+  // And ensures touch coordinate math (Local = (Screen - T - C) / S + C) is consistent
   const animatedStyle = useAnimatedStyle(() => {
-    // Current bounds
+    // Current bounds calculation logic remains checking "how much extra space do we have"
     const maxTx = Math.max(0, (MAP_WIDTH * scale.value - MAP_WIDTH) / 2);
     const maxTy = Math.max(0, (MAP_HEIGHT * scale.value - MAP_HEIGHT) / 2);
 
@@ -79,19 +100,14 @@ export default function IndiaMap({
   });
 
   // Pan Gesture
-  // Calculate bounds to keep map in view
   const pan = Gesture.Pan()
     .onChange((event) => {
-      // Calculate max translation allowed based on current scale
-      // If scale > 1, allow panning to the edge.
-      // If scale < 1, clamp to 0 (center) to prevent losing map.
       const maxTranslateX = Math.max(0, (MAP_WIDTH * scale.value - MAP_WIDTH) / 2);
       const maxTranslateY = Math.max(0, (MAP_HEIGHT * scale.value - MAP_HEIGHT) / 2);
 
       const nextTx = savedTranslateX.value + event.translationX;
       const nextTy = savedTranslateY.value + event.translationY;
 
-      // Determine min/max bounds (symmetric around 0)
       translateX.value = Math.min(Math.max(nextTx, -maxTranslateX), maxTranslateX);
       translateY.value = Math.min(Math.max(nextTy, -maxTranslateY), maxTranslateY);
     })
@@ -103,15 +119,13 @@ export default function IndiaMap({
   // Pinch Gesture
   const pinch = Gesture.Pinch()
     .onChange((event) => {
-      // Limit zoom: 0.8x to 4x
       const nextScale = savedScale.value * event.scale;
-      scale.value = Math.min(Math.max(nextScale, 0.8), 4);
+      // Increased max zoom to 8x for better inspection
+      scale.value = Math.min(Math.max(nextScale, 0.8), 8);
     })
     .onEnd(() => {
       savedScale.value = scale.value;
       
-      // Re-clamp translation on zoom end just in case
-      // (Visual style handles it, but this keeps state clean)
       const maxTranslateX = Math.max(0, (MAP_WIDTH * scale.value - MAP_WIDTH) / 2);
       const maxTranslateY = Math.max(0, (MAP_HEIGHT * scale.value - MAP_HEIGHT) / 2);
       
@@ -124,24 +138,84 @@ export default function IndiaMap({
       savedTranslateY.value = clampedTy;
     });
 
-  // Function to check hit - defined BEFORE usage in gesture to ensure capture
+  const sortedRegions = useMemo(() => {
+    return [...INDIA_REGIONS].sort((a, b) => {
+      const areaA = REGION_BOUNDS[a.id]?.area ?? 999999;
+      const areaB = REGION_BOUNDS[b.id]?.area ?? 999999;
+      return areaB - areaA; 
+    });
+  }, []);
+
+  // IMPROVED HIT DETECTION 
   const checkHit = useCallback((svgX: number, svgY: number) => {
-    console.log(`[IndiaMap] Checking hit at SVG: ${Math.round(svgX)}, ${Math.round(svgY)}`);
+    const BOUNDS_PADDING = 30; 
+    const HIT_THRESHOLD = 20; 
     
-    // Find which region was tapped 
-    const regions = [...INDIA_REGIONS].reverse();
+    const candidates: { id: string; area: number; inside: boolean; distance: number }[] = [];
     
-    for (const region of regions) {
+    for (const region of INDIA_REGIONS) {
+      const bounds = REGION_BOUNDS[region.id];
       const pathData = INDIA_SVG_PATHS[region.id];
-      if (pathData) {
-        if (isPointInSvgPath(pathData, svgX, svgY)) {
-          console.log(`[IndiaMap] Hit detected on: ${region.id}`);
-          onRegionPress(region.id);
-          return;
-        }
+      
+      if (!pathData) continue;
+      
+      const skipBoundsCheck = ['IN-AN', 'IN-DL', 'IN-DH', 'IN-PY', 'IN-GA', 'IN-SK', 'IN-TR', 'IN-LD'].includes(region.id);
+      
+      if (!skipBoundsCheck && bounds && !isPointInBounds(svgX, svgY, bounds, BOUNDS_PADDING)) {
+        continue; 
+      }
+      
+      const { inside, distance } = getDistanceToSvgPath(pathData, svgX, svgY);
+      
+      if (inside || distance < HIT_THRESHOLD) {
+        candidates.push({ 
+          id: region.id, 
+          area: bounds?.area ?? 999999,
+          inside,
+          distance
+        });
       }
     }
-    console.log('[IndiaMap] No hit detected');
+    
+    // Small/enclave regions that should win over surrounding large regions
+    const SMALL_REGION_IDS = ['IN-DL', 'IN-GA', 'IN-DH'];
+    
+    // PRIORITY 1: Small regions that are very close (distance < threshold)
+    // These beat larger regions even if the larger region claims "inside"
+    const smallRegionHits = candidates.filter(c => 
+      SMALL_REGION_IDS.includes(c.id) && (c.inside || c.distance < HIT_THRESHOLD)
+    );
+    if (smallRegionHits.length > 0) {
+      // Sort by: inside first (distance 0), then by distance
+      smallRegionHits.sort((a, b) => {
+        if (a.inside && !b.inside) return -1;
+        if (!a.inside && b.inside) return 1;
+        return a.distance - b.distance;
+      });
+      const winner = smallRegionHits[0];
+      onRegionPress(winner.id);
+      return;
+    }
+    
+    // PRIORITY 2: Direct hits on larger regions (smallest area wins)
+    const directHits = candidates.filter(c => c.inside);
+    if (directHits.length > 0) {
+      directHits.sort((a, b) => a.area - b.area);
+      const winner = directHits[0];
+      onRegionPress(winner.id);
+      return;
+    }
+    
+    // PRIORITY 3: Near misses (closest wins)
+    const nearMisses = candidates.filter(c => !c.inside && c.distance < HIT_THRESHOLD);
+    if (nearMisses.length > 0) {
+      nearMisses.sort((a, b) => a.distance - b.distance);
+      const winner = nearMisses[0];
+      onRegionPress(winner.id);
+      return;
+    }
+
+
   }, [onRegionPress]); 
 
   // Tap Gesture
@@ -155,32 +229,23 @@ export default function IndiaMap({
       const cy = MAP_HEIGHT / 2;
       
       // Inverse Transform Math
-      // We assume transform origin is center (cx, cy)
-      // And transform order in style is Translate then Scale (or Scale then Translate, see style below)
-      // Let's standardize: Style = [ { translateX }, { translateY }, { scale } ]
-      // This means: Move T, then Scale around *new* center.
-      // ScreenPoint = (LocalPoint - Center) * Scale + Center + Translate
-      // LocalPoint = (ScreenPoint - Translate - Center) / Scale + Center
+      // Screen = (Local - Center) * Scale + Center + Translate
+      // Local = (Screen - Translate - Center) / Scale + Center
       
       const localX = (x - translateX.value - cx) / scale.value + cx;
       const localY = (y - translateY.value - cy) / scale.value + cy;
       
-      console.log(`[IndiaMap] Tap: ${Math.round(x)},${Math.round(y)} -> Local: ${Math.round(localX)},${Math.round(localY)} (Scale: ${scale.value.toFixed(2)}, Tx: ${Math.round(translateX.value)})`);
-
-      // Convert to SVG coordinates
       const scaleX = SVG_VIEWBOX_WIDTH / MAP_WIDTH;
       const scaleY = SVG_VIEWBOX_HEIGHT / MAP_HEIGHT;
       
-      const svgX = localX * scaleX;
-      const svgY = localY * scaleY;
+      const svgX = (localX * scaleX) + SVG_MIN_X;
+      const svgY = (localY * scaleY) + SVG_MIN_Y;
 
       runOnJS(checkHit)(svgX, svgY);
     });
 
   const composed = Gesture.Simultaneous(pan, pinch, tap);
   
-  // ... (Region Color/Stroke logic remains same)
-  // Get fill color for a region
   const getRegionColor = useCallback((regionId: string): string => {
     if (correctRegion === regionId) return COLORS.success;
     if (wrongRegion === regionId) return COLORS.error;
@@ -196,63 +261,54 @@ export default function IndiaMap({
     return COLORS.textMuted;
   }, [correctRegion, wrongRegion, selectedRegion]);
   
-  const getStrokeWidth = useCallback((regionId: string): number => {
-    if (correctRegion === regionId || wrongRegion === regionId || selectedRegion === regionId) {
-      return 2;
-    }
-    return 0.5;
-  }, [correctRegion, wrongRegion, selectedRegion]);
-
-  // Memoize the paths
   const pathElements = useMemo(() => {
-    return INDIA_REGIONS.map((region) => {
+    return sortedRegions.map((region) => {
       const pathData = INDIA_SVG_PATHS[region.id];
       if (!pathData) return null;
       
-      const statusKey = 
-        selectedRegion === region.id ? 'selected' : 
-        correctRegion === region.id ? 'correct' : 
-        wrongRegion === region.id ? 'wrong' : 
-        guessedRegions.includes(region.id) ? 'guessed' : 'normal';
+      const isHighlighted = 
+        selectedRegion === region.id || 
+        correctRegion === region.id || 
+        wrongRegion === region.id;
 
       return (
-        <Path
-          key={`${region.id}-${statusKey}`}
+        <AnimatedPath
+          key={region.id}
           id={region.id}
           d={pathData}
           fill={getRegionColor(region.id)}
           stroke={getStrokeColor(region.id)}
-          strokeWidth={getStrokeWidth(region.id)}
+          // Use dynamic stroke width
+          animatedProps={isHighlighted ? animatedSelectedStrokeProps : animatedStrokeProps}
         />
       );
     });
-  }, [getRegionColor, getStrokeColor, getStrokeWidth, selectedRegion, correctRegion, wrongRegion, guessedRegions]);
+  }, [getRegionColor, getStrokeColor, selectedRegion, correctRegion, wrongRegion, guessedRegions, animatedStrokeProps, animatedSelectedStrokeProps, sortedRegions]);
 
   const selectedOverlay = useMemo(() => {
     if (!selectedRegion || !INDIA_SVG_PATHS[selectedRegion]) return null;
     return (
-      <Path
+      <AnimatedPath
         key={`overlay-${selectedRegion}`}
         d={INDIA_SVG_PATHS[selectedRegion]}
         fill={COLORS.primary} 
         stroke={COLORS.primary}
-        strokeWidth={2}
+        animatedProps={animatedSelectedStrokeProps}
         opacity={0.8}
         pointerEvents="none"
       />
     );
-  }, [selectedRegion]);
+  }, [selectedRegion, animatedSelectedStrokeProps]);
 
   return (
     <View style={styles.container}>
-      {/* Viewport to clip and capture gestures at fixed size */}
       <GestureDetector gesture={composed}>
         <View style={styles.viewport}>
           <Animated.View style={[styles.mapContainer, animatedStyle]}>
             <Svg
               width={MAP_WIDTH}
               height={MAP_HEIGHT}
-              viewBox={`0 0 ${SVG_VIEWBOX_WIDTH} ${SVG_VIEWBOX_HEIGHT}`}
+              viewBox={`-20 -20 ${SVG_VIEWBOX_WIDTH} ${SVG_VIEWBOX_HEIGHT}`}
               style={styles.svg}
               pointerEvents="none"
             >
@@ -265,8 +321,6 @@ export default function IndiaMap({
         </View>
       </GestureDetector>
       
-      
-      {/* Reset Button */}
       <Pressable style={styles.resetButton} onPress={resetMap}>
         <Ionicons name="refresh" size={24} color={COLORS.text} />
       </Pressable>
@@ -278,7 +332,7 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative', // Context for absolute button
+    position: 'relative', 
   },
   viewport: {
     width: MAP_WIDTH,
@@ -302,7 +356,7 @@ const styles = StyleSheet.create({
     right: 16,
     backgroundColor: COLORS.surface,
     padding: 8,
-    borderRadius: 20, // Circular
+    borderRadius: 20, 
     ...SHADOWS.md,
     zIndex: 20,
     alignItems: 'center',

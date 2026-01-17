@@ -153,17 +153,10 @@ export default function IndiaExplorerScreen() {
   const handleRegionPress = useCallback((regionId: string) => {
     if (gameState !== 'playing' || !currentRegion || showFeedback) return;
     
-    // Debounce tap sound to prevent multiple rapid sounds
-    const now = Date.now();
-    const shouldPlaySound = now - lastSoundTimeRef.current > SOUND_DEBOUNCE_MS;
-    
+    // Only haptic feedback, no tap sound for map selection
     triggerTap('light');
-    if (shouldPlaySound) {
-      lastSoundTimeRef.current = now;
-      playTap();
-    }
     preSelectRegion(regionId);
-  }, [gameState, currentRegion, showFeedback, preSelectRegion, triggerTap, playTap]);
+  }, [gameState, currentRegion, showFeedback, preSelectRegion, triggerTap]);
   
   // Handle submit button - check the answer
   const handleSubmit = useCallback(async () => {
@@ -198,14 +191,6 @@ export default function IndiaExplorerScreen() {
   // Continue to next question or finish
   const handleContinue = useCallback(() => {
     triggerTap('light');
-    
-    // Debounce tap sound to prevent overlap with correct/wrong sounds
-    const now = Date.now();
-    if (now - lastSoundTimeRef.current > SOUND_DEBOUNCE_MS) {
-      lastSoundTimeRef.current = now;
-      playTap();
-    }
-    
     closeFeedback();
     
     const hasMore = nextQuestion();
@@ -217,7 +202,7 @@ export default function IndiaExplorerScreen() {
       stopMusic(); // Stop music when finishing
       finishGame();
     }
-  }, [closeFeedback, nextQuestion, finishGame, triggerTap, playTap, playWin, correctCount, guessedToday.length, stopMusic]);
+  }, [closeFeedback, nextQuestion, finishGame, triggerTap, playWin, correctCount, guessedToday.length, stopMusic]);
   
   // Back to games
   const handleBack = useCallback(() => {

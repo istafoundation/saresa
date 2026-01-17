@@ -38,20 +38,19 @@ export const INDIA_REGIONS: IndiaRegion[] = [
   { id: 'IN-UT', name: 'Uttarakhand', type: 'state' },
   { id: 'IN-WB', name: 'West Bengal', type: 'state' },
   
-  // Union Territories (8)
+  // Union Territories (7)
   { id: 'IN-AN', name: 'Andaman and Nicobar Islands', type: 'ut' },
   { id: 'IN-CH', name: 'Chandigarh', type: 'ut' },
-  { id: 'IN-DN', name: 'Dadra and Nagar Haveli', type: 'ut' },
-  { id: 'IN-DD', name: 'Daman and Diu', type: 'ut' },
+  { id: 'IN-DH', name: 'Dadra & Nagar Haveli and Daman & Diu', type: 'ut' },
   { id: 'IN-DL', name: 'Delhi', type: 'ut' },
   { id: 'IN-JK', name: 'Jammu and Kashmir', type: 'ut' },
+  { id: 'IN-LA', name: 'Ladakh', type: 'ut' },
   { id: 'IN-LD', name: 'Lakshadweep', type: 'ut' },
   { id: 'IN-PY', name: 'Puducherry', type: 'ut' },
-  // Note: Ladakh (IN-LA) may not be in the SVG as it's a newer UT
 ];
 
 // Total count
-export const TOTAL_REGIONS = INDIA_REGIONS.length;
+export const TOTAL_REGIONS = 36;
 
 // XP calculation: 360 max XP for all correct (36 × 10)
 export const MAX_XP = 360; // 36 regions × 10 XP each
