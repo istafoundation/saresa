@@ -1,20 +1,38 @@
 "use client";
 
 import { useQuery, useMutation } from "convex/react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
+import { useSearchParams, useRouter } from "next/navigation";
 import { ChildCard } from "./components/child-card";
 import { AddChildForm } from "./components/add-child-form";
-import { Users, Sparkles, TrendingUp, Gamepad2, Flame, Calendar } from "lucide-react";
+import { Users, Sparkles, TrendingUp, Gamepad2, Flame, Calendar, CheckCircle2 } from "lucide-react";
 import { StatCard } from "../components/stats/StatCard";
 import { ActivityFeed } from "./components/activity-feed";
 
 export default function Dashboard() {
   const { user } = useUser();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const parentData = useQuery(api.parents.getMyParentData);
   const myChildren = useQuery(api.parents.getMyChildren);
   const getOrCreateParent = useMutation(api.parents.getOrCreateParent);
+  
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
+  
+  // Detect subscription success from redirect
+  useEffect(() => {
+    const subscribedChildId = searchParams.get("subscribed");
+    if (subscribedChildId) {
+      setShowSuccessToast(true);
+      // Clear the URL params after showing toast
+      router.replace("/dashboard", { scroll: false });
+      // Hide toast after 5 seconds
+      const timer = setTimeout(() => setShowSuccessToast(false), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [searchParams, router]);
   
   // Create parent account if needed which syncs clerk user to convex
   useEffect(() => {
@@ -36,6 +54,25 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
+      {/* Success Toast for subscription completion */}
+      {showSuccessToast && (
+        <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-top-2 duration-300">
+          <div className="flex items-center gap-3 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg shadow-emerald-600/30">
+            <CheckCircle2 className="w-5 h-5" />
+            <div>
+              <p className="font-semibold">Payment Successful!</p>
+              <p className="text-sm text-emerald-100">Subscription is now active</p>
+            </div>
+            <button 
+              onClick={() => setShowSuccessToast(false)}
+              className="ml-2 hover:bg-emerald-500 rounded p-1 transition-colors"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+      
       {/* Quick Stats Summary Banner */}
       <div className="bg-gradient-to-r from-emerald-600 via-emerald-700 to-emerald-700 rounded-3xl p-6 md:p-8 text-white shadow-xl shadow-emerald-200/50 relative overflow-hidden">
         {/* Decorative circles */}
