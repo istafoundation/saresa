@@ -1,10 +1,11 @@
 // Games Hub - GK Quiz and Wordle access
 // OPTIMIZED: Uses synced gameLimits instead of 5 separate Convex queries
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from 'react-native';
+import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView } from 'moti';
-import { useRouter } from 'expo-router';
+import { useSafeNavigation } from '../../utils/useSafeNavigation';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants/theme';
 import { useUserStore } from '../../stores/user-store';
@@ -12,7 +13,8 @@ import { useTapFeedback } from '../../utils/useTapFeedback';
 import Mascot from '../../components/Mascot';
 
 export default function FunScreen() {
-  const router = useRouter();
+  const { safePush: routerPush } = useSafeNavigation();
+  const [loadingGame, setLoadingGame] = useState<string | null>(null);
   const { mascot, gameLimits } = useUserStore();
   const { triggerTap } = useTapFeedback();
   
@@ -27,8 +29,21 @@ export default function FunScreen() {
   const isExplorerStarted = gameLimits.explorerGuessedToday.length > 0;
   
   const handleGamePress = (route: string) => {
+    if (loadingGame) return;
+    setLoadingGame(route);
     triggerTap('medium');
-    router.push(route as any);
+    
+    // Slight delay to allow UI to update before navigation pushes new screen
+    // This makes the spinner visible for a moment
+    setTimeout(() => {
+      routerPush(route as any);
+      // We don't reset loadingGame here immediately because we want it to stay loading
+      // until the new screen completely covers it or we come back.
+      // But typically with React Native navigation, we should reset it eventually
+      // in case they come back quickly or it fails.
+      // For now, let's reset it after a timeout that covers the transition
+      setTimeout(() => setLoadingGame(null), 1000);
+    }, 50);
   };
 
   return (
@@ -86,7 +101,11 @@ export default function FunScreen() {
                     <Text style={styles.modeButtonDesc}>Infinite questions • No XP</Text>
                   </View>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+                {loadingGame === '/games/gk/practice' ? (
+                  <ActivityIndicator size="small" color={COLORS.primary} />
+                ) : (
+                  <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+                )}
               </Pressable>
 
               {/* Competitive Mode */}
@@ -124,6 +143,11 @@ export default function FunScreen() {
                   </View>
                 ) : (
                   <Ionicons name="lock-closed" size={20} color={COLORS.textMuted} />
+                )}
+                {loadingGame === '/games/gk/competitive' && (
+                  <View style={{ marginLeft: 8 }}>
+                    <ActivityIndicator size="small" color={COLORS.primary} />
+                  </View>
                 )}
               </Pressable>
             </View>
@@ -170,6 +194,11 @@ export default function FunScreen() {
                 </View>
               ) : (
                 <Ionicons name="checkmark-circle" size={28} color={COLORS.success} />
+              )}
+              {loadingGame === '/games/wordle' && (
+                <View style={{ marginLeft: 8 }}>
+                  <ActivityIndicator size="small" color={COLORS.text} />
+                </View>
               )}
             </LinearGradient>
             
@@ -243,6 +272,11 @@ export default function FunScreen() {
                 ) : (
                   <Ionicons name="lock-closed" size={20} color={COLORS.textMuted} />
                 )}
+                {loadingGame === '/games/word-finder?mode=easy' && (
+                  <View style={{ marginLeft: 8 }}>
+                    <ActivityIndicator size="small" color={COLORS.rainbow6} />
+                  </View>
+                )}
               </Pressable>
 
               {/* Hard Mode */}
@@ -278,6 +312,11 @@ export default function FunScreen() {
                   </View>
                 ) : (
                   <Ionicons name="lock-closed" size={20} color={COLORS.textMuted} />
+                )}
+                {loadingGame === '/games/word-finder?mode=hard' && (
+                  <View style={{ marginLeft: 8 }}>
+                    <ActivityIndicator size="small" color={COLORS.accentGold} />
+                  </View>
                 )}
               </Pressable>
             </View>
@@ -320,8 +359,13 @@ export default function FunScreen() {
                   <Ionicons name="star" size={18} color={COLORS.accentGold} />
                   <Text style={styles.wordleInfoText}>+2 XP per correct</Text>
                 </View>
-              </View>
+                </View>
             </View>
+            {loadingGame === '/games/grammar-detective' && (
+              <View style={{ position: 'absolute', right: 16, top: '50%', marginTop: -10 }}>
+                <ActivityIndicator size="small" color={COLORS.text} />
+              </View>
+            )}
           </Pressable>
         </MotiView>
 
@@ -362,7 +406,11 @@ export default function FunScreen() {
                     </Text>
                   </View>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+                {loadingGame === '/games/explorer/india' ? (
+                  <ActivityIndicator size="small" color={COLORS.textSecondary} />
+                ) : (
+                  <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+                )}
               </Pressable>
             </View>
           </View>

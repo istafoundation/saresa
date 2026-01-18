@@ -148,6 +148,8 @@ export function useGameStatsActions() {
   const updateWordleStatsMutation = useMutation(api.gameStats.updateWordleStats);
   const updateWordFinderStatsMutation = useMutation(api.gameStats.updateWordFinderStats);
   const useWordleHintMutation = useMutation(api.gameStats.useWordleHint);
+  // Batched mutation for optimized game completion (reduces 3 API calls to 1)
+  const finishWordleGameMutation = useMutation(api.gameStats.finishWordleGame);
 
   const getAuthToken = () => {
     if (!token) {
@@ -239,6 +241,52 @@ export function useGameStatsActions() {
       } catch (error) {
         logError('markWordleHintUsed', error);
         return false;
+      }
+    },
+
+    /**
+     * BATCHED: Complete Wordle game with XP, shards, and stats in one call
+     * Reduces 3 API calls to 1, improving performance and preventing race conditions
+     */
+    finishWordleGame: async (data: {
+      won: boolean;
+      guessCount?: number;
+      usedHint: boolean;
+      xpReward: number;
+      shardReward: number;
+    }): Promise<{
+      success: boolean;
+      stats?: {
+        gamesPlayed: number;
+        gamesWon: number;
+        currentStreak: number;
+        maxStreak: number;
+        guessDistribution: number[];
+        usedHint: boolean;
+      };
+      newXP?: number;
+      newShards?: number;
+    }> => {
+      logSync('finishWordleGame', data);
+      const authToken = getAuthToken();
+      if (!authToken) return { success: false };
+
+      try {
+        const result = await finishWordleGameMutation({ ...data, token: authToken });
+        logSync('finishWordleGame SUCCESS', { 
+          newXP: result.newXP, 
+          newShards: result.newShards,
+          gamesPlayed: result.wordleStats.gamesPlayed 
+        });
+        return { 
+          success: true, 
+          stats: result.wordleStats,
+          newXP: result.newXP,
+          newShards: result.newShards,
+        };
+      } catch (error) {
+        logError('finishWordleGame', error);
+        return { success: false };
       }
     },
   };

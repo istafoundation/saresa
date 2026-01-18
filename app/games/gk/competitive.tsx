@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
 import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'expo-router';
+import { useSafeNavigation } from '../../../utils/useSafeNavigation';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
@@ -28,7 +28,7 @@ const TIME_LIMIT = 30;
 const TOTAL_QUESTIONS = 10;
 
 export default function CompetitiveScreen() {
-  const router = useRouter();
+  const { safeBack } = useSafeNavigation();
   const { mascot } = useUserStore();
   const { addXP, addWeaponShards } = useUserActions();
   const { updateGKStats } = useGameStatsActions();
@@ -72,7 +72,7 @@ export default function CompetitiveScreen() {
     
     const success = startQuiz('competitive', allQuestions as Question[]);
     if (!success) {
-      router.back();
+      safeBack();
       return;
     }
     startMusic(); // Start background music
@@ -241,7 +241,7 @@ export default function CompetitiveScreen() {
             </Text>
           </View>
 
-          <Pressable style={styles.doneButton} onPress={() => { triggerTap(); router.back(); }}>
+          <Pressable style={styles.doneButton} onPress={() => { triggerTap(); safeBack(); }}>
             <LinearGradient
               colors={[COLORS.primary, COLORS.primaryDark]}
               style={styles.doneButtonGradient}

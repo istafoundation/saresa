@@ -5,7 +5,7 @@ import { View, Text, StyleSheet, Pressable, Alert, ActivityIndicator } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
 import { useEffect, useState } from 'react';
-import { useRouter } from 'expo-router';
+import { useSafeNavigation } from '../../utils/useSafeNavigation';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
   useAnimatedStyle,
@@ -43,9 +43,9 @@ const LETTER_COLORS: Record<LetterState, string> = {
 const { XP_FULL, XP_WITH_HINT, SHARDS_FULL, SHARDS_WITH_HINT } = WORDLE_REWARDS;
 
 export default function WordleScreen() {
-  const router = useRouter();
-  const { addXP, addWeaponShards } = useUserActions();
-  const { updateWordleStats, markWordleHintUsed } = useGameStatsActions();
+  const { safeBack } = useSafeNavigation();
+  // OPTIMIZATION: Use batched finishWordleGame instead of individual addXP/addWeaponShards
+  const { finishWordleGame, markWordleHintUsed } = useGameStatsActions();
   
   // Get game session state from local store
   const {
@@ -208,17 +208,19 @@ export default function WordleScreen() {
         // Calculate rewards based on hint usage
         const xpReward = hintUsed ? XP_WITH_HINT : XP_FULL;
         const shardReward = hintUsed ? SHARDS_WITH_HINT : SHARDS_FULL;
-        // Save rewards and stats to Convex
-        await addXP(xpReward);
-        await addWeaponShards(shardReward);
-        const statsResult = await updateWordleStats({ 
-          won: true, 
+        
+        // OPTIMIZATION: Single batched API call instead of 3 separate calls
+        const result = await finishWordleGame({
+          won: true,
           guessCount: guesses.length + 1,
           usedHint: hintUsed,
+          xpReward,
+          shardReward,
         });
+        
         // Use returned stats directly to avoid race condition
-        if (statsResult.success && statsResult.stats) {
-          setDisplayStats(statsResult.stats);
+        if (result.success && result.stats) {
+          setDisplayStats(result.stats);
         }
         // Play win sound when showing result (delayed for animation)
         setTimeout(() => {
@@ -228,8 +230,15 @@ export default function WordleScreen() {
       } else if (result.lost) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         stopMusic();
-        // Save stats to Convex (loss)
-        const statsResult = await updateWordleStats({ won: false, usedHint: hintUsed });
+        
+        // OPTIMIZATION: Single batched API call (no XP/shards for loss)
+        const statsResult = await finishWordleGame({
+          won: false,
+          usedHint: hintUsed,
+          xpReward: 0,
+          shardReward: 0,
+        });
+        
         // Use returned stats directly to avoid race condition
         if (statsResult.success && statsResult.stats) {
           setDisplayStats(statsResult.stats);
@@ -278,7 +287,7 @@ export default function WordleScreen() {
       <SafeAreaView style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-          <Pressable onPress={() => { triggerTap(); router.back(); }} style={styles.backButton}>
+          <Pressable onPress={() => { triggerTap(); safeBack(); }} style={styles.backButton}>
             <Ionicons name="close" size={28} color={COLORS.text} />
           </Pressable>
           <Text style={styles.title}>Wordle</Text>
@@ -304,7 +313,7 @@ export default function WordleScreen() {
             </Text>
             <Pressable
               style={styles.alreadyPlayedButton}
-              onPress={() => { triggerTap(); router.back(); }}
+              onPress={() => { triggerTap(); safeBack(); }}
             >
               <Text style={styles.alreadyPlayedButtonText}>Go Back</Text>
             </Pressable>
@@ -324,7 +333,7 @@ export default function WordleScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable onPress={() => { triggerTap(); router.back(); }} style={styles.backButton}>
+        <Pressable onPress={() => { triggerTap(); safeBack(); }} style={styles.backButton}>
           <Ionicons name="close" size={28} color={COLORS.text} />
         </Pressable>
         <Text style={styles.title}>Wordle</Text>
@@ -501,7 +510,7 @@ export default function WordleScreen() {
 
             <Pressable 
               style={styles.closeButton}
-              onPress={() => { triggerTap(); router.back(); }}
+              onPress={() => { triggerTap(); safeBack(); }}
             >
               <Text style={styles.closeButtonText}>Close</Text>
             </Pressable>

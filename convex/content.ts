@@ -261,6 +261,59 @@ export const getGameContent = query({
   },
 });
 
+/**
+ * OPTIMIZED: Get content AND version in a single query
+ * Reduces 2 subscriptions to 1 per game, cutting subscription overhead by 50%
+ */
+export const getGameContentWithVersion = query({
+  args: {
+    gameId: v.string(),
+    type: v.optional(v.union(
+      v.literal("wordle_word"),
+      v.literal("word_set"),
+      v.literal("hard_question"),
+      v.literal("gk_question"),
+      v.literal("pos_question")
+    )),
+  },
+  handler: async (ctx, args) => {
+    // Fetch content
+    let query = ctx.db
+      .query("gameContent")
+      .withIndex("by_game_status", (q) => 
+        q.eq("gameId", args.gameId).eq("status", "active")
+      );
+
+    const allContent = await query.collect();
+    
+    // Filter by type if specified
+    let filtered = args.type 
+      ? allContent.filter(c => c.type === args.type)
+      : allContent;
+    
+    // Filter out scheduled content that's not yet valid
+    const now = Date.now();
+    const content = filtered.filter(c => {
+      if (c.validFrom && c.validFrom > now) return false;
+      if (c.validUntil && c.validUntil < now) return false;
+      return true;
+    });
+
+    // Fetch version
+    const latestVersion = await ctx.db
+      .query("contentVersions")
+      .withIndex("by_game", (q) => q.eq("gameId", args.gameId))
+      .order("desc")
+      .first();
+
+    return {
+      content,
+      version: latestVersion?.version ?? 0,
+      checksum: latestVersion?.checksum ?? "",
+    };
+  },
+});
+
 // Get current content version for a game (for cache validation)
 export const getContentVersion = query({
   args: { gameId: v.string() },

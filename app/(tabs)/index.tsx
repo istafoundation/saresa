@@ -12,7 +12,7 @@ import Animated, {
   withSequence,
 } from 'react-native-reanimated';
 import { useEffect, useState } from 'react';
-import { useRouter } from 'expo-router';
+import { useSafeNavigation } from '../../utils/useSafeNavigation';
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants/theme';
 import { getXPProgressToNextLevel, getLevelForXP } from '../../constants/levels';
 import { useUserStore } from '../../stores/user-store';
@@ -23,7 +23,7 @@ import { useTapFeedback } from '../../utils/useTapFeedback';
 import Mascot from '../../components/Mascot';
 
 export default function HomeScreen() {
-  const router = useRouter();
+  const { safePush } = useSafeNavigation();
   const { name, xp, streak, mascot } = useUserStore();
   const { triggerTap } = useTapFeedback();
   const [funFact, setFunFact] = useState(() => getRandomFunFact());
@@ -177,7 +177,7 @@ export default function HomeScreen() {
             style={styles.actionCard}
             onPress={() => {
               triggerTap('medium');
-              router.push('/fun');
+              safePush('/fun');
             }}
           >
             <LinearGradient
@@ -197,7 +197,7 @@ export default function HomeScreen() {
             style={styles.actionCard}
             onPress={() => {
               triggerTap('medium');
-              router.push('/artifacts');
+              safePush('/artifacts');
             }}
           >
             <LinearGradient

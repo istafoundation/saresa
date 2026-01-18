@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MotiView } from "moti";
 import { useEffect, useMemo, useCallback } from "react";
-import { useRouter } from "expo-router";
+import { useSafeNavigation } from "../../utils/useSafeNavigation";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useMutation, useQuery } from "convex/react";
@@ -30,7 +30,7 @@ import { useChildAuth } from "../../utils/childAuth";
 import { api } from "../../convex/_generated/api";
 
 export default function GrammarDetectiveScreen() {
-  const router = useRouter();
+  const { safeBack } = useSafeNavigation();
   const { token } = useChildAuth();
   const { addXP } = useUserActions();
   const { playCorrect, playWrong, startMusic, stopMusic } = useGameAudio();
@@ -192,8 +192,8 @@ export default function GrammarDetectiveScreen() {
     triggerTap();
     stopMusic();
     resetGame();
-    router.back();
-  }, [triggerTap, stopMusic, resetGame, router]);
+    safeBack();
+  }, [triggerTap, stopMusic, resetGame, safeBack]);
 
   // Loading state - only show if we have no content at all
   if (!allQuestions || allQuestions.length === 0) {

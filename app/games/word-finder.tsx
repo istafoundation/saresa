@@ -4,7 +4,8 @@ import { View, Text, StyleSheet, Pressable, Dimensions, PanResponder, ActivityIn
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView } from 'moti';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useSafeNavigation } from '../../utils/useSafeNavigation';
+import { useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useQuery } from 'convex/react';
@@ -26,7 +27,7 @@ const CELL_SIZE = Math.floor((SCREEN_WIDTH - GRID_PADDING * 2 - CELL_GAP * (GRID
 const GRID_WIDTH = CELL_SIZE * GRID_SIZE + CELL_GAP * (GRID_SIZE + 1);
 
 export default function WordFinderScreen() {
-  const router = useRouter();
+  const { safeBack, router } = useSafeNavigation();
   const { mode: urlMode } = useLocalSearchParams<{ mode?: string }>();
   const { triggerTap } = useTapFeedback();
   const { playCorrect, playWrong, playWin, startMusic, stopMusic } = useGameAudio();
@@ -124,7 +125,7 @@ export default function WordFinderScreen() {
           startHardGame(hardQuestions as HardQuestion[]);
         } else {
           // Can't play - go back to games tab
-          router.back();
+          safeBack();
         }
       }
     } else if (prevUrlModeRef.current !== undefined) {
@@ -226,7 +227,7 @@ export default function WordFinderScreen() {
     }
     stopMusic();
     resetGame();
-    router.back();
+    safeBack();
   };
   
   const handlePlayAgain = () => {

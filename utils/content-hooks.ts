@@ -70,19 +70,15 @@ interface ContentResult<T> {
 
 /**
  * Hook for Wordle content
+ * OPTIMIZED: Uses single combined query instead of 2 separate queries
  */
 export function useWordleContent(): ContentResult<typeof FALLBACK_WORDLE> {
   const { token } = useChildAuth();
   
-  // Fetch from Convex
-  const serverContent = useQuery(
-    api.content.getGameContent,
+  // OPTIMIZATION: Single query for content + version (was 2 separate queries)
+  const serverData = useQuery(
+    api.content.getGameContentWithVersion,
     token ? { gameId: 'wordle', type: 'wordle_word' } : 'skip'
-  );
-  
-  const serverVersion = useQuery(
-    api.content.getContentVersion,
-    token ? { gameId: 'wordle' } : 'skip'
   );
 
   const [cachedData, setCachedData] = useState<typeof FALLBACK_WORDLE | null>(null);
@@ -100,26 +96,26 @@ export function useWordleContent(): ContentResult<typeof FALLBACK_WORDLE> {
 
   // Update cache when server content arrives
   useEffect(() => {
-    if (serverContent && serverVersion) {
-      const transformedContent = serverContent.map((c: any) => c.data) as typeof FALLBACK_WORDLE;
+    if (serverData && serverData.content) {
+      const transformedContent = serverData.content.map((c: any) => c.data) as typeof FALLBACK_WORDLE;
       setCachedData(transformedContent);
       setStatus('fresh');
       setCachedContent(
         'wordle',
         transformedContent,
-        serverVersion.version,
-        serverVersion.checksum
+        serverData.version,
+        serverData.checksum
       );
     }
-  }, [serverContent, serverVersion]);
+  }, [serverData]);
 
   const content = useMemo(() => {
     if (cachedData && cachedData.length > 0) return cachedData;
-    if (serverContent && serverContent.length > 0) {
-      return serverContent.map((c: any) => c.data) as typeof FALLBACK_WORDLE;
+    if (serverData?.content && serverData.content.length > 0) {
+      return serverData.content.map((c: any) => c.data) as typeof FALLBACK_WORDLE;
     }
     return FALLBACK_WORDLE;
-  }, [cachedData, serverContent]);
+  }, [cachedData, serverData]);
 
   const refresh = useCallback(async () => {
     setStatus('loading');
@@ -129,7 +125,7 @@ export function useWordleContent(): ContentResult<typeof FALLBACK_WORDLE> {
   return {
     content,
     status: content === FALLBACK_WORDLE ? 'fallback' : status,
-    version: serverVersion?.version ?? 0,
+    version: serverData?.version ?? 0,
     isStale: status === 'cached',
     refresh,
   };
@@ -137,18 +133,15 @@ export function useWordleContent(): ContentResult<typeof FALLBACK_WORDLE> {
 
 /**
  * Hook for Word Finder word sets (Easy mode)
+ * OPTIMIZED: Uses single combined query instead of 2 separate queries
  */
 export function useWordFinderSets(): ContentResult<typeof FALLBACK_WORD_SETS> {
   const { token } = useChildAuth();
   
-  const serverContent = useQuery(
-    api.content.getGameContent,
+  // OPTIMIZATION: Single query for content + version
+  const serverData = useQuery(
+    api.content.getGameContentWithVersion,
     token ? { gameId: 'word-finder', type: 'word_set' } : 'skip'
-  );
-  
-  const serverVersion = useQuery(
-    api.content.getContentVersion,
-    token ? { gameId: 'word-finder' } : 'skip'
   );
 
   const [cachedData, setCachedData] = useState<typeof FALLBACK_WORD_SETS | null>(null);
@@ -164,8 +157,8 @@ export function useWordFinderSets(): ContentResult<typeof FALLBACK_WORD_SETS> {
   }, []);
 
   useEffect(() => {
-    if (serverContent && serverVersion) {
-      const transformedContent = serverContent.map((c: any, i: number) => ({
+    if (serverData && serverData.content) {
+      const transformedContent = serverData.content.map((c: any, i: number) => ({
         id: i + 1,
         ...c.data,
       })) as typeof FALLBACK_WORD_SETS;
@@ -174,19 +167,19 @@ export function useWordFinderSets(): ContentResult<typeof FALLBACK_WORD_SETS> {
       setCachedContent(
         'word-finder-sets',
         transformedContent,
-        serverVersion.version,
-        serverVersion.checksum
+        serverData.version,
+        serverData.checksum
       );
     }
-  }, [serverContent, serverVersion]);
+  }, [serverData]);
 
   const content = useMemo(() => {
     if (cachedData && cachedData.length > 0) return cachedData;
-    if (serverContent && serverContent.length > 0) {
-      return serverContent.map((c: any, i: number) => ({ id: i + 1, ...c.data })) as typeof FALLBACK_WORD_SETS;
+    if (serverData?.content && serverData.content.length > 0) {
+      return serverData.content.map((c: any, i: number) => ({ id: i + 1, ...c.data })) as typeof FALLBACK_WORD_SETS;
     }
     return FALLBACK_WORD_SETS;
-  }, [cachedData, serverContent]);
+  }, [cachedData, serverData]);
 
   const refresh = useCallback(async () => {
     setStatus('loading');
@@ -195,7 +188,7 @@ export function useWordFinderSets(): ContentResult<typeof FALLBACK_WORD_SETS> {
   return {
     content,
     status: content === FALLBACK_WORD_SETS ? 'fallback' : status,
-    version: serverVersion?.version ?? 0,
+    version: serverData?.version ?? 0,
     isStale: status === 'cached',
     refresh,
   };
@@ -203,18 +196,15 @@ export function useWordFinderSets(): ContentResult<typeof FALLBACK_WORD_SETS> {
 
 /**
  * Hook for Word Finder hard questions (Hard mode)
+ * OPTIMIZED: Uses single combined query instead of 2 separate queries
  */
 export function useWordFinderHardQuestions(): ContentResult<typeof FALLBACK_HARD_QUESTIONS> {
   const { token } = useChildAuth();
   
-  const serverContent = useQuery(
-    api.content.getGameContent,
+  // OPTIMIZATION: Single query for content + version
+  const serverData = useQuery(
+    api.content.getGameContentWithVersion,
     token ? { gameId: 'word-finder', type: 'hard_question' } : 'skip'
-  );
-  
-  const serverVersion = useQuery(
-    api.content.getContentVersion,
-    token ? { gameId: 'word-finder' } : 'skip'
   );
 
   const [cachedData, setCachedData] = useState<typeof FALLBACK_HARD_QUESTIONS | null>(null);
@@ -230,8 +220,8 @@ export function useWordFinderHardQuestions(): ContentResult<typeof FALLBACK_HARD
   }, []);
 
   useEffect(() => {
-    if (serverContent && serverVersion) {
-      const transformedContent = serverContent.map((c: any, i: number) => ({
+    if (serverData && serverData.content) {
+      const transformedContent = serverData.content.map((c: any, i: number) => ({
         id: i + 1,
         ...c.data,
       })) as typeof FALLBACK_HARD_QUESTIONS;
@@ -240,19 +230,19 @@ export function useWordFinderHardQuestions(): ContentResult<typeof FALLBACK_HARD
       setCachedContent(
         'word-finder-hard',
         transformedContent,
-        serverVersion.version,
-        serverVersion.checksum
+        serverData.version,
+        serverData.checksum
       );
     }
-  }, [serverContent, serverVersion]);
+  }, [serverData]);
 
   const content = useMemo(() => {
     if (cachedData && cachedData.length > 0) return cachedData;
-    if (serverContent && serverContent.length > 0) {
-      return serverContent.map((c: any, i: number) => ({ id: i + 1, ...c.data })) as typeof FALLBACK_HARD_QUESTIONS;
+    if (serverData?.content && serverData.content.length > 0) {
+      return serverData.content.map((c: any, i: number) => ({ id: i + 1, ...c.data })) as typeof FALLBACK_HARD_QUESTIONS;
     }
     return FALLBACK_HARD_QUESTIONS;
-  }, [cachedData, serverContent]);
+  }, [cachedData, serverData]);
 
   const refresh = useCallback(async () => {
     setStatus('loading');
@@ -261,7 +251,7 @@ export function useWordFinderHardQuestions(): ContentResult<typeof FALLBACK_HARD
   return {
     content,
     status: content === FALLBACK_HARD_QUESTIONS ? 'fallback' : status,
-    version: serverVersion?.version ?? 0,
+    version: serverData?.version ?? 0,
     isStale: status === 'cached',
     refresh,
   };
@@ -269,18 +259,15 @@ export function useWordFinderHardQuestions(): ContentResult<typeof FALLBACK_HARD
 
 /**
  * Hook for English Insane (GK) questions
+ * OPTIMIZED: Uses single combined query instead of 2 separate queries
  */
 export function useEnglishInsaneQuestions(): ContentResult<typeof FALLBACK_GK_QUESTIONS> {
   const { token } = useChildAuth();
   
-  const serverContent = useQuery(
-    api.content.getGameContent,
+  // OPTIMIZATION: Single query for content + version
+  const serverData = useQuery(
+    api.content.getGameContentWithVersion,
     token ? { gameId: 'english-insane', type: 'gk_question' } : 'skip'
-  );
-  
-  const serverVersion = useQuery(
-    api.content.getContentVersion,
-    token ? { gameId: 'english-insane' } : 'skip'
   );
 
   const [cachedData, setCachedData] = useState<typeof FALLBACK_GK_QUESTIONS | null>(null);
@@ -296,8 +283,8 @@ export function useEnglishInsaneQuestions(): ContentResult<typeof FALLBACK_GK_QU
   }, []);
 
   useEffect(() => {
-    if (serverContent && serverVersion) {
-      const transformedContent = serverContent.map((c: any) => ({
+    if (serverData && serverData.content) {
+      const transformedContent = serverData.content.map((c: any) => ({
         id: c._id,
         ...c.data,
       })) as typeof FALLBACK_GK_QUESTIONS;
@@ -306,22 +293,22 @@ export function useEnglishInsaneQuestions(): ContentResult<typeof FALLBACK_GK_QU
       setCachedContent(
         'english-insane',
         transformedContent,
-        serverVersion.version,
-        serverVersion.checksum
+        serverData.version,
+        serverData.checksum
       );
     }
-  }, [serverContent, serverVersion]);
+  }, [serverData]);
 
   const content = useMemo(() => {
     if (cachedData && cachedData.length > 0) return cachedData;
-    if (serverContent && serverContent.length > 0) {
-      return serverContent.map((c: any) => ({
+    if (serverData?.content && serverData.content.length > 0) {
+      return serverData.content.map((c: any) => ({
         id: c._id,
         ...c.data,
       })) as typeof FALLBACK_GK_QUESTIONS;
     }
     return FALLBACK_GK_QUESTIONS;
-  }, [cachedData, serverContent]);
+  }, [cachedData, serverData]);
 
   const refresh = useCallback(async () => {
     setStatus('loading');
@@ -330,7 +317,7 @@ export function useEnglishInsaneQuestions(): ContentResult<typeof FALLBACK_GK_QU
   return {
     content,
     status: content === FALLBACK_GK_QUESTIONS ? 'fallback' : status,
-    version: serverVersion?.version ?? 0,
+    version: serverData?.version ?? 0,
     isStale: status === 'cached',
     refresh,
   };
@@ -360,18 +347,14 @@ export interface GrammarDetectiveQuestion {
 
 /**
  * Hook for Grammar Detective (Parts of Speech) questions
+ * OPTIMIZED: Uses single combined query instead of 2 separate queries
  */
 export function useGrammarDetectiveQuestions(): ContentResult<GrammarDetectiveQuestion[]> {
   const { token } = useChildAuth();
   
-  // Fetch ALL content for grammar-detective
-  const serverContent = useQuery(
-    api.content.getGameContent,
-    token ? { gameId: 'grammar-detective' } : 'skip'
-  );
-  
-  const serverVersion = useQuery(
-    api.content.getContentVersion,
+  // OPTIMIZATION: Single query for content + version
+  const serverData = useQuery(
+    api.content.getGameContentWithVersion,
     token ? { gameId: 'grammar-detective' } : 'skip'
   );
 
@@ -390,12 +373,12 @@ export function useGrammarDetectiveQuestions(): ContentResult<GrammarDetectiveQu
 
   // Transform server content - memoized to avoid recomputation
   const transformedServerContent = useMemo(() => {
-    if (!serverContent || serverContent.length === 0) return null;
-    return serverContent.map((c: any) => ({
+    if (!serverData?.content || serverData.content.length === 0) return null;
+    return serverData.content.map((c: any) => ({
       id: c._id,
       ...c.data,
     })) as GrammarDetectiveQuestion[];
-  }, [serverContent]);
+  }, [serverData?.content]);
 
   // Update cache when server content arrives
   useEffect(() => {
@@ -405,11 +388,11 @@ export function useGrammarDetectiveQuestions(): ContentResult<GrammarDetectiveQu
       setCachedContent(
         'grammar-detective',
         transformedServerContent,
-        serverVersion?.version ?? 0,
-        serverVersion?.checksum ?? ''
+        serverData?.version ?? 0,
+        serverData?.checksum ?? ''
       );
     }
-  }, [transformedServerContent, serverVersion]);
+  }, [transformedServerContent, serverData?.version, serverData?.checksum]);
 
   // Return content with priority: cached > server > fallback
   const content = useMemo(() => {
@@ -425,7 +408,7 @@ export function useGrammarDetectiveQuestions(): ContentResult<GrammarDetectiveQu
   return {
     content,
     status: content === FALLBACK_GD_QUESTIONS ? 'fallback' : status,
-    version: serverVersion?.version ?? 0,
+    version: serverData?.version ?? 0,
     isStale: status === 'cached',
     refresh,
   };

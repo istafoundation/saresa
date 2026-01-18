@@ -1,23 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import type { Id } from "./_generated/dataModel";
 import { getISTDate } from "./lib/dates";
-
-// Helper to get childId from session token
-async function getChildIdFromSession(
-  ctx: any,
-  token: string
-): Promise<Id<"children"> | null> {
-  if (!token) return null;
-
-  const session = await ctx.db
-    .query("childSessions")
-    .withIndex("by_token", (q: any) => q.eq("token", token))
-    .first();
-
-  if (!session || session.expiresAt < Date.now()) return null;
-  return session.childId;
-}
+import { getChildIdFromSession, getAuthenticatedUser } from "./lib/auth";
 
 // Update GK stats
 export const updateGKStats = mutation({
@@ -124,6 +108,120 @@ export const updateWordleStats = mutation({
 
     // Return updated stats for immediate client use (avoids race condition)
     return newStats;
+  },
+});
+
+// ============================================
+// BATCHED MUTATIONS FOR PERFORMANCE
+// ============================================
+
+// Level thresholds with artifact unlocks - sync with constants/levels.ts and users.ts
+const LEVELS = [
+  { level: 1, xpRequired: 0, artifactId: null },
+  { level: 2, xpRequired: 100, artifactId: "ganesha-wisdom" },
+  { level: 3, xpRequired: 250, artifactId: "hanuman-strength" },
+  { level: 4, xpRequired: 450, artifactId: "krishna-flute" },
+  { level: 5, xpRequired: 700, artifactId: "arjuna-bow" },
+  { level: 6, xpRequired: 1000, artifactId: "shiva-trident" },
+  { level: 7, xpRequired: 1400, artifactId: "durga-lion" },
+  { level: 8, xpRequired: 1900, artifactId: "rama-arrow" },
+  { level: 9, xpRequired: 2500, artifactId: "vishnu-chakra" },
+  { level: 10, xpRequired: 3200, artifactId: "lakshmi-lotus" },
+  { level: 11, xpRequired: 4000, artifactId: null },
+  { level: 12, xpRequired: 5000, artifactId: null },
+  { level: 13, xpRequired: 6200, artifactId: null },
+  { level: 14, xpRequired: 7600, artifactId: null },
+  { level: 15, xpRequired: 9200, artifactId: null },
+  { level: 16, xpRequired: 11000, artifactId: null },
+  { level: 17, xpRequired: 13000, artifactId: null },
+  { level: 18, xpRequired: 15500, artifactId: null },
+  { level: 19, xpRequired: 18500, artifactId: null },
+  { level: 20, xpRequired: 22000, artifactId: null },
+];
+
+/**
+ * BATCHED: Finish Wordle game - handles XP, shards, and stats in one atomic operation
+ * Reduces 3 separate API calls to 1, eliminating race conditions
+ */
+export const finishWordleGame = mutation({
+  args: {
+    token: v.string(),
+    won: v.boolean(),
+    guessCount: v.optional(v.number()), // 1-6 if won
+    usedHint: v.boolean(),
+    xpReward: v.number(),      // Pre-calculated XP to award
+    shardReward: v.number(),   // Pre-calculated shards to award
+  },
+  handler: async (ctx, args) => {
+    const childId = await getChildIdFromSession(ctx, args.token);
+    if (!childId) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_child_id", (q) => q.eq("childId", childId))
+      .first();
+
+    if (!user) throw new Error("User not found");
+
+    const today = getISTDate();
+    
+    // ---- Calculate Wordle Stats ----
+    const distribution = [...user.wordleGuessDistribution];
+    if (args.won && args.guessCount) {
+      distribution[args.guessCount - 1]++;
+    }
+
+    const wordleStats = {
+      gamesPlayed: user.wordleGamesPlayed + 1,
+      gamesWon: args.won ? user.wordleGamesWon + 1 : user.wordleGamesWon,
+      currentStreak: args.won ? user.wordleCurrentStreak + 1 : 0,
+      maxStreak: args.won
+        ? Math.max(user.wordleMaxStreak, user.wordleCurrentStreak + 1)
+        : user.wordleMaxStreak,
+      guessDistribution: distribution,
+      usedHint: args.usedHint,
+    };
+
+    // ---- Calculate XP and Artifact Unlocks ----
+    const newXP = user.xp + args.xpReward;
+    const unlockedArtifacts = [...user.unlockedArtifacts];
+    let artifactsUpdated = false;
+
+    for (const level of LEVELS) {
+      if (newXP >= level.xpRequired && level.artifactId) {
+        if (!unlockedArtifacts.includes(level.artifactId)) {
+          unlockedArtifacts.push(level.artifactId);
+          artifactsUpdated = true;
+        }
+      }
+    }
+
+    // ---- Calculate Shards ----
+    const newShards = user.weaponShards + args.shardReward;
+
+    // ---- Single Atomic Database Update ----
+    await ctx.db.patch(user._id, {
+      // Wordle stats
+      wordleGamesPlayed: wordleStats.gamesPlayed,
+      wordleGamesWon: wordleStats.gamesWon,
+      wordleCurrentStreak: wordleStats.currentStreak,
+      wordleMaxStreak: wordleStats.maxStreak,
+      wordleGuessDistribution: distribution,
+      wordleLastPlayedDate: today,
+      // XP and artifacts
+      xp: newXP,
+      ...(artifactsUpdated ? { unlockedArtifacts } : {}),
+      // Shards
+      weaponShards: newShards,
+    });
+
+    // Return all updated values for immediate client use
+    return {
+      wordleStats,
+      newXP,
+      newShards,
+      newArtifacts: artifactsUpdated ? unlockedArtifacts : null,
+    };
   },
 });
 

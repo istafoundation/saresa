@@ -1,5 +1,5 @@
 // Artifacts & Weapons Collection Screen - Updated with Pack Opening
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
 import { useState, useEffect } from 'react';
@@ -26,6 +26,7 @@ const RARITY_COLORS: Record<Rarity, string> = {
 export default function ArtifactsScreen() {
   const [activeTab, setActiveTab] = useState<TabType>('artifacts');
   const [showPackOpening, setShowPackOpening] = useState(false);
+  const [isOpening, setIsOpening] = useState(false);
   const { unlockedArtifacts, unlockedWeapons, xp, weaponShards, canAffordPack } = useUserStore();
   const { unlockWeapon, addWeaponShards, spendWeaponShards, addWeaponDuplicate, syncProgression } = useUserActions();
   
@@ -45,10 +46,18 @@ export default function ArtifactsScreen() {
   };
 
   const handleOpenPack = async () => {
-    if (!canAffordPack()) return;
-    triggerTap('heavy');
-    await spendWeaponShards(PACK_COST);
-    setShowPackOpening(true);
+    if (!canAffordPack() || isOpening) return;
+    
+    try {
+      setIsOpening(true);
+      triggerTap('heavy');
+      await spendWeaponShards(PACK_COST);
+      setShowPackOpening(true);
+    } catch (e) {
+      console.error('Failed to open pack:', e);
+    } finally {
+      setIsOpening(false);
+    }
   };
 
   const handlePackComplete = async (weapon: Weapon, isDuplicate: boolean) => {
@@ -114,9 +123,9 @@ export default function ArtifactsScreen() {
 
             {/* Open Pack Button */}
             <Pressable 
-              style={[styles.openPackButton, !canAffordPack() && styles.openPackButtonDisabled]} 
+              style={[styles.openPackButton, (!canAffordPack() || isOpening) && styles.openPackButtonDisabled]} 
               onPress={handleOpenPack}
-              disabled={!canAffordPack()}
+              disabled={!canAffordPack() || isOpening}
             >
               <LinearGradient
                 colors={canAffordPack() ? [COLORS.accentGold, COLORS.accent] : ['#888', '#666']}
@@ -129,7 +138,11 @@ export default function ArtifactsScreen() {
                     {canAffordPack() ? `Cost: ${PACK_COST} 💎` : `Need ${PACK_COST - weaponShards} more shards`}
                   </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={24} color={COLORS.background} />
+                {isOpening ? (
+                  <ActivityIndicator color={COLORS.background} />
+                ) : (
+                  <Ionicons name="chevron-forward" size={24} color={COLORS.background} />
+                )}
               </LinearGradient>
             </Pressable>
 

@@ -13,6 +13,7 @@ import type * as content from "../content.js";
 import type * as contentMigration from "../contentMigration.js";
 import type * as crons from "../crons.js";
 import type * as gameStats from "../gameStats.js";
+import type * as lib_auth from "../lib/auth.js";
 import type * as lib_dates from "../lib/dates.js";
 import type * as migrations from "../migrations.js";
 import type * as parents from "../parents.js";
@@ -30,6 +31,7 @@ declare const fullApi: ApiFromModules<{
   contentMigration: typeof contentMigration;
   crons: typeof crons;
   gameStats: typeof gameStats;
+  "lib/auth": typeof lib_auth;
   "lib/dates": typeof lib_dates;
   migrations: typeof migrations;
   parents: typeof parents;

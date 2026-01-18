@@ -5,7 +5,7 @@ import { View, Text, StyleSheet, Pressable, Dimensions, ScrollView, ActivityIndi
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView } from 'moti';
-import { useRouter } from 'expo-router';
+import { useSafeNavigation } from '../../../utils/useSafeNavigation';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
@@ -27,7 +27,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const getClientISTDate = getISTDate;
 
 export default function IndiaExplorerScreen() {
-  const router = useRouter();
+  const { safeBack } = useSafeNavigation();
   const { token } = useChildAuth();
   const { triggerTap } = useTapFeedback();
   // Use combined audio hook for music + SFX
@@ -233,8 +233,8 @@ export default function IndiaExplorerScreen() {
     triggerTap('medium');
     stopMusic(); // Ensure music stops on back
     resetGame();
-    router.back();
-  }, [resetGame, router, triggerTap, stopMusic]);
+    safeBack();
+  }, [resetGame, triggerTap, stopMusic, safeBack]);
   
   // Loading state
   if (!progress) {

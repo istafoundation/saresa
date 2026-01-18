@@ -261,7 +261,12 @@ export default function IndiaMap({
     return COLORS.textMuted;
   }, [correctRegion, wrongRegion, selectedRegion]);
   
+  // OPTIMIZATION: Inline color logic instead of depending on callback references
+  // This prevents re-renders when callback references change but values are the same
   const pathElements = useMemo(() => {
+    // Pre-compute the set of guessed regions for O(1) lookup
+    const guessedSet = new Set(guessedRegions);
+    
     return sortedRegions.map((region) => {
       const pathData = INDIA_SVG_PATHS[region.id];
       if (!pathData) return null;
@@ -270,20 +275,31 @@ export default function IndiaMap({
         selectedRegion === region.id || 
         correctRegion === region.id || 
         wrongRegion === region.id;
+      
+      // Inline color logic (was getRegionColor)
+      let fillColor: string;
+      if (correctRegion === region.id) fillColor = COLORS.success;
+      else if (wrongRegion === region.id) fillColor = COLORS.error;
+      else if (selectedRegion === region.id) fillColor = COLORS.primary;
+      else if (guessedSet.has(region.id)) fillColor = COLORS.surface;
+      else fillColor = COLORS.backgroundCard;
+      
+      // Inline stroke logic (was getStrokeColor)
+      const strokeColor = isHighlighted ? '#FFFFFF' : COLORS.textMuted;
 
       return (
         <AnimatedPath
           key={region.id}
           id={region.id}
           d={pathData}
-          fill={getRegionColor(region.id)}
-          stroke={getStrokeColor(region.id)}
+          fill={fillColor}
+          stroke={strokeColor}
           // Use dynamic stroke width
           animatedProps={isHighlighted ? animatedSelectedStrokeProps : animatedStrokeProps}
         />
       );
     });
-  }, [getRegionColor, getStrokeColor, selectedRegion, correctRegion, wrongRegion, guessedRegions, animatedStrokeProps, animatedSelectedStrokeProps, sortedRegions]);
+  }, [selectedRegion, correctRegion, wrongRegion, guessedRegions, animatedStrokeProps, animatedSelectedStrokeProps, sortedRegions]);
 
   const selectedOverlay = useMemo(() => {
     if (!selectedRegion || !INDIA_SVG_PATHS[selectedRegion]) return null;

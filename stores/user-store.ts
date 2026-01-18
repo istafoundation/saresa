@@ -107,7 +107,7 @@ export const useUserStore = create<UserState>()(
       // Local settings (defaults)
       soundEnabled: true,
       musicEnabled: true,
-      sfxVolume: 0.7,
+      sfxVolume: 0.9,
       musicVolume: 0.9,
       
       // Initial values for flattened props

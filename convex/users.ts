@@ -1,23 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import type { Id } from "./_generated/dataModel";
 import { getISTDate, getYesterdayIST } from "./lib/dates";
-
-// Helper to get childId from session token
-async function getChildIdFromSession(
-  ctx: any,
-  token: string
-): Promise<Id<"children"> | null> {
-  if (!token) return null;
-
-  const session = await ctx.db
-    .query("childSessions")
-    .withIndex("by_token", (q: any) => q.eq("token", token))
-    .first();
-
-  if (!session || session.expiresAt < Date.now()) return null;
-  return session.childId;
-}
+import { getChildIdFromSession, getAuthenticatedUser } from "./lib/auth";
 
 // Get current user data (for child app)
 // OPTIMIZED: Returns pre-computed daily limits to eliminate separate queries

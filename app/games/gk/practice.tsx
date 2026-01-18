@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
 import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'expo-router';
+import { useSafeNavigation } from '../../../utils/useSafeNavigation';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -18,7 +18,7 @@ import Mascot from '../../../components/Mascot';
 import { useEnglishInsaneQuestions } from '../../../utils/content-hooks';
 
 export default function PracticeScreen() {
-  const router = useRouter();
+  const { safeBack } = useSafeNavigation();
   const { mascot, gkStats } = useUserStore();
   const { updateGKStats } = useGameStatsActions();
   
@@ -46,9 +46,27 @@ export default function PracticeScreen() {
   
   // Track session stats locally for immediate UI feedback
   // (Convex will sync eventually, but this gives instant updates)
-  const sessionStats = useRef({ total: 0, correct: 0 });
+
   const [sessionTotal, setSessionTotal] = useState(0);
   const [sessionCorrect, setSessionCorrect] = useState(0);
+
+  // Lock base stats when user starts interacting to prevent double counting
+  // (We don't want to add session stats to already-updated live stats)
+  const [baseStats, setBaseStats] = useState({ 
+    practiceTotal: gkStats.practiceTotal, 
+    practiceCorrect: gkStats.practiceCorrect 
+  });
+
+  useEffect(() => {
+    // Only sync with store if user hasn't started this session yet
+    // This allows initial load/sync but prevents double counting live updates
+    if (sessionTotal === 0) {
+      setBaseStats({
+        practiceTotal: gkStats.practiceTotal,
+        practiceCorrect: gkStats.practiceCorrect
+      });
+    }
+  }, [gkStats.practiceTotal, gkStats.practiceCorrect, sessionTotal]);
 
   useEffect(() => {
     if (allQuestions && allQuestions.length > 0) {
@@ -105,7 +123,7 @@ export default function PracticeScreen() {
   const handleEnd = () => {
     triggerTap();
     stopMusic();
-    router.back();
+    safeBack();
   };
 
   const handleSkip = () => {
@@ -124,9 +142,11 @@ export default function PracticeScreen() {
     );
   }
 
-  // Combine Convex stats + session stats for display
-  const totalAnswered = gkStats.practiceTotal + sessionTotal;
-  const totalCorrect = gkStats.practiceCorrect + sessionCorrect;
+
+
+  // Combine locked base stats + local session stats
+  const totalAnswered = baseStats.practiceTotal + sessionTotal;
+  const totalCorrect = baseStats.practiceCorrect + sessionCorrect;
   const accuracy = totalAnswered > 0 
     ? Math.round((totalCorrect / totalAnswered) * 100) 
     : 0;
