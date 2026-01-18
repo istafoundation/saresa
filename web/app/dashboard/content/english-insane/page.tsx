@@ -511,6 +511,19 @@ function EnglishInsaneContent() {
                   ))}
                 </select>
               </div>
+
+              {/* Group Access Reference */}
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                <p className="text-xs font-semibold text-slate-600 mb-2">Group Access Reference:</p>
+                <div className="grid grid-cols-2 gap-1 text-xs">
+                  <span className="text-emerald-700 font-medium">Group A (Class 1-4):</span>
+                  <span className="text-slate-600">Set 1, Set 3, Set 5</span>
+                  <span className="text-blue-700 font-medium">Group B (Class 5-8):</span>
+                  <span className="text-slate-600">Set 1, Set 2, Set 3</span>
+                  <span className="text-purple-700 font-medium">Group C (Class 9-10):</span>
+                  <span className="text-slate-600">Set 1, Set 2, Set 4</span>
+                </div>
+              </div>
             </div>
 
             <div className="flex gap-3 p-4 border-t border-slate-200">
@@ -658,6 +671,19 @@ function EnglishInsaneContent() {
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
+              </div>
+
+              {/* Group Access Reference */}
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                <p className="text-xs font-semibold text-slate-600 mb-2">Group Access Reference:</p>
+                <div className="grid grid-cols-2 gap-1 text-xs">
+                  <span className="text-emerald-700 font-medium">Group A (Class 1-4):</span>
+                  <span className="text-slate-600">Set 1, Set 3, Set 5</span>
+                  <span className="text-blue-700 font-medium">Group B (Class 5-8):</span>
+                  <span className="text-slate-600">Set 1, Set 2, Set 3</span>
+                  <span className="text-purple-700 font-medium">Group C (Class 9-10):</span>
+                  <span className="text-slate-600">Set 1, Set 2, Set 4</span>
+                </div>
               </div>
             </div>
 
