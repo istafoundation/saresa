@@ -56,9 +56,13 @@ export default function SubscriptionPage() {
     setError(null);
     
     try {
+      // Generate callback URL to redirect back to dashboard after payment
+      const callbackUrl = `${window.location.origin}/dashboard?subscribed=${childId}`;
+      
       const result = await createSubscription({
         childId,
         planGroup: selectedPlan,
+        callbackUrl,
       });
       
       // Redirect to Razorpay short URL for payment

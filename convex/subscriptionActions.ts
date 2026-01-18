@@ -30,6 +30,7 @@ export const createSubscription = action({
   args: {
     childId: v.id("children"),
     planGroup: v.union(v.literal("A"), v.literal("B"), v.literal("C")),
+    callbackUrl: v.optional(v.string()), // URL to redirect after payment
   },
   handler: async (ctx, args): Promise<SubscriptionResult> => {
     const identity = await ctx.auth.getUserIdentity();
@@ -77,8 +78,8 @@ export const createSubscription = action({
       // Continue without customer ID
     }
     
-    // Create subscription on Razorpay
-    const subscription = await razorpay.subscriptions.create({
+    // Create subscription on Razorpay with callback URL for redirect after payment
+    const subscriptionOptions: any = {
       plan_id: plan.planId,
       customer_notify: 1,
       total_count: 12, // 12 months max
@@ -87,7 +88,16 @@ export const createSubscription = action({
         parentId: parent._id,
         planGroup: args.planGroup,
       },
-    });
+    };
+    
+    // Add callback URL if provided (for redirect after payment)
+    if (args.callbackUrl) {
+      subscriptionOptions.notify_info = {
+        redirect_url: args.callbackUrl,
+      };
+    }
+    
+    const subscription = await razorpay.subscriptions.create(subscriptionOptions);
     
     // Store subscription in database
     await ctx.runMutation(internal.subscriptions.storeSubscription, {
