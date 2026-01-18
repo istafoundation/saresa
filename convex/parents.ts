@@ -355,6 +355,13 @@ export const getMyChildren = query({
           .withIndex("by_child_id", (q) => q.eq("childId", child._id))
           .first();
 
+        // Get subscription status
+        const subscription = await ctx.db
+          .query("subscriptions")
+          .withIndex("by_child", (q) => q.eq("childId", child._id))
+          .order("desc")
+          .first();
+
         // Calculate games played from all game stats
         const gamesPlayed = userData
           ? userData.wordleGamesPlayed +
@@ -381,6 +388,9 @@ export const getMyChildren = query({
         // Determine last active timestamp
         const lastActiveAt = child.lastLoginAt || child.createdAt;
 
+        // Determine subscription status
+        const isSubscriptionActive = subscription?.status === "active" || subscription?.status === "authenticated";
+
         return {
           _id: child._id,
           name: child.name,
@@ -402,6 +412,11 @@ export const getMyChildren = query({
           xpToNextLevel, // XP needed to reach next level
           lastActiveAt, // Timestamp for "last active" display
           lastLoginDate: userData?.lastLoginDate, // For activity calculations
+          // Subscription status
+          subscriptionStatus: subscription?.status || "none",
+          subscriptionPlanGroup: subscription?.planGroup,
+          activatedTill: subscription?.currentPeriodEnd,
+          isSubscriptionActive,
         };
       })
     );
@@ -409,6 +424,7 @@ export const getMyChildren = query({
     return childrenWithStats;
   },
 });
+
 
 // Get child credentials (for sharing)
 export const getChildCredentials = query({

@@ -21,7 +21,9 @@ export default function ProfileScreen() {
     soundEnabled, musicEnabled, sfxVolume, musicVolume,
     setSoundEnabled, setMusicEnabled, setSfxVolume, setMusicVolume,
     // Now reading game stats from Convex-synced data!
-    wordleStats, gkStats, gdStats
+    wordleStats, gkStats, gdStats,
+    // Subscription status
+    isSubscriptionActive, activatedTill, subscriptionStatus
   } = useUserStore();
   
   const levelInfo = getLevelForXP(xp);
@@ -81,6 +83,28 @@ export default function ProfileScreen() {
               <Ionicons name="school-outline" size={14} color={COLORS.text} style={{ marginRight: 4 }} />
               <Text style={styles.groupBadgeText}>
                 Group {group} ({group === 'A' ? 'Class 1-4' : group === 'C' ? 'Class 9-10' : 'Class 5-8'})
+              </Text>
+            </View>
+            
+            {/* Subscription Status Badge */}
+            <View style={[
+              styles.subscriptionBadge,
+              isSubscriptionActive ? styles.subscriptionActive : styles.subscriptionInactive
+            ]}>
+              <Ionicons 
+                name={isSubscriptionActive ? "checkmark-circle" : "alert-circle"} 
+                size={14} 
+                color={isSubscriptionActive ? "#10B981" : "#F59E0B"} 
+                style={{ marginRight: 4 }} 
+              />
+              <Text style={[
+                styles.subscriptionBadgeText,
+                isSubscriptionActive ? styles.subscriptionActiveText : styles.subscriptionInactiveText
+              ]}>
+                {isSubscriptionActive 
+                  ? `Activated till ${activatedTill ? new Date(activatedTill).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Active'}`
+                  : 'Not Activated'
+                }
               </Text>
             </View>
           </LinearGradient>
@@ -689,5 +713,34 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: COLORS.textMuted,
     textTransform: 'uppercase',
+  },
+  // Subscription Badge Styles
+  subscriptionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: BORDER_RADIUS.full,
+    marginTop: SPACING.sm,
+  },
+  subscriptionActive: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  subscriptionInactive: {
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+  },
+  subscriptionBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  subscriptionActiveText: {
+    color: '#10B981',
+  },
+  subscriptionInactiveText: {
+    color: '#F59E0B',
   },
 });

@@ -19,6 +19,13 @@ export interface SyncedUserData {
   unlockedWeapons: string[];
   weaponShards: number;
   weaponDuplicates: Record<string, number>;
+  // Subscription status
+  subscription?: {
+    status: string;
+    planGroup: "A" | "B" | "C";
+    activatedTill?: number;
+    isActive: boolean;
+  } | null;
 }
 
 // Local settings (not synced)
@@ -48,6 +55,12 @@ export interface UserState extends LocalSettings {
   level: number;
   levelTitle: string;
   onboardingComplete: boolean;
+  
+  // Subscription status (from Convex)
+  subscriptionStatus: string | null;
+  subscriptionPlanGroup: "A" | "B" | "C" | null;
+  activatedTill: number | null;
+  isSubscriptionActive: boolean;
   
   // Game stats (flattened)
   wordleStats: {
@@ -126,6 +139,12 @@ export const useUserStore = create<UserState>()(
       levelTitle: 'Novice',
       onboardingComplete: false,
       
+      // Subscription defaults
+      subscriptionStatus: null,
+      subscriptionPlanGroup: null,
+      activatedTill: null,
+      isSubscriptionActive: false,
+      
       wordleStats: {
         gamesPlayed: 0,
         gamesWon: 0,
@@ -191,6 +210,11 @@ export const useUserStore = create<UserState>()(
           level: levelInfo.level,
           levelTitle: levelInfo.title,
           onboardingComplete: data !== null,
+          // Subscription status
+          subscriptionStatus: data?.subscription?.status ?? null,
+          subscriptionPlanGroup: data?.subscription?.planGroup ?? null,
+          activatedTill: data?.subscription?.activatedTill ?? null,
+          isSubscriptionActive: data?.subscription?.isActive ?? false,
         });
       },
       

@@ -17,7 +17,9 @@ import {
   BarChart3,
   Clock,
   Gamepad2,
-  Pencil
+  Pencil,
+  Zap,
+  Settings
 } from "lucide-react";
 import Link from "next/link";
 import type { Id } from "../../../../convex/_generated/dataModel";
@@ -58,6 +60,11 @@ interface ChildProps {
   xpToNextLevel: number;
   lastActiveAt: number;
   lastLoginDate?: string;
+  // Subscription status
+  subscriptionStatus?: string;
+  subscriptionPlanGroup?: "A" | "B" | "C";
+  activatedTill?: number;
+  isSubscriptionActive?: boolean;
 }
 
 export function ChildCard({ child }: { child: ChildProps }) {
@@ -218,6 +225,23 @@ export function ChildCard({ child }: { child: ChildProps }) {
           <BarChart3 size={14} />
           <span>View Stats</span>
         </Link>
+        {child.isSubscriptionActive ? (
+          <Link 
+            href={`/dashboard/subscription/${child._id}/manage`}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl hover:bg-emerald-100 transition-all active:scale-95"
+          >
+            <Settings size={14} />
+            <span>Manage</span>
+          </Link>
+        ) : (
+          <Link 
+            href={`/dashboard/subscription/${child._id}`}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-semibold text-white bg-gradient-to-r from-amber-500 to-amber-600 border border-transparent rounded-xl hover:from-amber-600 hover:to-amber-700 transition-all active:scale-95 shadow-lg shadow-amber-500/20"
+          >
+            <Zap size={14} />
+            <span>Activate</span>
+          </Link>
+        )}
         <button 
           onClick={() => setIsEditOpen(true)}
           className="flex-none p-2.5 text-emerald-500 bg-emerald-50 border border-transparent rounded-xl hover:bg-emerald-100 hover:text-emerald-700 transition-all active:scale-95"

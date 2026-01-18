@@ -22,12 +22,34 @@ export const getMyData = query({
 
     if (!user) return null;
 
+    // Get child's group from children table
+    const child = await ctx.db.get(childId);
+    const group = child?.group || "B";
+
+    // Get subscription status
+    const subscription = await ctx.db
+      .query("subscriptions")
+      .withIndex("by_child", (q) => q.eq("childId", childId))
+      .order("desc")
+      .first();
+
+    const isSubscriptionActive = subscription?.status === "active" || subscription?.status === "authenticated";
+
     // Pre-compute all daily limits (IST-based) to avoid separate queries
     const today = getISTDate();
     const TOTAL_REGIONS = 36; // Sync with data/india-states.ts
 
     return {
       ...user,
+      // Child's learning group
+      group,
+      // Subscription status for mobile app display
+      subscription: subscription ? {
+        status: subscription.status,
+        planGroup: subscription.planGroup,
+        activatedTill: subscription.currentPeriodEnd,
+        isActive: isSubscriptionActive,
+      } : null,
       // Computed daily availability fields (eliminates 5+ separate queries)
       computed: {
         canPlayGKCompetitive: user.gkLastCompetitiveDate !== today,

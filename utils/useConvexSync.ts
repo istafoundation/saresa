@@ -151,6 +151,7 @@ export function useConvexSync() {
     const syncedData: SyncedUserData = {
       name: userData.name ?? 'Explorer',
       mascot: (userData.mascot as 'male' | 'female') ?? 'male',
+      group: (userData as any).group ?? 'B',
       xp: userData.xp ?? 0,
       streak: userData.streak ?? 0,
       lastLoginDate: userData.lastLoginDate ?? null,
@@ -158,6 +159,8 @@ export function useConvexSync() {
       unlockedWeapons: userData.unlockedWeapons ?? [],
       weaponShards: userData.weaponShards ?? 0,
       weaponDuplicates: (userData.weaponDuplicates as Record<string, number>) ?? {},
+      // Subscription status from Convex
+      subscription: (userData as any).subscription ?? null,
     };
 
     logSync('User data synced from Convex', { 

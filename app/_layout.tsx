@@ -11,6 +11,7 @@ import ConvexClientProvider from './ConvexClientProvider';
 import { useConvexSync } from '../utils/useConvexSync';
 import { useChildAuth } from '../utils/childAuth';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { ActivationPopup } from '../components/ActivationPopup';
 
 // Loading screen while checking auth
 function LoadingScreen() {
@@ -84,37 +85,41 @@ function InitialLayout() {
 
   // Render the appropriate screen
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: COLORS.background },
-        animation: 'slide_from_right',
-      }}
-    >
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-      <Stack.Screen 
-        name="games/wordle"
-        options={{
-          presentation: 'modal',
-          animation: 'slide_from_bottom',
+    <>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: COLORS.background },
+          animation: 'slide_from_right',
         }}
-      />
-      <Stack.Screen 
-        name="games/gk/practice"
-        options={{
-          presentation: 'fullScreenModal',
-          animation: 'slide_from_bottom',
-        }}
-      />
-      <Stack.Screen 
-        name="games/gk/competitive"
-        options={{
-          presentation: 'fullScreenModal',
-          animation: 'slide_from_bottom',
-        }}
-      />
-    </Stack>
+      >
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+        <Stack.Screen 
+          name="games/wordle"
+          options={{
+            presentation: 'modal',
+            animation: 'slide_from_bottom',
+          }}
+        />
+        <Stack.Screen 
+          name="games/gk/practice"
+          options={{
+            presentation: 'fullScreenModal',
+            animation: 'slide_from_bottom',
+          }}
+        />
+        <Stack.Screen 
+          name="games/gk/competitive"
+          options={{
+            presentation: 'fullScreenModal',
+            animation: 'slide_from_bottom',
+          }}
+        />
+      </Stack>
+      {/* Show activation popup for unactivated accounts */}
+      <ActivationPopup />
+    </>
   );
 }
 

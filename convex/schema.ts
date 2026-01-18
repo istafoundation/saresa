@@ -238,4 +238,64 @@ export default defineSchema({
   })
     .index("by_game", ["gameId"])
     .index("by_active", ["isActive"]),
+
+  // ============================================
+  // SUBSCRIPTION MANAGEMENT (Razorpay)
+  // ============================================
+
+  // Subscription records linked to children
+  subscriptions: defineTable({
+    childId: v.id("children"),
+    parentId: v.id("parents"),
+    
+    // Razorpay IDs
+    razorpaySubscriptionId: v.string(),
+    razorpayPlanId: v.string(),
+    razorpayCustomerId: v.optional(v.string()),
+    
+    // Plan details
+    planGroup: v.union(v.literal("A"), v.literal("B"), v.literal("C")),
+    amount: v.number(), // in paise (8900, 12900, 18900)
+    
+    // Status
+    status: v.union(
+      v.literal("created"),
+      v.literal("authenticated"),
+      v.literal("active"),
+      v.literal("pending"),
+      v.literal("halted"),
+      v.literal("cancelled"),
+      v.literal("completed"),
+      v.literal("expired")
+    ),
+    
+    // Dates
+    currentPeriodStart: v.optional(v.number()),
+    currentPeriodEnd: v.optional(v.number()), // "Activated till" date
+    
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_child", ["childId"])
+    .index("by_parent", ["parentId"])
+    .index("by_razorpay_id", ["razorpaySubscriptionId"]),
+
+  // Payment history for subscriptions
+  subscriptionPayments: defineTable({
+    subscriptionId: v.id("subscriptions"),
+    childId: v.id("children"),
+    parentId: v.id("parents"),
+    
+    // Razorpay payment details
+    razorpayPaymentId: v.string(),
+    razorpayInvoiceId: v.optional(v.string()),
+    
+    amount: v.number(), // in paise
+    status: v.union(v.literal("captured"), v.literal("failed"), v.literal("refunded")),
+    
+    createdAt: v.number(),
+  })
+    .index("by_subscription", ["subscriptionId"])
+    .index("by_child", ["childId"])
+    .index("by_parent", ["parentId"]),
 });
