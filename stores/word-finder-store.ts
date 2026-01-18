@@ -4,6 +4,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { zustandStorage } from '../utils/storage';
+import { getISTDate } from '../utils/dates';
 
 // Types (self-contained - no external imports for data)
 export interface WordSet {
@@ -500,8 +501,9 @@ export const useWordFinderStore = create<WordFinderState>()(
       },
       
       updateTimer: (seconds) => {
-        const { gameState } = get();
-        if (gameState !== 'playing') return;
+        const { gameState, timeRemaining } = get();
+        // Guard: prevent finishing game multiple times if called rapidly
+        if (gameState !== 'playing' || timeRemaining <= 0) return;
         
         if (seconds <= 0) {
           set({ timeRemaining: 0, gameState: 'finished' });
@@ -512,7 +514,7 @@ export const useWordFinderStore = create<WordFinderState>()(
       
       finishGame: () => {
         const { mode, wordPlacements, hintUsed, hardCorrectAnswers, timeRemaining } = get();
-        const today = new Date().toISOString().split('T')[0];
+        const today = getISTDate();
         
         let xpEarned = 0;
         let wordsFound = 0;
@@ -555,7 +557,7 @@ export const useWordFinderStore = create<WordFinderState>()(
       },
       
       canPlayEasyToday: () => {
-        const today = new Date().toISOString().split('T')[0];
+        const today = getISTDate();
         const { lastEasyPlayDate, easyAttemptsToday } = get();
         
         if (lastEasyPlayDate !== today) return true;
@@ -563,7 +565,7 @@ export const useWordFinderStore = create<WordFinderState>()(
       },
       
       canPlayHardToday: () => {
-        const today = new Date().toISOString().split('T')[0];
+        const today = getISTDate();
         return get().lastHardPlayDate !== today; // 1 attempt per day
       },
       

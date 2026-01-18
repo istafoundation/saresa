@@ -120,6 +120,23 @@ export default function IndiaExplorerScreen() {
     };
   }, [stopMusic]);
   
+  // Auto-start game if in idle state (MUST be before early returns for hook order)
+  useEffect(() => {
+    if (gameState === 'idle' && progress && !isStarting && !isCompletedToday) {
+      // Delay slightly to ensure UI is ready
+      const timer = setTimeout(() => {
+        if (!progress) return;
+        setIsStarting(true);
+        initGame(progress.guessedToday);
+        setTimeout(() => {
+          nextQuestion();
+          setIsStarting(false);
+        }, 300);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [gameState, progress, isStarting, isCompletedToday, initGame, nextQuestion]);
+  
   // Calculate session result (must be before early returns to maintain hook order)
   const sessionResult = useMemo(() => {
     if (gameState !== 'finished') return null;
@@ -262,13 +279,6 @@ export default function IndiaExplorerScreen() {
     );
   }
   
-  // Auto-start game if in idle state
-  useEffect(() => {
-    if (gameState === 'idle' && progress && !isStarting && !isCompletedToday) {
-      handleStartGame();
-    }
-  }, [gameState, progress, isStarting, isCompletedToday, handleStartGame]);
-
   // Idle state - show loading while starting
   if (gameState === 'idle') {
     return (

@@ -153,7 +153,7 @@ export function useBackgroundMusic() {
     };
     
     const subscription = AppState.addEventListener('change', handleAppStateChange);
-    return () => subscription?.remove();
+    return () => subscription.remove();
   }, [musicEnabled]);
   
   const startMusic = useCallback(() => {

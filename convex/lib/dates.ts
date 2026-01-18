@@ -1,14 +1,22 @@
 // Consolidated date utilities for Convex backend
 // Single source of truth for IST timezone handling
+// CRITICAL: All daily resets happen at IST 00:00 (UTC+5:30)
+// NOTE: Convex backend runs in UTC, so Date.now() is already UTC
 
 /**
  * Get current date in IST timezone (UTC+5:30)
  * Returns ISO date string format: "YYYY-MM-DD"
+ * 
+ * Convex servers run in UTC, so we simply add the IST offset.
+ * No local timezone adjustment needed on server.
  */
 export function getISTDate(): string {
-  const now = new Date();
+  // Date.now() returns UTC timestamp on Convex servers
+  const utcNow = Date.now();
+  // Add IST offset (UTC+5:30 = 5.5 hours)
   const istOffset = 5.5 * 60 * 60 * 1000;
-  return new Date(now.getTime() + istOffset).toISOString().split("T")[0];
+  const istTime = new Date(utcNow + istOffset);
+  return istTime.toISOString().split("T")[0];
 }
 
 /**
@@ -16,10 +24,11 @@ export function getISTDate(): string {
  * Returns ISO date string format: "YYYY-MM-DD"
  */
 export function getYesterdayIST(): string {
-  const now = new Date();
+  const utcNow = Date.now();
   const istOffset = 5.5 * 60 * 60 * 1000;
-  const yesterday = new Date(now.getTime() + istOffset - 24 * 60 * 60 * 1000);
-  return yesterday.toISOString().split("T")[0];
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  const yesterdayIST = new Date(utcNow + istOffset - oneDayMs);
+  return yesterdayIST.toISOString().split("T")[0];
 }
 
 /**
