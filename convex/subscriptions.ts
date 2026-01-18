@@ -132,6 +132,16 @@ export const storeSubscription = internalMutation({
       createdAt: now,
       updatedAt: now,
     });
+    
+    // Immediately sync child's group to match the subscription plan
+    // This ensures the group is correct even before webhook confirms activation
+    const child = await ctx.db.get(args.childId);
+    if (child && child.group !== args.planGroup) {
+      console.log(`Syncing child ${args.childId} group from ${child.group} to ${args.planGroup} on subscription creation`);
+      await ctx.db.patch(args.childId, {
+        group: args.planGroup,
+      });
+    }
   },
 });
 
@@ -177,12 +187,13 @@ export const updateSubscriptionByRazorpayId = internalMutation({
       updatedAt: Date.now(),
     });
     
-    // IMPORTANT: When subscription becomes active, sync child's group to match the subscription plan
+    // IMPORTANT: When subscription becomes active or authenticated, sync child's group to match the subscription plan
     // This ensures the child gets content appropriate for their subscription tier
-    if (args.status === "active" && subscription.planGroup) {
+    // Both "active" and "authenticated" are considered valid subscription states (per line 29)
+    if ((args.status === "active" || args.status === "authenticated") && subscription.planGroup) {
       const child = await ctx.db.get(subscription.childId);
       if (child && child.group !== subscription.planGroup) {
-        console.log(`Syncing child ${subscription.childId} group from ${child.group} to ${subscription.planGroup}`);
+        console.log(`Syncing child ${subscription.childId} group from ${child.group} to ${subscription.planGroup} (status: ${args.status})`);
         await ctx.db.patch(subscription.childId, {
           group: subscription.planGroup,
         });
