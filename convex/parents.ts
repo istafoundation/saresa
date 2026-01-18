@@ -269,6 +269,7 @@ export const addChild = mutation({
     name: v.string(),
     username: v.string(),
     password: v.string(),
+    group: v.optional(v.union(v.literal("A"), v.literal("B"), v.literal("C"))),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -308,13 +309,14 @@ export const addChild = mutation({
       throw new Error("Password must be at least 6 characters");
     }
 
-    // Create child
+    // Create child with optional group (defaults to B if not specified)
     const childId = await ctx.db.insert("children", {
       parentId: parent._id,
       username,
       password: args.password, // Stored as plaintext for parent visibility
       name: args.name.trim(),
       role: "user",
+      group: args.group || "B", // Default to Group B (Class 5-8)
       createdAt: Date.now(),
     });
 

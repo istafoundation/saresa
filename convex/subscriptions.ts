@@ -176,6 +176,18 @@ export const updateSubscriptionByRazorpayId = internalMutation({
       currentPeriodEnd: args.currentPeriodEnd,
       updatedAt: Date.now(),
     });
+    
+    // IMPORTANT: When subscription becomes active, sync child's group to match the subscription plan
+    // This ensures the child gets content appropriate for their subscription tier
+    if (args.status === "active" && subscription.planGroup) {
+      const child = await ctx.db.get(subscription.childId);
+      if (child && child.group !== subscription.planGroup) {
+        console.log(`Syncing child ${subscription.childId} group from ${child.group} to ${subscription.planGroup}`);
+        await ctx.db.patch(subscription.childId, {
+          group: subscription.planGroup,
+        });
+      }
+    }
   },
 });
 

@@ -17,72 +17,65 @@ const GROUP_OPTIONS = [
   { id: "C" as const, label: "Class 9-10", desc: "Sets 1, 2, 4", color: "purple" },
 ];
 
-function GroupSelector({ 
-  childId, 
+// Read-only group display - group is now controlled by subscription plan
+function GroupDisplay({ 
   currentGroup, 
-  childName 
+  childName,
+  isSubscribed
 }: { 
-  childId: Id<"children">; 
   currentGroup: "A" | "B" | "C"; 
   childName: string;
+  isSubscribed: boolean;
 }) {
-  const updateGroup = useMutation(api.parents.updateChildGroup);
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [selectedGroup, setSelectedGroup] = useState(currentGroup);
-
-  const handleGroupChange = async (group: "A" | "B" | "C") => {
-    if (group === selectedGroup) return;
-    setIsUpdating(true);
-    try {
-      await updateGroup({ childId, group });
-      setSelectedGroup(group);
-    } catch (error) {
-      console.error("Failed to update group:", error);
-    }
-    setIsUpdating(false);
-  };
-
+  const group = GROUP_OPTIONS.find(g => g.id === currentGroup) || GROUP_OPTIONS[1];
+  
   return (
     <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-      <div className="flex items-center gap-3 mb-4">
-        <GraduationCap className="text-indigo-600" size={24} />
-        <div>
-          <h3 className="font-bold text-lg text-slate-900">Learning Level</h3>
-          <p className="text-slate-500 text-sm">
-            Select {childName}'s class range to show appropriate questions
-          </p>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <GraduationCap className="text-indigo-600" size={24} />
+          <div>
+            <h3 className="font-bold text-lg text-slate-900">Learning Level</h3>
+            <p className="text-slate-500 text-sm">
+              {childName}'s current class level
+            </p>
+          </div>
+        </div>
+        {!isSubscribed && (
+          <span className="text-xs bg-amber-100 text-amber-700 px-3 py-1 rounded-full font-medium">
+            Activate to change
+          </span>
+        )}
+      </div>
+      
+      {/* Current Group Display */}
+      <div className={`p-4 rounded-xl border-2 ${
+        group.color === "emerald" 
+          ? "border-emerald-500 bg-emerald-50"
+          : group.color === "blue"
+          ? "border-blue-500 bg-blue-50"
+          : "border-purple-500 bg-purple-50"
+      }`}>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className={`font-bold text-lg ${
+              group.color === "emerald" ? "text-emerald-700" 
+              : group.color === "blue" ? "text-blue-700" 
+              : "text-purple-700"
+            }`}>
+              {group.label}
+            </div>
+            <div className="text-sm text-slate-600">Group {group.id}</div>
+          </div>
+          <div className="text-xs text-slate-500 bg-white px-3 py-1 rounded-lg">
+            Question Sets: {group.desc}
+          </div>
         </div>
       </div>
-      <div className="flex gap-3">
-        {GROUP_OPTIONS.map((group) => (
-          <button
-            key={group.id}
-            onClick={() => handleGroupChange(group.id)}
-            disabled={isUpdating}
-            className={`flex-1 p-4 rounded-xl border-2 transition-all ${
-              selectedGroup === group.id 
-                ? group.color === "emerald" 
-                  ? "border-emerald-500 bg-emerald-50"
-                  : group.color === "blue"
-                  ? "border-blue-500 bg-blue-50"
-                  : "border-purple-500 bg-purple-50"
-                : "border-slate-200 hover:border-slate-300"
-            } ${isUpdating ? "opacity-50" : ""}`}
-          >
-            <div className={`font-bold text-slate-900 ${
-              selectedGroup === group.id 
-                ? group.color === "emerald" ? "text-emerald-700" 
-                : group.color === "blue" ? "text-blue-700" 
-                : "text-purple-700"
-                : ""
-            }`}>
-              Group {group.id}
-            </div>
-            <div className="text-xs text-slate-500">{group.label}</div>
-            <div className="text-xs text-slate-400 mt-1">{group.desc}</div>
-          </button>
-        ))}
-      </div>
+      
+      <p className="text-xs text-slate-400 mt-3 text-center">
+        💡 Learning level is set by subscription plan. Change plan to update.
+      </p>
     </div>
   );
 }
@@ -148,8 +141,8 @@ export default function ChildStatsPage() {
         </div>
       </div>
 
-      {/* Learning Level Group Selector - always visible */}
-      <GroupSelector childId={childId} currentGroup={(child.group as "A" | "B" | "C") || "B"} childName={child.name} />
+      {/* Learning Level Group Display - read-only, controlled by subscription */}
+      <GroupDisplay currentGroup={(child.group as "A" | "B" | "C") || "B"} childName={child.name} isSubscribed={true} />
 
       {!detailedStats ? (
         <div className="bg-slate-50 rounded-3xl p-12 text-center border-2 border-dashed border-slate-200">

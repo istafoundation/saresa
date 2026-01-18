@@ -4,7 +4,7 @@ import { useQuery, useAction } from "convex/react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ArrowLeft, Zap, Check, Loader2 } from "lucide-react";
 import Link from "next/link";
 import Script from "next/script";
@@ -19,24 +19,24 @@ declare global {
 const PLANS = [
   {
     group: "A" as const,
-    name: "Group A",
-    description: "Class 1-4",
+    className: "Class 1-4",
+    groupLabel: "Group A",
     price: 89,
     color: "emerald",
     features: ["Age-appropriate content", "Basic learning games", "Progress tracking"],
   },
   {
     group: "B" as const,
-    name: "Group B", 
-    description: "Class 5-8",
+    className: "Class 5-8", 
+    groupLabel: "Group B",
     price: 129,
     color: "blue",
     features: ["Advanced vocabulary", "Grammar challenges", "Competitive modes"],
   },
   {
     group: "C" as const,
-    name: "Group C",
-    description: "Class 9-10",
+    className: "Class 9 & 10",
+    groupLabel: "Group C",
     price: 189,
     color: "purple",
     features: ["Exam-level content", "All game modes", "Priority support"],
@@ -75,7 +75,7 @@ export default function SubscriptionPage() {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
         subscription_id: result.subscriptionId,
         name: "Saresa Learning",
-        description: `${selectedPlan === "A" ? "Group A" : selectedPlan === "B" ? "Group B" : "Group C"} Monthly Subscription`,
+        description: `${PLANS.find(p => p.group === selectedPlan)?.className} Monthly Subscription`,
         handler: function(response: any) {
           // Payment successful - redirect to dashboard
           console.log("Payment successful:", response);
@@ -154,7 +154,7 @@ export default function SubscriptionPage() {
             <div>
               <h3 className="font-semibold text-slate-900">{child.name}</h3>
               <p className="text-sm text-slate-500">
-                Currently in Group {child.group || "B"} ({child.group === "A" ? "Class 1-4" : child.group === "C" ? "Class 9-10" : "Class 5-8"})
+                Currently in {child.group === "A" ? "Class 1-4" : child.group === "C" ? "Class 9 & 10" : "Class 5-8"} (Group {child.group || "B"})
               </p>
             </div>
           </div>
@@ -188,15 +188,15 @@ export default function SubscriptionPage() {
                   </div>
                 )}
                 
-                <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium mb-4 ${
+                <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium mb-2 ${
                   plan.color === "emerald" ? "bg-emerald-100 text-emerald-700" :
                   plan.color === "blue" ? "bg-blue-100 text-blue-700" :
                   "bg-purple-100 text-purple-700"
                 }`}>
-                  {plan.name}
+                  {plan.className}
                 </div>
                 
-                <p className="text-slate-500 text-sm mb-4">{plan.description}</p>
+                <p className="text-xs text-slate-500 font-bold mb-4">{plan.groupLabel}</p>
                 
                 <div className="mb-6">
                   <span className="text-3xl font-bold text-slate-900">₹{plan.price}</span>
