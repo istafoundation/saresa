@@ -46,6 +46,7 @@ interface ChildProps {
   username: string;
   password?: string;
   role: string;
+  group?: "A" | "B" | "C";
   xp: number;
   streak: number;
   level: number;
@@ -86,6 +87,9 @@ export function ChildCard({ child }: { child: ChildProps }) {
     }
   };
 
+  const groupLabel = child.group === "A" ? "Class 1-4" : child.group === "C" ? "Class 9-10" : "Class 5-8";
+  const groupColor = child.group === "A" ? "emerald" : child.group === "C" ? "purple" : "blue";
+
   return (
     <div className="group bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-md hover:border-emerald-100 transition-all duration-300">
       <div className="flex justify-between items-start mb-6">
@@ -98,8 +102,13 @@ export function ChildCard({ child }: { child: ChildProps }) {
               {child.name}
             </h3>
             <div className="flex items-center gap-2 text-sm text-slate-500">
-              <User size={14} />
-              <span>{child.role}</span>
+              <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                groupColor === "emerald" ? "bg-emerald-100 text-emerald-700" :
+                groupColor === "purple" ? "bg-purple-100 text-purple-700" :
+                "bg-blue-100 text-blue-700"
+              }`}>
+                Group {child.group || "B"} ({groupLabel})
+              </span>
             </div>
           </div>
         </div>

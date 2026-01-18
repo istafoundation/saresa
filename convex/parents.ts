@@ -387,6 +387,7 @@ export const getMyChildren = query({
           username: child.username,
           password: child.password, // Parent can always see
           role: child.role,
+          group: child.group || "B", // Default to Group B
           createdAt: child.createdAt,
           lastLoginAt: child.lastLoginAt,
           // Stats from user data
@@ -554,6 +555,7 @@ export const getChildStats = query({
         child: {
           name: child.name,
           username: child.username,
+          group: child.group || "B", // Default to Group B
           createdAt: child.createdAt,
           lastLoginAt: child.lastLoginAt,
         },
@@ -565,6 +567,7 @@ export const getChildStats = query({
       child: {
         name: child.name,
         username: child.username,
+        group: child.group || "B", // Default to Group B
         createdAt: child.createdAt,
         lastLoginAt: child.lastLoginAt,
       },
@@ -782,5 +785,33 @@ export const updateChildName = mutation({
     }
 
     return { success: true, name: trimmedName };
+  },
+});
+
+// Update child's learning level group (A/B/C)
+export const updateChildGroup = mutation({
+  args: {
+    childId: v.id("children"),
+    group: v.union(v.literal("A"), v.literal("B"), v.literal("C")),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const parent = await ctx.db
+      .query("parents")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    if (!parent) throw new Error("Parent not found");
+
+    const child = await ctx.db.get(args.childId);
+    if (!child || child.parentId !== parent._id) {
+      throw new Error("Child not found");
+    }
+
+    await ctx.db.patch(args.childId, { group: args.group });
+
+    return { success: true, group: args.group };
   },
 });

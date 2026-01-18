@@ -11,6 +11,7 @@ export type MascotType = 'male' | 'female';
 export interface SyncedUserData {
   name: string;
   mascot: MascotType;
+  group?: "A" | "B" | "C"; // Learning level group for question filtering
   xp: number;
   streak: number;
   lastLoginDate: string | null;
@@ -37,6 +38,7 @@ export interface UserState extends LocalSettings {
   // Flatted properties (updated via setters)
   name: string;
   mascot: MascotType;
+  group: "A" | "B" | "C";
   xp: number;
   streak: number;
   unlockedArtifacts: string[];
@@ -113,6 +115,7 @@ export const useUserStore = create<UserState>()(
       // Initial values for flattened props
       name: '',
       mascot: 'male',
+      group: 'B', // Default to Group B
       xp: 0,
       streak: 0,
       unlockedArtifacts: [],
@@ -178,6 +181,7 @@ export const useUserStore = create<UserState>()(
           // Flatten properties
           name: data?.name ?? '',
           mascot: data?.mascot ?? 'male',
+          group: data?.group ?? 'B',
           xp: data?.xp ?? 0,
           streak: data?.streak ?? 0,
           unlockedArtifacts: data?.unlockedArtifacts ?? [],

@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useQuery } from 'convex/react';
 import { api } from '../convex/_generated/api';
 import { useChildAuth } from './childAuth';
+import { useUserStore } from '../stores/user-store';
 import {
   getCachedContent,
   setCachedContent,
@@ -133,15 +134,16 @@ export function useWordleContent(): ContentResult<typeof FALLBACK_WORDLE> {
 
 /**
  * Hook for Word Finder word sets (Easy mode)
- * OPTIMIZED: Uses single combined query instead of 2 separate queries
+ * OPTIMIZED: Uses group-filtered query + single combined query
  */
 export function useWordFinderSets(): ContentResult<typeof FALLBACK_WORD_SETS> {
   const { token } = useChildAuth();
+  const userGroup = useUserStore((s) => s.group);
   
-  // OPTIMIZATION: Single query for content + version
+  // Use group-filtered query for level-based content
   const serverData = useQuery(
-    api.content.getGameContentWithVersion,
-    token ? { gameId: 'word-finder', type: 'word_set' } : 'skip'
+    api.content.getGroupFilteredContentWithVersion,
+    token ? { gameId: 'word-finder', type: 'word_set', userGroup } : 'skip'
   );
 
   const [cachedData, setCachedData] = useState<typeof FALLBACK_WORD_SETS | null>(null);
@@ -196,15 +198,16 @@ export function useWordFinderSets(): ContentResult<typeof FALLBACK_WORD_SETS> {
 
 /**
  * Hook for Word Finder hard questions (Hard mode)
- * OPTIMIZED: Uses single combined query instead of 2 separate queries
+ * OPTIMIZED: Uses group-filtered query + single combined query
  */
 export function useWordFinderHardQuestions(): ContentResult<typeof FALLBACK_HARD_QUESTIONS> {
   const { token } = useChildAuth();
+  const userGroup = useUserStore((s) => s.group);
   
-  // OPTIMIZATION: Single query for content + version
+  // Use group-filtered query for level-based content
   const serverData = useQuery(
-    api.content.getGameContentWithVersion,
-    token ? { gameId: 'word-finder', type: 'hard_question' } : 'skip'
+    api.content.getGroupFilteredContentWithVersion,
+    token ? { gameId: 'word-finder', type: 'hard_question', userGroup } : 'skip'
   );
 
   const [cachedData, setCachedData] = useState<typeof FALLBACK_HARD_QUESTIONS | null>(null);
@@ -259,15 +262,16 @@ export function useWordFinderHardQuestions(): ContentResult<typeof FALLBACK_HARD
 
 /**
  * Hook for English Insane (GK) questions
- * OPTIMIZED: Uses single combined query instead of 2 separate queries
+ * OPTIMIZED: Uses group-filtered query + single combined query
  */
 export function useEnglishInsaneQuestions(): ContentResult<typeof FALLBACK_GK_QUESTIONS> {
   const { token } = useChildAuth();
+  const userGroup = useUserStore((s) => s.group);
   
-  // OPTIMIZATION: Single query for content + version
+  // Use group-filtered query for level-based content
   const serverData = useQuery(
-    api.content.getGameContentWithVersion,
-    token ? { gameId: 'english-insane', type: 'gk_question' } : 'skip'
+    api.content.getGroupFilteredContentWithVersion,
+    token ? { gameId: 'english-insane', type: 'gk_question', userGroup } : 'skip'
   );
 
   const [cachedData, setCachedData] = useState<typeof FALLBACK_GK_QUESTIONS | null>(null);

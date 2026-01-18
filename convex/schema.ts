@@ -18,6 +18,12 @@ export default defineSchema({
     password: v.string(),        // Parent-chosen (plaintext for parent visibility)
     name: v.string(),            // Child's display name
     role: v.string(),            // "user" (future: "admin", "premium")
+    // Learning level group - determines which question sets are shown
+    group: v.optional(v.union(
+      v.literal("A"),  // Class 1-4 (Sets 1, 3, 5)
+      v.literal("B"),  // Class 5-8 (Sets 1, 2, 3) - default
+      v.literal("C")   // Class 9-10 (Sets 1, 2, 4)
+    )),
     createdAt: v.number(),
     lastLoginAt: v.optional(v.number()),
   })
@@ -140,6 +146,20 @@ export default defineSchema({
     // Priority for weighted selection
     priority: v.number(),  // Higher = more likely to show
     
+    // Question Set for level-based filtering (English Insane, Word Finder)
+    // Set 1: EasyC, MediumB, HardA (All groups)
+    // Set 2: MediumC, HardB (Groups B, C)
+    // Set 3: EasyB, MediumA (Groups A, B)
+    // Set 4: HardC (Group C only)
+    // Set 5: EasyA (Group A only)
+    questionSet: v.optional(v.union(
+      v.literal(1),
+      v.literal(2),
+      v.literal(3),
+      v.literal(4),
+      v.literal(5)
+    )),
+    
     // Metadata
     createdBy: v.optional(v.id("parents")),  // Admin who created it
     createdAt: v.number(),
@@ -147,7 +167,8 @@ export default defineSchema({
   })
     .index("by_game_status", ["gameId", "status"])
     .index("by_type_status", ["type", "status"])
-    .index("by_pack", ["packId"]),
+    .index("by_pack", ["packId"])
+    .index("by_game_set", ["gameId", "questionSet"]),
 
   // Version tracking per game (for cache invalidation)
   contentVersions: defineTable({

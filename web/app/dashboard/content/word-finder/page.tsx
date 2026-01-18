@@ -48,10 +48,21 @@ function WordFinderContent() {
   const [contentType, setContentType] = useState<ContentType>("word_set");
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "word_set" | "hard_question">("all");
+  const [setFilter, setSetFilter] = useState<"all" | 1 | 2 | 3 | 4 | 5>("all");
+
+  // Set options with descriptive labels
+  const SET_OPTIONS = [
+    { value: 1, label: "Set 1 (EasyC, MediumB, HardA)" },
+    { value: 2, label: "Set 2 (MediumC, HardB)" },
+    { value: 3, label: "Set 3 (EasyB, MediumA)" },
+    { value: 4, label: "Set 4 (HardC)" },
+    { value: 5, label: "Set 5 (EasyA)" },
+  ];
 
   // Word Set form
   const [theme, setTheme] = useState("");
   const [words, setWords] = useState<string[]>(["", "", "", "", ""]);
+  const [questionSet, setQuestionSet] = useState<1 | 2 | 3 | 4 | 5>(1);
 
   // Hard Question form
   const [question, setQuestion] = useState("");
@@ -61,9 +72,11 @@ function WordFinderContent() {
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const filteredContent = content?.filter((item: { type: string; data: WordSet | HardQuestion }) => {
+  const filteredContent = content?.filter((item: { type: string; data: WordSet | HardQuestion; questionSet?: number; status?: string }) => {
     const matchesType = typeFilter === "all" || item.type === typeFilter;
-    if (!matchesType) return false;
+    const matchesSet = setFilter === "all" || (item.questionSet ?? 1) === setFilter;
+    if (!matchesType || !matchesSet) return false;
+    if (item.status === "archived") return false;
 
     if (item.type === "word_set") {
       const data = item.data as WordSet;
@@ -109,9 +122,11 @@ function WordFinderContent() {
           words: validWords.map((w) => w.toUpperCase()),
         },
         status: "active",
+        questionSet,
       });
       setTheme("");
       setWords(["", "", "", "", ""]);
+      setQuestionSet(1);
       setIsAddModalOpen(false);
     } catch (err) {
       setError("Failed to add word set");
@@ -150,10 +165,12 @@ function WordFinderContent() {
           hint: hint.trim(),
         },
         status: "active",
+        questionSet,
       });
       setQuestion("");
       setAnswer("");
       setHint("");
+      setQuestionSet(1);
       setIsAddModalOpen(false);
     } catch (err) {
       setError("Failed to add question");
@@ -230,6 +247,17 @@ function WordFinderContent() {
             </button>
           ))}
         </div>
+
+        <select
+          value={setFilter}
+          onChange={(e) => setSetFilter(e.target.value === "all" ? "all" : Number(e.target.value) as 1 | 2 | 3 | 4 | 5)}
+          className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="all">All Sets</option>
+          {SET_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
       </div>
 
       {/* Content Table */}
@@ -242,6 +270,9 @@ function WordFinderContent() {
               </th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
                 Content
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
+                Set
               </th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
                 Status
@@ -269,6 +300,11 @@ function WordFinderContent() {
                           {data.words.join(", ")}
                         </p>
                       </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
+                        Set {item.questionSet ?? 1}
+                      </span>
                     </td>
                     <td className="px-6 py-4">
                       <span
@@ -309,6 +345,11 @@ function WordFinderContent() {
                           Answer: <span className="font-mono">{data.answer}</span>
                         </p>
                       </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
+                        Set {item.questionSet ?? 1}
+                      </span>
                     </td>
                     <td className="px-6 py-4">
                       <span
@@ -471,6 +512,21 @@ function WordFinderContent() {
                   </div>
                 </>
               )}
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Question Set
+                </label>
+                <select
+                  value={questionSet}
+                  onChange={(e) => setQuestionSet(Number(e.target.value) as 1 | 2 | 3 | 4 | 5)}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {SET_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="flex gap-3 p-4 border-t border-slate-200">

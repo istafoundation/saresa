@@ -433,6 +433,123 @@ export const getAllContentPacks = query({
 });
 
 // ============================================
+// GROUP-FILTERED CONTENT (Level-Based Questioning)
+// ============================================
+
+/**
+ * Get sets accessible by a user group
+ * Set 1: EasyC, MediumB, HardA (All groups)
+ * Set 2: MediumC, HardB (Groups B, C)
+ * Set 3: EasyB, MediumA (Groups A, B)
+ * Set 4: HardC (Group C only)
+ * Set 5: EasyA (Group A only)
+ */
+function getSetsForGroup(group: "A" | "B" | "C"): number[] {
+  switch (group) {
+    case "A": return [1, 3, 5];
+    case "B": return [1, 2, 3];
+    case "C": return [1, 2, 4];
+  }
+}
+
+// Get content filtered by user's group (for English Insane, Word Finder)
+export const getGroupFilteredContent = query({
+  args: {
+    gameId: v.string(),
+    userGroup: v.union(v.literal("A"), v.literal("B"), v.literal("C")),
+    type: v.optional(v.union(
+      v.literal("gk_question"),
+      v.literal("hard_question"),
+      v.literal("word_set")
+    )),
+  },
+  handler: async (ctx, args) => {
+    const allowedSets = getSetsForGroup(args.userGroup);
+    
+    const allContent = await ctx.db
+      .query("gameContent")
+      .withIndex("by_game_status", (q) => 
+        q.eq("gameId", args.gameId).eq("status", "active")
+      )
+      .collect();
+
+    // Filter by type if specified
+    let filtered = args.type 
+      ? allContent.filter(c => c.type === args.type)
+      : allContent;
+    
+    // Filter by time validity
+    const now = Date.now();
+    filtered = filtered.filter(c => {
+      if (c.validFrom && c.validFrom > now) return false;
+      if (c.validUntil && c.validUntil < now) return false;
+      return true;
+    });
+
+    // Filter by allowed sets (default to Set 1 for backwards compatibility)
+    return filtered.filter(item => {
+      const set = item.questionSet ?? 1; // Default to Set 1
+      return allowedSets.includes(set);
+    });
+  },
+});
+
+// Get content with version, filtered by user's group
+export const getGroupFilteredContentWithVersion = query({
+  args: {
+    gameId: v.string(),
+    userGroup: v.union(v.literal("A"), v.literal("B"), v.literal("C")),
+    type: v.optional(v.union(
+      v.literal("gk_question"),
+      v.literal("hard_question"),
+      v.literal("word_set")
+    )),
+  },
+  handler: async (ctx, args) => {
+    const allowedSets = getSetsForGroup(args.userGroup);
+    
+    const allContent = await ctx.db
+      .query("gameContent")
+      .withIndex("by_game_status", (q) => 
+        q.eq("gameId", args.gameId).eq("status", "active")
+      )
+      .collect();
+
+    // Filter by type if specified
+    let filtered = args.type 
+      ? allContent.filter(c => c.type === args.type)
+      : allContent;
+    
+    // Filter by time validity
+    const now = Date.now();
+    filtered = filtered.filter(c => {
+      if (c.validFrom && c.validFrom > now) return false;
+      if (c.validUntil && c.validUntil < now) return false;
+      return true;
+    });
+
+    // Filter by allowed sets (default to Set 1 for backwards compatibility)
+    const content = filtered.filter(item => {
+      const set = item.questionSet ?? 1;
+      return allowedSets.includes(set);
+    });
+
+    // Fetch version
+    const latestVersion = await ctx.db
+      .query("contentVersions")
+      .withIndex("by_game", (q) => q.eq("gameId", args.gameId))
+      .order("desc")
+      .first();
+
+    return {
+      content,
+      version: latestVersion?.version ?? 0,
+      checksum: latestVersion?.checksum ?? "",
+    };
+  },
+});
+
+// ============================================
 // ADMIN MUTATIONS
 // ============================================
 
@@ -458,6 +575,14 @@ export const addContent = mutation({
     validFrom: v.optional(v.number()),
     validUntil: v.optional(v.number()),
     priority: v.optional(v.number()),
+    // Question Set for level-based filtering (1-5)
+    questionSet: v.optional(v.union(
+      v.literal(1),
+      v.literal(2),
+      v.literal(3),
+      v.literal(4),
+      v.literal(5)
+    )),
   },
   handler: async (ctx, args) => {
     const adminId = await requireAdmin(ctx);
@@ -507,6 +632,7 @@ export const addContent = mutation({
       validFrom: args.validFrom,
       validUntil: args.validUntil,
       priority: args.priority ?? 0,
+      questionSet: args.questionSet ?? 1, // Default to Set 1
       createdBy: adminId,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -532,6 +658,13 @@ export const updateContent = mutation({
     validFrom: v.optional(v.number()),
     validUntil: v.optional(v.number()),
     priority: v.optional(v.number()),
+    questionSet: v.optional(v.union(
+      v.literal(1),
+      v.literal(2),
+      v.literal(3),
+      v.literal(4),
+      v.literal(5)
+    )),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
@@ -560,6 +693,7 @@ export const updateContent = mutation({
     if (args.validFrom !== undefined) updates.validFrom = args.validFrom;
     if (args.validUntil !== undefined) updates.validUntil = args.validUntil;
     if (args.priority !== undefined) updates.priority = args.priority;
+    if (args.questionSet !== undefined) updates.questionSet = args.questionSet;
 
     await ctx.db.patch(args.contentId, updates);
 

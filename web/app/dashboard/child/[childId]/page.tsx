@@ -1,13 +1,91 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
+import { useState } from "react";
 import { api } from "../../../../../convex/_generated/api";
 import { useParams, useRouter } from "next/navigation";
 import { Id } from "../../../../../convex/_generated/dataModel";
-import { ArrowLeft, Trophy, Flame, Target, BookOpen, Gamepad2, Search } from "lucide-react";
+import { ArrowLeft, Trophy, Flame, Target, BookOpen, Gamepad2, Search, GraduationCap } from "lucide-react";
 import { StatCard } from "../../../components/stats/StatCard";
 import { SimpleBarChart, SimplePieChart } from "../../../components/stats/Charts";
 import Link from "next/link";
+
+// Group options with descriptive labels
+const GROUP_OPTIONS = [
+  { id: "A" as const, label: "Class 1-4", desc: "Sets 1, 3, 5", color: "emerald" },
+  { id: "B" as const, label: "Class 5-8", desc: "Sets 1, 2, 3", color: "blue" },
+  { id: "C" as const, label: "Class 9-10", desc: "Sets 1, 2, 4", color: "purple" },
+];
+
+function GroupSelector({ 
+  childId, 
+  currentGroup, 
+  childName 
+}: { 
+  childId: Id<"children">; 
+  currentGroup: "A" | "B" | "C"; 
+  childName: string;
+}) {
+  const updateGroup = useMutation(api.parents.updateChildGroup);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState(currentGroup);
+
+  const handleGroupChange = async (group: "A" | "B" | "C") => {
+    if (group === selectedGroup) return;
+    setIsUpdating(true);
+    try {
+      await updateGroup({ childId, group });
+      setSelectedGroup(group);
+    } catch (error) {
+      console.error("Failed to update group:", error);
+    }
+    setIsUpdating(false);
+  };
+
+  return (
+    <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+      <div className="flex items-center gap-3 mb-4">
+        <GraduationCap className="text-indigo-600" size={24} />
+        <div>
+          <h3 className="font-bold text-lg text-slate-900">Learning Level</h3>
+          <p className="text-slate-500 text-sm">
+            Select {childName}'s class range to show appropriate questions
+          </p>
+        </div>
+      </div>
+      <div className="flex gap-3">
+        {GROUP_OPTIONS.map((group) => (
+          <button
+            key={group.id}
+            onClick={() => handleGroupChange(group.id)}
+            disabled={isUpdating}
+            className={`flex-1 p-4 rounded-xl border-2 transition-all ${
+              selectedGroup === group.id 
+                ? group.color === "emerald" 
+                  ? "border-emerald-500 bg-emerald-50"
+                  : group.color === "blue"
+                  ? "border-blue-500 bg-blue-50"
+                  : "border-purple-500 bg-purple-50"
+                : "border-slate-200 hover:border-slate-300"
+            } ${isUpdating ? "opacity-50" : ""}`}
+          >
+            <div className={`font-bold text-slate-900 ${
+              selectedGroup === group.id 
+                ? group.color === "emerald" ? "text-emerald-700" 
+                : group.color === "blue" ? "text-blue-700" 
+                : "text-purple-700"
+                : ""
+            }`}>
+              Group {group.id}
+            </div>
+            <div className="text-xs text-slate-500">{group.label}</div>
+            <div className="text-xs text-slate-400 mt-1">{group.desc}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function ChildStatsPage() {
   const params = useParams();
@@ -69,6 +147,9 @@ export default function ChildStatsPage() {
           </div>
         </div>
       </div>
+
+      {/* Learning Level Group Selector - always visible */}
+      <GroupSelector childId={childId} currentGroup={(child.group as "A" | "B" | "C") || "B"} childName={child.name} />
 
       {!detailedStats ? (
         <div className="bg-slate-50 rounded-3xl p-12 text-center border-2 border-dashed border-slate-200">

@@ -43,6 +43,16 @@ function EnglishInsaneContent() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(action === "add");
   const [searchQuery, setSearchQuery] = useState("");
   const [difficultyFilter, setDifficultyFilter] = useState<"all" | "easy" | "medium" | "hard">("all");
+  const [setFilter, setSetFilter] = useState<"all" | 1 | 2 | 3 | 4 | 5>("all");
+
+  // Set options with descriptive labels
+  const SET_OPTIONS = [
+    { value: 1, label: "Set 1 (EasyC, MediumB, HardA)" },
+    { value: 2, label: "Set 2 (MediumC, HardB)" },
+    { value: 3, label: "Set 3 (EasyB, MediumA)" },
+    { value: 4, label: "Set 4 (HardC)" },
+    { value: 5, label: "Set 5 (EasyA)" },
+  ];
 
   // Form state
   const [question, setQuestion] = useState("");
@@ -51,6 +61,7 @@ function EnglishInsaneContent() {
   const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">("medium");
   const [category, setCategory] = useState("grammar");
   const [explanation, setExplanation] = useState("");
+  const [questionSet, setQuestionSet] = useState<1 | 2 | 3 | 4 | 5>(1);
 
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -61,7 +72,8 @@ function EnglishInsaneContent() {
       data.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
       data.options.some((o) => o.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesDifficulty = difficultyFilter === "all" || data.difficulty === difficultyFilter;
-    return matchesSearch && matchesDifficulty && item.status !== "archived";
+    const matchesSet = setFilter === "all" || (item.questionSet ?? 1) === setFilter;
+    return matchesSearch && matchesDifficulty && matchesSet && item.status !== "archived";
   });
 
   const handleAdd = async () => {
@@ -102,6 +114,7 @@ function EnglishInsaneContent() {
           explanation: explanation.trim(),
         },
         status: "active",
+        questionSet,
       });
       // Reset form
       setQuestion("");
@@ -110,6 +123,7 @@ function EnglishInsaneContent() {
       setDifficulty("medium");
       setCategory("grammar");
       setExplanation("");
+      setQuestionSet(1);
       setIsAddModalOpen(false);
     } catch (err) {
       setError("Failed to add question");
@@ -189,6 +203,17 @@ function EnglishInsaneContent() {
             </button>
           ))}
         </div>
+
+        <select
+          value={setFilter}
+          onChange={(e) => setSetFilter(e.target.value === "all" ? "all" : Number(e.target.value) as 1 | 2 | 3 | 4 | 5)}
+          className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+        >
+          <option value="all">All Sets</option>
+          {SET_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
       </div>
 
       {/* Content Table */}
@@ -204,6 +229,9 @@ function EnglishInsaneContent() {
               </th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
                 Difficulty
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
+                Set
               </th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
                 Answer
@@ -237,6 +265,11 @@ function EnglishInsaneContent() {
                       }`}
                     >
                       {data.difficulty}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
+                      Set {item.questionSet ?? 1}
                     </span>
                   </td>
                   <td className="px-6 py-4">
@@ -380,6 +413,21 @@ function EnglishInsaneContent() {
                   rows={2}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Question Set
+                </label>
+                <select
+                  value={questionSet}
+                  onChange={(e) => setQuestionSet(Number(e.target.value) as 1 | 2 | 3 | 4 | 5)}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  {SET_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
