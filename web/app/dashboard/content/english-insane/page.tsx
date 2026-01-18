@@ -12,6 +12,7 @@ import {
   Archive,
   X,
   Brain,
+  Pencil,
 } from "lucide-react";
 import type { Id } from "@convex/_generated/dataModel";
 
@@ -38,9 +39,12 @@ function EnglishInsaneContent() {
 
   const content = useQuery(api.content.getAllContent, { gameId: "english-insane" });
   const addContent = useMutation(api.content.addContent);
+  const updateContent = useMutation(api.content.updateContent);
   const archiveContent = useMutation(api.content.archiveContent);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(action === "add");
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<Id<"gameContent"> | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [difficultyFilter, setDifficultyFilter] = useState<"all" | "easy" | "medium" | "hard">("all");
   const [setFilter, setSetFilter] = useState<"all" | 1 | 2 | 3 | 4 | 5>("all");
@@ -135,6 +139,74 @@ function EnglishInsaneContent() {
     if (confirm("Archive this question?")) {
       await archiveContent({ contentId: id });
     }
+  };
+
+  const openEditModal = (item: typeof content extends (infer T)[] | undefined ? T : never) => {
+    if (!item) return;
+    const data = item.data as GKQuestion;
+    setEditingId(item._id);
+    setQuestion(data.question);
+    setOptions([...data.options]);
+    setCorrectIndex(data.correctIndex);
+    setDifficulty(data.difficulty);
+    setCategory(data.category);
+    setExplanation(data.explanation);
+    setQuestionSet((item.questionSet ?? 1) as 1 | 2 | 3 | 4 | 5);
+    setIsEditModalOpen(true);
+  };
+
+  const handleEdit = async () => {
+    if (!editingId) return;
+    setError("");
+
+    if (!question.trim()) {
+      setError("Question is required");
+      return;
+    }
+
+    const validOptions = options.filter((o) => o.trim());
+    if (validOptions.length !== 4) {
+      setError("Exactly 4 options are required");
+      return;
+    }
+
+    if (!explanation.trim()) {
+      setError("Explanation is required");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await updateContent({
+        contentId: editingId,
+        data: {
+          question: question.trim(),
+          options: options.map((o) => o.trim()),
+          correctIndex,
+          difficulty,
+          category,
+          explanation: explanation.trim(),
+        },
+        questionSet,
+      });
+      closeEditModal();
+    } catch (err) {
+      setError("Failed to update question");
+    }
+    setIsSubmitting(false);
+  };
+
+  const closeEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditingId(null);
+    setQuestion("");
+    setOptions(["", "", "", ""]);
+    setCorrectIndex(0);
+    setDifficulty("medium");
+    setCategory("grammar");
+    setExplanation("");
+    setQuestionSet(1);
+    setError("");
   };
 
   const easyCount = content?.filter((c) => (c.data as GKQuestion).difficulty === "easy").length ?? 0;
@@ -269,7 +341,7 @@ function EnglishInsaneContent() {
                   </td>
                   <td className="px-6 py-4">
                     <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
-                      Set {item.questionSet ?? 1}
+                      {SET_OPTIONS.find(s => s.value === (item.questionSet ?? 1))?.label ?? 'Set 1'}
                     </span>
                   </td>
                   <td className="px-6 py-4">
@@ -278,12 +350,22 @@ function EnglishInsaneContent() {
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <button
-                      onClick={() => handleArchive(item._id)}
-                      className="p-1.5 hover:bg-red-100 rounded text-red-600 transition-colors"
-                    >
-                      <Archive className="w-4 h-4" />
-                    </button>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => openEditModal(item)}
+                        className="p-1.5 hover:bg-blue-100 rounded text-blue-600 transition-colors"
+                        title="Edit"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleArchive(item._id)}
+                        className="p-1.5 hover:bg-red-100 rounded text-red-600 transition-colors"
+                        title="Archive"
+                      >
+                        <Archive className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );
@@ -444,6 +526,154 @@ function EnglishInsaneContent() {
                 className="flex-1 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
               >
                 {isSubmitting ? "Adding..." : "Add Question"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b border-slate-200">
+              <h2 className="text-lg font-semibold text-slate-900">
+                Edit Question
+              </h2>
+              <button
+                onClick={closeEditModal}
+                className="p-1 hover:bg-slate-100 rounded"
+              >
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {error && (
+                <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm">
+                  {error}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Question
+                </label>
+                <textarea
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  placeholder="Enter your question..."
+                  rows={3}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Options (select correct answer)
+                </label>
+                <div className="space-y-2">
+                  {options.map((opt, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="editCorrectAnswer"
+                        checked={correctIndex === idx}
+                        onChange={() => setCorrectIndex(idx)}
+                        className="text-purple-600"
+                      />
+                      <input
+                        type="text"
+                        value={opt}
+                        onChange={(e) => {
+                          const newOptions = [...options];
+                          newOptions[idx] = e.target.value;
+                          setOptions(newOptions);
+                        }}
+                        placeholder={`Option ${idx + 1}`}
+                        className="flex-1 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Difficulty
+                  </label>
+                  <select
+                    value={difficulty}
+                    onChange={(e) => setDifficulty(e.target.value as any)}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="easy">Easy</option>
+                    <option value="medium">Medium</option>
+                    <option value="hard">Hard</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Category
+                  </label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    {categories.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Explanation
+                </label>
+                <textarea
+                  value={explanation}
+                  onChange={(e) => setExplanation(e.target.value)}
+                  placeholder="Why is this the correct answer?"
+                  rows={2}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Question Set
+                </label>
+                <select
+                  value={questionSet}
+                  onChange={(e) => setQuestionSet(Number(e.target.value) as 1 | 2 | 3 | 4 | 5)}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  {SET_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex gap-3 p-4 border-t border-slate-200">
+              <button
+                onClick={closeEditModal}
+                className="flex-1 py-2 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEdit}
+                disabled={isSubmitting}
+                className="flex-1 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
+              >
+                {isSubmitting ? "Saving..." : "Save Changes"}
               </button>
             </div>
           </div>

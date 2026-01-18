@@ -12,6 +12,7 @@ import {
   Archive,
   X,
   Puzzle,
+  Pencil,
 } from "lucide-react";
 import type { Id } from "@convex/_generated/dataModel";
 
@@ -42,9 +43,13 @@ function WordFinderContent() {
 
   const content = useQuery(api.content.getAllContent, { gameId: "word-finder" });
   const addContent = useMutation(api.content.addContent);
+  const updateContent = useMutation(api.content.updateContent);
   const archiveContent = useMutation(api.content.archiveContent);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(action === "add");
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<Id<"gameContent"> | null>(null);
+  const [editingType, setEditingType] = useState<ContentType>("word_set");
   const [contentType, setContentType] = useState<ContentType>("word_set");
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "word_set" | "hard_question">("all");
@@ -184,6 +189,99 @@ function WordFinderContent() {
     }
   };
 
+  // Edit word set
+  const openEditWordSet = (item: any) => {
+    const data = item.data as WordSet;
+    setEditingId(item._id);
+    setEditingType("word_set");
+    setTheme(data.theme);
+    setWords([...data.words]);
+    setQuestionSet((item.questionSet ?? 1) as 1 | 2 | 3 | 4 | 5);
+    setIsEditModalOpen(true);
+  };
+
+  // Edit hard question
+  const openEditQuestion = (item: any) => {
+    const data = item.data as HardQuestion;
+    setEditingId(item._id);
+    setEditingType("hard_question");
+    setQuestion(data.question);
+    setAnswer(data.answer);
+    setHint(data.hint);
+    setQuestionSet((item.questionSet ?? 1) as 1 | 2 | 3 | 4 | 5);
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditWordSet = async () => {
+    if (!editingId) return;
+    setError("");
+
+    if (!theme.trim()) {
+      setError("Theme is required");
+      return;
+    }
+    const validWords = words.filter((w) => w.trim());
+    if (validWords.length !== 5) {
+      setError("Exactly 5 words are required");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await updateContent({
+        contentId: editingId,
+        data: {
+          theme: theme.trim(),
+          words: validWords.map((w) => w.toUpperCase()),
+        },
+        questionSet,
+      });
+      closeEditModal();
+    } catch (err) {
+      setError("Failed to update word set");
+    }
+    setIsSubmitting(false);
+  };
+
+  const handleEditQuestion = async () => {
+    if (!editingId) return;
+    setError("");
+
+    if (!question.trim() || !answer.trim() || !hint.trim()) {
+      setError("All fields are required");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await updateContent({
+        contentId: editingId,
+        data: {
+          question: question.trim(),
+          answer: answer.toUpperCase().trim(),
+          hint: hint.trim(),
+        },
+        questionSet,
+      });
+      closeEditModal();
+    } catch (err) {
+      setError("Failed to update question");
+    }
+    setIsSubmitting(false);
+  };
+
+  const closeEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditingId(null);
+    setTheme("");
+    setWords(["", "", "", "", ""]);
+    setQuestion("");
+    setAnswer("");
+    setHint("");
+    setQuestionSet(1);
+    setError("");
+  };
+
   const wordSetCount = content?.filter((c: { type: string }) => c.type === "word_set").length ?? 0;
   const questionCount = content?.filter((c: { type: string }) => c.type === "hard_question").length ?? 0;
 
@@ -303,7 +401,7 @@ function WordFinderContent() {
                     </td>
                     <td className="px-6 py-4">
                       <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
-                        Set {item.questionSet ?? 1}
+                        {SET_OPTIONS.find(s => s.value === (item.questionSet ?? 1))?.label ?? 'Set 1'}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -318,12 +416,22 @@ function WordFinderContent() {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <button
-                        onClick={() => handleArchive(item._id)}
-                        className="p-1.5 hover:bg-red-100 rounded text-red-600 transition-colors"
-                      >
-                        <Archive className="w-4 h-4" />
-                      </button>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => openEditWordSet(item)}
+                          className="p-1.5 hover:bg-blue-100 rounded text-blue-600 transition-colors"
+                          title="Edit"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleArchive(item._id)}
+                          className="p-1.5 hover:bg-red-100 rounded text-red-600 transition-colors"
+                          title="Archive"
+                        >
+                          <Archive className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -348,7 +456,7 @@ function WordFinderContent() {
                     </td>
                     <td className="px-6 py-4">
                       <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
-                        Set {item.questionSet ?? 1}
+                        {SET_OPTIONS.find(s => s.value === (item.questionSet ?? 1))?.label ?? 'Set 1'}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -363,12 +471,22 @@ function WordFinderContent() {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <button
-                        onClick={() => handleArchive(item._id)}
-                        className="p-1.5 hover:bg-red-100 rounded text-red-600 transition-colors"
-                      >
-                        <Archive className="w-4 h-4" />
-                      </button>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => openEditQuestion(item)}
+                          className="p-1.5 hover:bg-blue-100 rounded text-blue-600 transition-colors"
+                          title="Edit"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleArchive(item._id)}
+                          className="p-1.5 hover:bg-red-100 rounded text-red-600 transition-colors"
+                          title="Archive"
+                        >
+                          <Archive className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -542,6 +660,146 @@ function WordFinderContent() {
                 className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
               >
                 {isSubmitting ? "Adding..." : "Add"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b border-slate-200">
+              <h2 className="text-lg font-semibold text-slate-900">
+                Edit {editingType === "word_set" ? "Word Set" : "Hard Question"}
+              </h2>
+              <button
+                onClick={closeEditModal}
+                className="p-1 hover:bg-slate-100 rounded"
+              >
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {error && (
+                <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm">
+                  {error}
+                </div>
+              )}
+
+              {editingType === "word_set" ? (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Theme
+                    </label>
+                    <input
+                      type="text"
+                      value={theme}
+                      onChange={(e) => setTheme(e.target.value)}
+                      placeholder="e.g., Colors, Animals, Fruits"
+                      className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      5 Words (5 letters each)
+                    </label>
+                    <div className="space-y-2">
+                      {words.map((word, idx) => (
+                        <input
+                          key={idx}
+                          type="text"
+                          value={word}
+                          onChange={(e) => {
+                            const newWords = [...words];
+                            newWords[idx] = e.target.value.toUpperCase().slice(0, 5);
+                            setWords(newWords);
+                          }}
+                          placeholder={`Word ${idx + 1}`}
+                          maxLength={5}
+                          className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono uppercase"
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Question
+                    </label>
+                    <textarea
+                      value={question}
+                      onChange={(e) => setQuestion(e.target.value)}
+                      placeholder="e.g., What word means 'very happy'?"
+                      rows={2}
+                      className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Answer (5 letters)
+                    </label>
+                    <input
+                      type="text"
+                      value={answer}
+                      onChange={(e) => setAnswer(e.target.value.toUpperCase().slice(0, 5))}
+                      placeholder="HAPPY"
+                      maxLength={5}
+                      className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono uppercase"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Hint
+                    </label>
+                    <input
+                      type="text"
+                      value={hint}
+                      onChange={(e) => setHint(e.target.value)}
+                      placeholder="A clue to help the player"
+                      className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Question Set
+                </label>
+                <select
+                  value={questionSet}
+                  onChange={(e) => setQuestionSet(Number(e.target.value) as 1 | 2 | 3 | 4 | 5)}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {SET_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex gap-3 p-4 border-t border-slate-200">
+              <button
+                onClick={closeEditModal}
+                className="flex-1 py-2 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={editingType === "word_set" ? handleEditWordSet : handleEditQuestion}
+                disabled={isSubmitting}
+                className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+              >
+                {isSubmitting ? "Saving..." : "Save Changes"}
               </button>
             </div>
           </div>
