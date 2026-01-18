@@ -1,9 +1,9 @@
 // GK Practice Mode - Infinite questions, no XP
 // Stats are synced via Convex (useGameStatsActions)
-import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, AppState } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSafeNavigation } from '../../../utils/useSafeNavigation';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -50,6 +50,9 @@ export default function PracticeScreen() {
   const [sessionTotal, setSessionTotal] = useState(0);
   const [sessionCorrect, setSessionCorrect] = useState(0);
 
+  // Track what we've already synced to avoid duplicate calls
+  const lastSyncedRef = useRef({ total: 0, correct: 0 });
+
   // Lock base stats when user starts interacting to prevent double counting
   // (We don't want to add session stats to already-updated live stats)
   const [baseStats, setBaseStats] = useState({ 
@@ -79,6 +82,60 @@ export default function PracticeScreen() {
     };
   }, [allQuestions]);
 
+  // OPTIMIZATION: Sync stats to Convex only when exiting or every 1 minute
+  // This replaces per-answer syncing, reducing calls from ~600/hr to ~60/hr max
+  const syncStatsToConvex = useCallback(() => {
+    const unsynced = {
+      total: sessionTotal - lastSyncedRef.current.total,
+      correct: sessionCorrect - lastSyncedRef.current.correct,
+    };
+    
+    if (unsynced.total > 0) {
+      updateGKStats({
+        practiceTotal: unsynced.total,
+        practiceCorrect: unsynced.correct,
+      });
+      lastSyncedRef.current = { total: sessionTotal, correct: sessionCorrect };
+    }
+  }, [sessionTotal, sessionCorrect, updateGKStats]);
+
+  // Sync on component unmount (catches ALL exit methods including Android back)
+  useEffect(() => {
+    return () => {
+      // Use refs to get latest values in cleanup
+      const unsynced = {
+        total: sessionTotal - lastSyncedRef.current.total,
+        correct: sessionCorrect - lastSyncedRef.current.correct,
+      };
+      if (unsynced.total > 0) {
+        updateGKStats({
+          practiceTotal: unsynced.total,
+          practiceCorrect: unsynced.correct,
+        });
+      }
+    };
+  }, [sessionTotal, sessionCorrect, updateGKStats]);
+
+  // Background safety sync every 1 minute (crash protection)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      syncStatsToConvex();
+    }, 60000); // 1 minute
+
+    return () => clearInterval(interval);
+  }, [syncStatsToConvex]);
+
+  // Sync immediately when app goes to background (home button pressed)
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        syncStatsToConvex();
+      }
+    });
+
+    return () => subscription.remove();
+  }, [syncStatsToConvex]);
+
   const currentQuestion = questions[currentQuestionIndex];
 
   const handleAnswer = async (index: number) => {
@@ -93,16 +150,11 @@ export default function PracticeScreen() {
     setShowResult(true);
     
     // Update session stats for immediate UI feedback
+    // OPTIMIZATION: Stats are synced to Convex on exit, not per-answer
     setSessionTotal(prev => prev + 1);
     if (result.correct) {
       setSessionCorrect(prev => prev + 1);
     }
-    
-    // Sync to Convex (fire and forget)
-    updateGKStats({
-      practiceTotal: 1,
-      practiceCorrect: result.correct ? 1 : 0,
-    });
     
     if (result.correct) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

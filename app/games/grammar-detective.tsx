@@ -7,10 +7,11 @@ import {
   Pressable,
   ScrollView,
   ActivityIndicator,
+  AppState,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MotiView } from "moti";
-import { useEffect, useMemo, useCallback } from "react";
+import { useEffect, useMemo, useCallback, useRef } from "react";
 import { useSafeNavigation } from "../../utils/useSafeNavigation";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -72,6 +73,9 @@ export default function GrammarDetectiveScreen() {
   const resetGame = useGrammarDetectiveStore((s) => s.resetGame);
   const syncFromConvex = useGrammarDetectiveStore((s) => s.syncFromConvex);
 
+  // Track what we've already synced to avoid duplicate calls
+  const lastSyncedRef = useRef({ answered: 0, correct: 0, xp: 0 });
+
   // Memoize content IDs for dependency tracking
   const contentIds = useMemo(
     () => allQuestions?.map((q: GDQuestion) => q.id).join(",") ?? "",
@@ -130,6 +134,80 @@ export default function GrammarDetectiveScreen() {
     };
   }, [allQuestions, startMusic, stopMusic]);
 
+  // OPTIMIZATION: Sync stats to Convex only when exiting or every 1 minute
+  // This replaces per-answer syncing, reducing calls from ~800/hr to ~60/hr max
+  const syncStatsToConvex = useCallback(async () => {
+    if (!token) return;
+    
+    const unsynced = {
+      answered: sessionAnswered - lastSyncedRef.current.answered,
+      correct: sessionCorrect - lastSyncedRef.current.correct,
+      xp: sessionXP - lastSyncedRef.current.xp,
+    };
+    
+    if (unsynced.answered > 0) {
+      try {
+        await updateStats({
+          token,
+          questionsAnswered: unsynced.answered,
+          correctAnswers: unsynced.correct,
+          xpEarned: unsynced.xp,
+          currentQuestionIndex: currentQuestionIndex,
+        });
+        if (unsynced.xp > 0) {
+          await addXP(unsynced.xp);
+        }
+        lastSyncedRef.current = { answered: sessionAnswered, correct: sessionCorrect, xp: sessionXP };
+      } catch (error) {
+        if (__DEV__) console.error("[GrammarDetective] Sync error:", error);
+      }
+    }
+  }, [token, sessionAnswered, sessionCorrect, sessionXP, currentQuestionIndex, updateStats, addXP]);
+
+  // Sync on component unmount (catches ALL exit methods including Android back)
+  useEffect(() => {
+    return () => {
+      // Fire sync on unmount - use the latest values via refs
+      const unsynced = {
+        answered: sessionAnswered - lastSyncedRef.current.answered,
+        correct: sessionCorrect - lastSyncedRef.current.correct,
+        xp: sessionXP - lastSyncedRef.current.xp,
+      };
+      if (unsynced.answered > 0 && token) {
+        updateStats({
+          token,
+          questionsAnswered: unsynced.answered,
+          correctAnswers: unsynced.correct,
+          xpEarned: unsynced.xp,
+          currentQuestionIndex: currentQuestionIndex,
+        });
+        if (unsynced.xp > 0) {
+          addXP(unsynced.xp);
+        }
+      }
+    };
+  }, [token, sessionAnswered, sessionCorrect, sessionXP, currentQuestionIndex, updateStats, addXP]);
+
+  // Background safety sync every 1 minute (crash protection)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      syncStatsToConvex();
+    }, 60000); // 1 minute
+
+    return () => clearInterval(interval);
+  }, [syncStatsToConvex]);
+
+  // Sync immediately when app goes to background (home button pressed)
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        syncStatsToConvex();
+      }
+    });
+
+    return () => subscription.remove();
+  }, [syncStatsToConvex]);
+
   const handleWordPress = useCallback(
     (index: number) => {
       if (gameState !== "playing") return;
@@ -146,29 +224,17 @@ export default function GrammarDetectiveScreen() {
       triggerHapticOnly("medium");
       const result = submitAnswer(currentQuestion);
 
+      // OPTIMIZATION: Stats are synced to Convex on exit, not per-answer
+      // Local store already tracks sessionAnswered, sessionCorrect, sessionXP
       if (result.correct) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         playCorrect();
-        if (token) {
-          await addXP(XP_PER_CORRECT);
-        }
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         playWrong();
       }
-
-      if (token) {
-        await updateStats({
-          token,
-          questionsAnswered: 1,
-          correctAnswers: result.correct ? 1 : 0,
-          xpEarned: result.correct ? XP_PER_CORRECT : 0,
-          currentQuestionIndex: currentQuestionIndex + 1,
-        });
-      }
     } catch (error) {
       if (__DEV__) console.error("[GrammarDetective] Submit error:", error);
-      // Silently fail - stats will sync on next successful operation
     }
   }, [
     currentQuestion,
@@ -177,10 +243,6 @@ export default function GrammarDetectiveScreen() {
     submitAnswer,
     playCorrect,
     playWrong,
-    token,
-    addXP,
-    updateStats,
-    currentQuestionIndex,
   ]);
 
   const handleNext = useCallback(() => {

@@ -71,16 +71,11 @@ interface ContentResult<T> {
 
 /**
  * Hook for Wordle content
- * OPTIMIZED: Uses single combined query instead of 2 separate queries
+ * OPTIMIZED: Uses specific daily word query to ensure rotation
  */
 export function useWordleContent(): ContentResult<typeof FALLBACK_WORDLE> {
-  const { token } = useChildAuth();
-  
-  // OPTIMIZATION: Single query for content + version (was 2 separate queries)
-  const serverData = useQuery(
-    api.content.getGameContentWithVersion,
-    token ? { gameId: 'wordle', type: 'wordle_word' } : 'skip'
-  );
+  // Use specific query for today's word instead of fetching all words
+  const serverData = useQuery(api.content.getTodaysWordleWord);
 
   const [cachedData, setCachedData] = useState<typeof FALLBACK_WORDLE | null>(null);
   const [status, setStatus] = useState<ContentStatus>('loading');
@@ -97,24 +92,31 @@ export function useWordleContent(): ContentResult<typeof FALLBACK_WORDLE> {
 
   // Update cache when server content arrives
   useEffect(() => {
-    if (serverData && serverData.content) {
-      const transformedContent = serverData.content.map((c: any) => c.data) as typeof FALLBACK_WORDLE;
+    if (serverData) {
+      // Wrap single word result in array to match expected interface
+      const transformedContent = [serverData] as typeof FALLBACK_WORDLE;
       setCachedData(transformedContent);
       setStatus('fresh');
+      
+      // Cache with a generated daily version ID (using date string)
+      // This is a bit of a hack since this query doesn't return a version, 
+      // but effective for daily rotation
+      const todayVersion = new Date().toISOString().split('T')[0]; 
+      
       setCachedContent(
         'wordle',
         transformedContent,
-        serverData.version,
-        serverData.checksum
+        Date.now(), // Use timestamp as version for cache
+        todayVersion // Use date string as checksum
       );
     }
   }, [serverData]);
 
   const content = useMemo(() => {
-    if (cachedData && cachedData.length > 0) return cachedData;
-    if (serverData?.content && serverData.content.length > 0) {
-      return serverData.content.map((c: any) => c.data) as typeof FALLBACK_WORDLE;
+    if (serverData) {
+      return [serverData] as typeof FALLBACK_WORDLE;
     }
+    if (cachedData && cachedData.length > 0) return cachedData;
     return FALLBACK_WORDLE;
   }, [cachedData, serverData]);
 
@@ -126,7 +128,7 @@ export function useWordleContent(): ContentResult<typeof FALLBACK_WORDLE> {
   return {
     content,
     status: content === FALLBACK_WORDLE ? 'fallback' : status,
-    version: serverData?.version ?? 0,
+    version: 1, // Simplified versioning for daily word
     isStale: status === 'cached',
     refresh,
   };

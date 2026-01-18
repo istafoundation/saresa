@@ -50,6 +50,7 @@ export interface WordleState {
   reset: () => void;
   useHint: () => void;
   setHintUsedFromServer: (used: boolean) => void;
+  setCurrentGuess: (guess: string) => void;
 }
 
 const WORD_LENGTH = 5;
@@ -244,6 +245,13 @@ export const useWordleStore = create<WordleState>()(
           set({ hintUsed: true, hintRevealed: true });
         }
       },
+      
+      setCurrentGuess: (guess: string) => {
+        const { gameState } = get();
+        if (gameState !== 'playing') return;
+        // Direct set for native keyboard input (no loops, single update)
+        set({ currentGuess: guess.toUpperCase().slice(0, 5) });
+      },
     }),
     {
       name: 'wordle-storage',
@@ -252,7 +260,7 @@ export const useWordleStore = create<WordleState>()(
       partialize: (state) => ({
         targetWord: state.targetWord,
         targetHint: state.targetHint,
-        currentGuess: state.currentGuess,
+
         guesses: state.guesses,
         gameState: state.gameState,
         letterStates: state.letterStates,

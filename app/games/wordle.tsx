@@ -1,10 +1,10 @@
 // Wordle Game Screen - Updated with How-To-Play, Share, and Hints
 // Stats are read from Convex via useUserStore (synced by useConvexSync)
 // OPTIMIZED: Uses synced gameLimits instead of separate Convex queries
-import { View, Text, StyleSheet, Pressable, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useSafeNavigation } from '../../utils/useSafeNavigation';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
@@ -26,18 +26,7 @@ import { useWordleContent } from '../../utils/content-hooks';
 import { useTapFeedback } from '../../utils/useTapFeedback';
 import { useGameAudio } from '../../utils/sound-manager';
 
-const KEYBOARD_ROWS = [
-  ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
-  ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
-  ['ENTER', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '⌫'],
-];
-
-const LETTER_COLORS: Record<LetterState, string> = {
-  correct: COLORS.wordleCorrect,
-  present: COLORS.wordlePresent,
-  absent: COLORS.wordleAbsent,
-  unused: COLORS.surface,
-};
+// Native keyboard is used instead of custom keyboard
 
 // Use centralized rewards
 const { XP_FULL, XP_WITH_HINT, SHARDS_FULL, SHARDS_WITH_HINT } = WORDLE_REWARDS;
@@ -63,6 +52,7 @@ export default function WordleScreen() {
     initGame,
     useHint,
     setHintUsedFromServer,
+    setCurrentGuess,
   } = useWordleStore();
   
   // Get stats from Convex-synced store (for initial how-to-play check)
@@ -98,6 +88,10 @@ export default function WordleScreen() {
   } | null>(null);
   const shakeX = useSharedValue(0);
   const { triggerTap } = useTapFeedback();
+  
+  // Native keyboard support
+  const inputRef = useRef<TextInput>(null);
+  const [invalidWordError, setInvalidWordError] = useState(false);
 
   // Initialize game when we have today's word
   useEffect(() => {
@@ -141,36 +135,63 @@ export default function WordleScreen() {
     }
   }, [didUseHintTodayFromLimits]);
 
-  const handleKeyPress = (key: string) => {
+  // Handle text input from native keyboard
+  const handleTextChange = (text: string) => {
     if (gameState !== 'playing') return;
     
-    if (key === '⌫') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      playKey();
-      removeLetter();
-    } else if (key === 'ENTER') {
-      handleSubmit();
-    } else {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      playKey();
-      addLetter(key);
+    // Filter to only allow letters
+    const filtered = text.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 5);
+    
+    // Clear any previous error when user starts typing again
+    if (invalidWordError && filtered.length < 5) {
+      setInvalidWordError(false);
+    }
+    
+    const prevLen = currentGuess.length;
+    const newLen = filtered.length;
+    
+    // Only update if actually changed
+    if (filtered !== currentGuess) {
+      // Single haptic feedback for the change
+      if (newLen !== prevLen) {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        playKey();
+      }
+      
+      // Direct update - single store call, no loops
+      setCurrentGuess(filtered);
+      
+      // Auto-submit when 5 letters are typed
+      if (filtered.length === 5 && prevLen < 5) {
+        // Small delay to ensure state is updated
+        setTimeout(() => {
+          handleSubmit();
+        }, 50);
+      }
     }
   };
+  
+
 
   const handleUseHint = () => {
     if (hintUsed || hintRevealed) return;
+    Keyboard.dismiss();
     setShowHintConfirm(true);
   };
 
   const confirmUseHint = async () => {
     setShowHintConfirm(false);
+    Keyboard.dismiss(); // Ensure keyboard stays closed during hint reveal
     useHint(); // Update local state
     await markWordleHintUsed(); // Persist to Convex
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   const handleSubmit = async () => {
-    if (currentGuess.length !== 5) {
+    // Get fresh state for auto-submit
+    const freshGuess = useWordleStore.getState().currentGuess;
+    
+    if (freshGuess.length !== 5) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       playWrong();
       shakeX.value = withSequence(
@@ -183,10 +204,10 @@ export default function WordleScreen() {
       return;
     }
 
-    if (!isValidWord(currentGuess)) {
+    if (!isValidWord(freshGuess)) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       playWrong();
-      Alert.alert('Not in word list', 'Try another word');
+      setInvalidWordError(true);
       shakeX.value = withSequence(
         withTiming(-10, { duration: 50 }),
         withTiming(10, { duration: 100 }),
@@ -194,6 +215,12 @@ export default function WordleScreen() {
         withTiming(10, { duration: 100 }),
         withTiming(0, { duration: 50 })
       );
+      // Clear the invalid word and let user try again
+      for (let i = 0; i < 5; i++) {
+        removeLetter();
+      }
+      // Auto-dismiss error after 2 seconds
+      setTimeout(() => setInvalidWordError(false), 2000);
       return;
     }
 
@@ -225,6 +252,7 @@ export default function WordleScreen() {
         // Play win sound when showing result (delayed for animation)
         setTimeout(() => {
           playWin();
+          Keyboard.dismiss();
           setShowResult(true);
         }, 500);
       } else if (result.lost) {
@@ -243,7 +271,10 @@ export default function WordleScreen() {
         if (statsResult.success && statsResult.stats) {
           setDisplayStats(statsResult.stats);
         }
-        setTimeout(() => setShowResult(true), 500);
+        setTimeout(() => {
+          Keyboard.dismiss();
+          setShowResult(true);
+        }, 500);
       }
     }
   };
@@ -363,77 +394,85 @@ export default function WordleScreen() {
         </MotiView>
       )}
 
-      {/* Grid */}
-      <Animated.View style={[styles.gridContainer, shakeStyle]}>
-        {[0, 1, 2, 3, 4, 5].map((rowIndex) => (
-          <MotiView
-            key={rowIndex}
-            from={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: 'spring', delay: rowIndex * 50 }}
-            style={styles.row}
-          >
-            {[0, 1, 2, 3, 4].map((colIndex) => {
-              const letter = getLetterValue(rowIndex, colIndex);
-              const bgColor = getLetterColor(rowIndex, colIndex);
-              const isCurrentRow = rowIndex === guesses.length;
-              const hasLetter = letter !== '';
-              
-              return (
-                <MotiView
-                  key={colIndex}
-                  animate={{
-                    scale: isCurrentRow && hasLetter ? [1, 1.1, 1] : 1,
-                    backgroundColor: bgColor,
-                  }}
-                  transition={{ 
-                    type: 'timing', 
-                    duration: 150,
-                  }}
-                  style={[
-                    styles.cell,
-                    hasLetter && styles.cellFilled,
-                    rowIndex < guesses.length && styles.cellRevealed,
-                  ]}
-                >
-                  <Text style={styles.cellText}>{letter}</Text>
-                </MotiView>
-              );
-            })}
-          </MotiView>
-        ))}
-      </Animated.View>
+      {/* Grid container with overlaid input */}
+      <View style={styles.gridWrapper}>
+        <Animated.View style={[styles.gridContainer, shakeStyle]}>
+          {[0, 1, 2, 3, 4, 5].map((rowIndex) => (
+            <MotiView
+              key={rowIndex}
+              from={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ type: 'spring', delay: rowIndex * 50 }}
+              style={styles.row}
+            >
+              {[0, 1, 2, 3, 4].map((colIndex) => {
+                const letter = getLetterValue(rowIndex, colIndex);
+                const bgColor = getLetterColor(rowIndex, colIndex);
+                const isCurrentRow = rowIndex === guesses.length;
+                const hasLetter = letter !== '';
+                
+                return (
+                  <MotiView
+                    key={colIndex}
+                    animate={{
+                      scale: isCurrentRow && hasLetter ? [1, 1.1, 1] : 1,
+                      backgroundColor: bgColor,
+                    }}
+                    transition={{ 
+                      type: 'timing', 
+                      duration: 150,
+                    }}
+                    style={[
+                      styles.cell,
+                      hasLetter && styles.cellFilled,
+                      rowIndex < guesses.length && styles.cellRevealed,
+                    ]}
+                  >
+                    <Text style={styles.cellText}>{letter}</Text>
+                  </MotiView>
+                );
+              })}
+            </MotiView>
+          ))}
+        </Animated.View>
 
-      {/* Keyboard */}
-      <View style={styles.keyboard}>
-        {KEYBOARD_ROWS.map((row, rowIndex) => (
-          <View key={rowIndex} style={styles.keyboardRow}>
-            {row.map((key) => {
-              const state = letterStates[key] || 'unused';
-              const isSpecial = key === 'ENTER' || key === '⌫';
-              
-              return (
-                <Pressable
-                  key={key}
-                  onPress={() => handleKeyPress(key)}
-                  style={[
-                    styles.key,
-                    isSpecial && styles.keyWide,
-                    { backgroundColor: LETTER_COLORS[state] },
-                  ]}
-                >
-                  <Text style={[
-                    styles.keyText,
-                    isSpecial && styles.keyTextSmall,
-                  ]}>
-                    {key}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        ))}
+        {/* Overlay TextInput - covers the grid to capture taps directly */}
+        <TextInput
+          ref={inputRef}
+          style={styles.hiddenInput}
+          value={currentGuess}
+          onChangeText={handleTextChange}
+          maxLength={5}
+          autoCapitalize="characters"
+          autoCorrect={false}
+          autoComplete="off"
+          keyboardType="default"
+          returnKeyType="done"
+          blurOnSubmit={false}
+          caretHidden={true}
+          autoFocus={gameState === 'playing'}
+        />
       </View>
+
+      {/* Invalid word error banner */}
+      {invalidWordError && (
+        <MotiView
+          from={{ opacity: 0, translateY: -10 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          exit={{ opacity: 0 }}
+          style={styles.errorBanner}
+        >
+          <Ionicons name="alert-circle" size={18} color={COLORS.error} />
+          <Text style={styles.errorText}>Not a valid word. Try again!</Text>
+        </MotiView>
+      )}
+
+      {/* Tap to type hint */}
+      {gameState === 'playing' && currentGuess.length === 0 && guesses.length < 6 && (
+        <Text style={styles.tapHint}>Tap the grid to type</Text>
+      )}
+
+
 
       {/* Result Modal */}
       {showResult && (
@@ -694,38 +733,42 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.text,
   },
-  keyboard: {
-    position: 'absolute',
-    bottom: 30,
-    left: 0,
-    right: 0,
-    paddingHorizontal: SPACING.sm,
-    gap: 6,
-  },
-  keyboardRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 5,
-  },
-  key: {
-    minWidth: 32,
-    height: 52,
-    borderRadius: BORDER_RADIUS.sm,
+  gridWrapper: {
+    position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 8,
   },
-  keyWide: {
-    minWidth: 58,
-    paddingHorizontal: 12,
+  // Hidden TextInput overlay that covers the grid
+  hiddenInput: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0,
+    // Ensure it sits on top to catch taps
+    zIndex: 10,
   },
-  keyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.text,
+  // Error banner for invalid words
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.error + '20',
+    marginHorizontal: SPACING.lg,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.md,
+    gap: SPACING.sm,
+    marginTop: SPACING.sm,
   },
-  keyTextSmall: {
-    fontSize: 12,
+  errorText: {
+    fontSize: 14,
+    color: COLORS.error,
+    fontWeight: '500',
+  },
+  // Tap hint for keyboard focus
+  tapHint: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    marginTop: SPACING.md,
   },
   resultOverlay: {
     ...StyleSheet.absoluteFillObject,
