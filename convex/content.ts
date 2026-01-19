@@ -31,7 +31,6 @@ export const gkQuestionContentValidator = v.object({
   question: v.string(),
   options: v.array(v.string()),
   correctIndex: v.number(),
-  difficulty: v.union(v.literal("easy"), v.literal("medium"), v.literal("hard")),
   category: v.string(),
   explanation: v.string(),
 });

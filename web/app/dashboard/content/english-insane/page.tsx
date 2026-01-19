@@ -20,7 +20,6 @@ interface GKQuestion {
   question: string;
   options: string[];
   correctIndex: number;
-  difficulty: "easy" | "medium" | "hard";
   category: string;
   explanation: string;
 }
@@ -46,7 +45,6 @@ function EnglishInsaneContent() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<Id<"gameContent"> | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [difficultyFilter, setDifficultyFilter] = useState<"all" | "easy" | "medium" | "hard">("all");
   const [setFilter, setSetFilter] = useState<"all" | 1 | 2 | 3 | 4 | 5>("all");
 
   // Set options with descriptive labels
@@ -62,7 +60,6 @@ function EnglishInsaneContent() {
   const [question, setQuestion] = useState("");
   const [options, setOptions] = useState(["", "", "", ""]);
   const [correctIndex, setCorrectIndex] = useState(0);
-  const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">("medium");
   const [category, setCategory] = useState("grammar");
   const [explanation, setExplanation] = useState("");
   const [questionSet, setQuestionSet] = useState<1 | 2 | 3 | 4 | 5>(1);
@@ -75,9 +72,8 @@ function EnglishInsaneContent() {
     const matchesSearch =
       data.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
       data.options.some((o) => o.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesDifficulty = difficultyFilter === "all" || data.difficulty === difficultyFilter;
     const matchesSet = setFilter === "all" || (item.questionSet ?? 1) === setFilter;
-    return matchesSearch && matchesDifficulty && matchesSet && item.status !== "archived";
+    return matchesSearch && matchesSet && item.status !== "archived";
   });
 
   const handleAdd = async () => {
@@ -113,7 +109,6 @@ function EnglishInsaneContent() {
           question: question.trim(),
           options: options.map((o) => o.trim()),
           correctIndex,
-          difficulty,
           category,
           explanation: explanation.trim(),
         },
@@ -124,7 +119,6 @@ function EnglishInsaneContent() {
       setQuestion("");
       setOptions(["", "", "", ""]);
       setCorrectIndex(0);
-      setDifficulty("medium");
       setCategory("grammar");
       setExplanation("");
       setQuestionSet(1);
@@ -148,7 +142,6 @@ function EnglishInsaneContent() {
     setQuestion(data.question);
     setOptions([...data.options]);
     setCorrectIndex(data.correctIndex);
-    setDifficulty(data.difficulty);
     setCategory(data.category);
     setExplanation(data.explanation);
     setQuestionSet((item.questionSet ?? 1) as 1 | 2 | 3 | 4 | 5);
@@ -183,7 +176,6 @@ function EnglishInsaneContent() {
           question: question.trim(),
           options: options.map((o) => o.trim()),
           correctIndex,
-          difficulty,
           category,
           explanation: explanation.trim(),
         },
@@ -202,16 +194,13 @@ function EnglishInsaneContent() {
     setQuestion("");
     setOptions(["", "", "", ""]);
     setCorrectIndex(0);
-    setDifficulty("medium");
     setCategory("grammar");
     setExplanation("");
     setQuestionSet(1);
     setError("");
   };
 
-  const easyCount = content?.filter((c) => (c.data as GKQuestion).difficulty === "easy").length ?? 0;
-  const mediumCount = content?.filter((c) => (c.data as GKQuestion).difficulty === "medium").length ?? 0;
-  const hardCount = content?.filter((c) => (c.data as GKQuestion).difficulty === "hard").length ?? 0;
+  const totalCount = content?.length ?? 0;
 
   const categories = ["grammar", "vocabulary", "idioms", "syntax"];
 
@@ -233,7 +222,7 @@ function EnglishInsaneContent() {
             <div>
               <h1 className="text-2xl font-bold text-slate-900">English Insane</h1>
               <p className="text-slate-600">
-                {easyCount} easy · {mediumCount} medium · {hardCount} hard
+                {totalCount} questions
               </p>
             </div>
           </div>
@@ -260,22 +249,6 @@ function EnglishInsaneContent() {
           />
         </div>
 
-        <div className="flex gap-2">
-          {(["all", "easy", "medium", "hard"] as const).map((diff) => (
-            <button
-              key={diff}
-              onClick={() => setDifficultyFilter(diff)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                difficultyFilter === diff
-                  ? "bg-purple-100 text-purple-700"
-                  : "text-slate-600 hover:bg-slate-100"
-              }`}
-            >
-              {diff.charAt(0).toUpperCase() + diff.slice(1)}
-            </button>
-          ))}
-        </div>
-
         <select
           value={setFilter}
           onChange={(e) => setSetFilter(e.target.value === "all" ? "all" : Number(e.target.value) as 1 | 2 | 3 | 4 | 5)}
@@ -300,9 +273,6 @@ function EnglishInsaneContent() {
                 Category
               </th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
-                Difficulty
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
                 Set
               </th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
@@ -324,19 +294,6 @@ function EnglishInsaneContent() {
                   <td className="px-6 py-4">
                     <span className="px-2 py-1 bg-slate-100 text-slate-700 rounded text-xs font-medium">
                       {data.category}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span
-                      className={`px-2 py-1 rounded text-xs font-medium ${
-                        data.difficulty === "easy"
-                          ? "bg-green-100 text-green-700"
-                          : data.difficulty === "hard"
-                          ? "bg-red-100 text-red-700"
-                          : "bg-amber-100 text-amber-700"
-                      }`}
-                    >
-                      {data.difficulty}
                     </span>
                   </td>
                   <td className="px-6 py-4">
@@ -450,38 +407,21 @@ function EnglishInsaneContent() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Difficulty
-                  </label>
-                  <select
-                    value={difficulty}
-                    onChange={(e) => setDifficulty(e.target.value as any)}
-                    className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  >
-                    <option value="easy">Easy</option>
-                    <option value="medium">Medium</option>
-                    <option value="hard">Hard</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Category
-                  </label>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  >
-                    {categories.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Category
+                </label>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  {categories.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -611,38 +551,21 @@ function EnglishInsaneContent() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Difficulty
-                  </label>
-                  <select
-                    value={difficulty}
-                    onChange={(e) => setDifficulty(e.target.value as any)}
-                    className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  >
-                    <option value="easy">Easy</option>
-                    <option value="medium">Medium</option>
-                    <option value="hard">Hard</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Category
-                  </label>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  >
-                    {categories.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Category
+                </label>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  {categories.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
