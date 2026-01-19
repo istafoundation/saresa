@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, Suspense, useRef } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import Link from "next/link";
@@ -14,6 +14,7 @@ import {
   Brain,
   Pencil,
   Download,
+  Upload,
 } from "lucide-react";
 import type { Id } from "@convex/_generated/dataModel";
 
@@ -67,6 +68,8 @@ function EnglishInsaneContent() {
 
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const filteredContent = content?.filter((item) => {
     const data = item.data as GKQuestion;
@@ -217,7 +220,7 @@ function EnglishInsaneContent() {
       return value;
     };
 
-    const headers = ['Question', 'Option 1', 'Option 2', 'Option 3', 'Option 4', 'Correct Answer', 'Category', 'Explanation', 'Question Set'];
+    const headers = ['Question', 'Option 1', 'Option 2', 'Option 3', 'Option 4', 'Correct Option', 'Category', 'Explanation', 'Question Set'];
     const rows = filteredContent.map((item) => {
       const data = item.data as GKQuestion;
       const setLabel = SET_OPTIONS.find(s => s.value === (item.questionSet ?? 1))?.label ?? 'Set 1';
@@ -227,7 +230,7 @@ function EnglishInsaneContent() {
         escapeCSV(data.options[1] ?? ''),
         escapeCSV(data.options[2] ?? ''),
         escapeCSV(data.options[3] ?? ''),
-        escapeCSV(data.options[data.correctIndex] ?? ''),
+        String(data.correctIndex + 1),
         escapeCSV(data.category),
         escapeCSV(data.explanation),
         escapeCSV(setLabel),
@@ -244,6 +247,163 @@ function EnglishInsaneContent() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  };
+
+  // CSV Upload Handler
+  const handleUploadCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploadStatus(null);
+    setIsSubmitting(true);
+
+    try {
+      const text = await file.text();
+      const rows = parseCSV(text);
+      
+      if (rows.length < 2) {
+        setUploadStatus({ success: 0, failed: 0, errors: ['CSV file is empty or has no data rows'] });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Skip header row
+      const dataRows = rows.slice(1);
+      let success = 0;
+      let failed = 0;
+      const errors: string[] = [];
+
+      for (let i = 0; i < dataRows.length; i++) {
+        const row = dataRows[i];
+        const rowNum = i + 2; // Account for header and 0-indexing
+
+        // Validate row has enough columns
+        if (row.length < 9) {
+          errors.push(`Row ${rowNum}: Not enough columns (expected 9, got ${row.length})`);
+          failed++;
+          continue;
+        }
+
+        const [questionText, opt1, opt2, opt3, opt4, correctOptStr, categoryText, explanationText, questionSetStr] = row;
+
+        // Validate required fields
+        if (!questionText?.trim()) {
+          errors.push(`Row ${rowNum}: Question is required`);
+          failed++;
+          continue;
+        }
+
+        if (!opt1?.trim() || !opt2?.trim() || !opt3?.trim() || !opt4?.trim()) {
+          errors.push(`Row ${rowNum}: All 4 options are required`);
+          failed++;
+          continue;
+        }
+
+        const correctOpt = parseInt(correctOptStr, 10);
+        if (isNaN(correctOpt) || correctOpt < 1 || correctOpt > 4) {
+          errors.push(`Row ${rowNum}: Correct Option must be 1, 2, 3, or 4`);
+          failed++;
+          continue;
+        }
+
+        const category = categoryText?.trim().toLowerCase() || 'grammar';
+        if (!categories.includes(category)) {
+          errors.push(`Row ${rowNum}: Invalid category "${category}". Must be: ${categories.join(', ')}`);
+          failed++;
+          continue;
+        }
+
+        if (!explanationText?.trim()) {
+          errors.push(`Row ${rowNum}: Explanation is required`);
+          failed++;
+          continue;
+        }
+
+        // Parse question set from label or number
+        let qSet: 1 | 2 | 3 | 4 | 5 = 1;
+        const setMatch = questionSetStr?.match(/Set\s*(\d)/);
+        if (setMatch) {
+          const setNum = parseInt(setMatch[1], 10);
+          if (setNum >= 1 && setNum <= 5) qSet = setNum as 1 | 2 | 3 | 4 | 5;
+        } else {
+          const setNum = parseInt(questionSetStr, 10);
+          if (setNum >= 1 && setNum <= 5) qSet = setNum as 1 | 2 | 3 | 4 | 5;
+        }
+
+        try {
+          await addContent({
+            type: "gk_question",
+            gameId: "english-insane",
+            data: {
+              question: questionText.trim(),
+              options: [opt1.trim(), opt2.trim(), opt3.trim(), opt4.trim()],
+              correctIndex: correctOpt - 1,
+              category,
+              explanation: explanationText.trim(),
+            },
+            status: "active",
+            questionSet: qSet,
+          });
+          success++;
+        } catch (err) {
+          errors.push(`Row ${rowNum}: Failed to add - ${err instanceof Error ? err.message : 'Unknown error'}`);
+          failed++;
+        }
+      }
+
+      setUploadStatus({ success, failed, errors: errors.slice(0, 10) }); // Show first 10 errors
+    } catch (err) {
+      setUploadStatus({ success: 0, failed: 0, errors: ['Failed to parse CSV file'] });
+    }
+
+    setIsSubmitting(false);
+    // Reset file input
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // Parse CSV with proper escape handling
+  const parseCSV = (text: string): string[][] => {
+    const rows: string[][] = [];
+    let currentRow: string[] = [];
+    let currentCell = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      const nextChar = text[i + 1];
+
+      if (inQuotes) {
+        if (char === '"' && nextChar === '"') {
+          currentCell += '"';
+          i++; // Skip next quote
+        } else if (char === '"') {
+          inQuotes = false;
+        } else {
+          currentCell += char;
+        }
+      } else {
+        if (char === '"') {
+          inQuotes = true;
+        } else if (char === ',') {
+          currentRow.push(currentCell);
+          currentCell = '';
+        } else if (char === '\n' || (char === '\r' && nextChar === '\n')) {
+          currentRow.push(currentCell);
+          if (currentRow.some(c => c.trim())) rows.push(currentRow);
+          currentRow = [];
+          currentCell = '';
+          if (char === '\r') i++; // Skip \n after \r
+        } else if (char !== '\r') {
+          currentCell += char;
+        }
+      }
+    }
+
+    // Don't forget the last cell/row
+    currentRow.push(currentCell);
+    if (currentRow.some(c => c.trim())) rows.push(currentRow);
+
+    return rows;
   };
 
   return (
@@ -276,7 +436,23 @@ function EnglishInsaneContent() {
           title="Download CSV"
         >
           <Download className="w-4 h-4" />
-          Download CSV
+          Download
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv"
+          onChange={handleUploadCSV}
+          className="hidden"
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isSubmitting}
+          className="flex items-center gap-2 border border-slate-200 text-slate-600 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
+          title="Upload CSV"
+        >
+          <Upload className="w-4 h-4" />
+          {isSubmitting ? 'Uploading...' : 'Upload'}
         </button>
         <button
           onClick={() => setIsAddModalOpen(true)}
@@ -286,6 +462,34 @@ function EnglishInsaneContent() {
           Add Question
         </button>
       </div>
+
+      {/* Upload Status Notification */}
+      {uploadStatus && (
+        <div className={`p-4 rounded-lg ${uploadStatus.failed > 0 ? 'bg-amber-50 border border-amber-200' : 'bg-green-50 border border-green-200'}`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className={`font-medium ${uploadStatus.failed > 0 ? 'text-amber-800' : 'text-green-800'}`}>
+                {uploadStatus.success > 0 && `✓ ${uploadStatus.success} question${uploadStatus.success !== 1 ? 's' : ''} imported successfully`}
+                {uploadStatus.success > 0 && uploadStatus.failed > 0 && ' • '}
+                {uploadStatus.failed > 0 && `✗ ${uploadStatus.failed} failed`}
+                {uploadStatus.success === 0 && uploadStatus.failed === 0 && 'No questions imported'}
+              </p>
+              {uploadStatus.errors.length > 0 && (
+                <ul className="mt-2 text-sm text-amber-700 list-disc list-inside">
+                  {uploadStatus.errors.map((err, i) => <li key={i}>{err}</li>)}
+                  {uploadStatus.failed > 10 && <li>...and {uploadStatus.failed - 10} more errors</li>}
+                </ul>
+              )}
+            </div>
+            <button
+              onClick={() => setUploadStatus(null)}
+              className="p-1 hover:bg-slate-100 rounded"
+            >
+              <X className="w-4 h-4 text-slate-500" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex items-center gap-4">
