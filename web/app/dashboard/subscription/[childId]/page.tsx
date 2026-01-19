@@ -106,7 +106,18 @@ export default function SubscriptionPage() {
       razorpay.open();
     } catch (err) {
       console.error("Failed to create subscription:", err);
-      setError(err instanceof Error ? err.message : "Failed to create subscription");
+      // Parse errors and provide user-friendly messages
+      const errorMessage = err instanceof Error ? err.message : "";
+      
+      if (errorMessage.includes("already has an active subscription")) {
+        setError("This child already has an active subscription.");
+      } else if (errorMessage.includes("Child not found")) {
+        setError("Could not find this account. Please go back and try again.");
+      } else if (errorMessage.includes("Not authenticated")) {
+        setError("Your session has expired. Please refresh the page and sign in again.");
+      } else {
+        setError("Unable to create subscription. Please try again later.");
+      }
       setIsLoading(false);
     }
   };

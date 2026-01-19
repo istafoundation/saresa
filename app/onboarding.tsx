@@ -272,7 +272,16 @@ export default function OnboardingScreen() {
         triggerTap('medium');
       }
     } catch (err: any) {
-      setError(err.message || 'Login failed');
+      // Parse errors and provide user-friendly messages
+      const errorMessage = err?.message || "";
+      
+      if (errorMessage.includes("Invalid username or password") || errorMessage.includes("not found")) {
+        setError("Incorrect username or password. Please try again.");
+      } else if (errorMessage.includes("Session") || errorMessage.includes("expired")) {
+        setError("Your session has expired. Please try again.");
+      } else {
+        setError("Unable to log in. Please check your connection and try again.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -289,7 +298,16 @@ export default function OnboardingScreen() {
       });
       triggerTap('medium');
     } catch (err: any) {
-      setError(err.message || 'Failed to create profile');
+      // Parse errors and provide user-friendly messages
+      const errorMessage = err?.message || "";
+      
+      if (errorMessage.includes("Invalid token") || errorMessage.includes("Session")) {
+        setError("Your session has expired. Please log in again.");
+      } else if (errorMessage.includes("already exists")) {
+        setError("A profile already exists. Please refresh the app.");
+      } else {
+        setError("Could not create your profile. Please try again.");
+      }
     } finally {
       setIsLoading(false);
     }

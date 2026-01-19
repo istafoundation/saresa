@@ -51,10 +51,17 @@ export function EditChildModal({ isOpen, onClose, child }: EditChildModalProps) 
         onClose();
       }, 1000);
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message);
+      // Parse Convex errors and provide user-friendly messages
+      const errorMessage = err instanceof Error ? err.message : "";
+      
+      if (errorMessage.includes("Not authenticated")) {
+        setError("Your session has expired. Please refresh the page.");
+      } else if (errorMessage.includes("Child not found")) {
+        setError("Could not find this account. Please refresh and try again.");
+      } else if (errorMessage.includes("Name must be")) {
+        setError("Please enter a valid display name.");
       } else {
-        setError("Failed to update name");
+        setError("Something went wrong. Please try again.");
       }
     } finally {
       setLoading(false);

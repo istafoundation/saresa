@@ -5,11 +5,9 @@ import { api } from "../../../../convex/_generated/api";
 import { useState } from "react";
 import { UserPlus, AlertCircle, Loader2 } from "lucide-react";
 
-
-
 export function AddChildForm() {
   const addChild = useMutation(api.parents.addChild);
-  
+
   const [formData, setFormData] = useState({
     name: "",
     username: "",
@@ -45,14 +43,40 @@ export function AddChildForm() {
         password: formData.password,
         // Group is determined by subscription, not user selection
       });
-      setFormData({ name: "", username: "", password: "", confirmPassword: "" });
+      setFormData({
+        name: "",
+        username: "",
+        password: "",
+        confirmPassword: "",
+      });
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message || "Failed to add child");
+      // Parse Convex errors and provide user-friendly messages
+      const errorMessage = err instanceof Error ? err.message : "";
+
+      if (errorMessage.includes("Username already taken")) {
+        setError(
+          "This username is already taken. Please choose a different username.",
+        );
+      } else if (errorMessage.includes("Username must be 4-20 characters")) {
+        setError("Username must be between 4 and 20 characters long.");
+      } else if (errorMessage.includes("Username can only contain")) {
+        setError(
+          "Username can only contain letters, numbers, and underscores (no spaces or special characters).",
+        );
+      } else if (
+        errorMessage.includes("Password must be at least 6 characters")
+      ) {
+        setError("Password must be at least 6 characters long.");
+      } else if (errorMessage.includes("Not authenticated")) {
+        setError(
+          "Your session has expired. Please refresh the page and try again.",
+        );
+      } else if (errorMessage.includes("Parent not found")) {
+        setError("Account error. Please sign out and sign in again.");
       } else {
-        setError("Failed to add child");
+        setError("Something went wrong. Please try again.");
       }
     } finally {
       setLoading(false);
@@ -70,21 +94,23 @@ export function AddChildForm() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-xs font-semibold uppercase text-slate-500 mb-1.5 ml-1">Display Name</label>
+          <label className="block text-xs font-semibold uppercase text-slate-500 mb-1.5 ml-1">
+            Display Name
+          </label>
           <input
             type="text"
             required
             className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-slate-50 focus:bg-white outline-none transition-all text-slate-900 placeholder:text-slate-400"
             placeholder="e.g. Arjun"
             value={formData.name}
-            onChange={e => setFormData({...formData, name: e.target.value})}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
           />
         </div>
 
-
-
         <div>
-          <label className="block text-xs font-semibold uppercase text-slate-500 mb-1.5 ml-1">Username</label>
+          <label className="block text-xs font-semibold uppercase text-slate-500 mb-1.5 ml-1">
+            Username
+          </label>
           <input
             type="text"
             required
@@ -92,14 +118,23 @@ export function AddChildForm() {
             className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-slate-50 focus:bg-white outline-none transition-all text-slate-900 placeholder:text-slate-400 font-mono text-sm"
             placeholder="e.g. arjun_cool"
             value={formData.username}
-            onChange={e => setFormData({...formData, username: e.target.value.toLowerCase().replace(/\s/g, '')})}
+            onChange={(e) =>
+              setFormData({
+                ...formData,
+                username: e.target.value.toLowerCase().replace(/\s/g, ""),
+              })
+            }
           />
-          <p className="text-[10px] text-slate-400 mt-1 ml-1">Must be unique, 4+ chars</p>
+          <p className="text-[10px] text-slate-400 mt-1 ml-1">
+            Must be unique, 4+ chars
+          </p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-semibold uppercase text-slate-500 mb-1.5 ml-1">Password</label>
+            <label className="block text-xs font-semibold uppercase text-slate-500 mb-1.5 ml-1">
+              Password
+            </label>
             <input
               type="password"
               required
@@ -107,19 +142,25 @@ export function AddChildForm() {
               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-slate-50 focus:bg-white outline-none transition-all text-slate-900 placeholder:text-slate-400"
               placeholder="Min 6 chars"
               value={formData.password}
-              onChange={e => setFormData({...formData, password: e.target.value})}
+              onChange={(e) =>
+                setFormData({ ...formData, password: e.target.value })
+              }
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase text-slate-500 mb-1.5 ml-1">Confirm</label>
+            <label className="block text-xs font-semibold uppercase text-slate-500 mb-1.5 ml-1">
+              Confirm
+            </label>
             <input
               type="password"
               required
               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-slate-50 focus:bg-white outline-none transition-all text-slate-900 placeholder:text-slate-400"
               placeholder="Re-enter"
               value={formData.confirmPassword}
-              onChange={e => setFormData({...formData, confirmPassword: e.target.value})}
+              onChange={(e) =>
+                setFormData({ ...formData, confirmPassword: e.target.value })
+              }
             />
           </div>
         </div>

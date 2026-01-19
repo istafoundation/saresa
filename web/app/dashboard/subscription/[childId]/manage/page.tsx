@@ -96,7 +96,18 @@ export default function ManageSubscriptionPage() {
       razorpay.open();
     } catch (err) {
       console.error("Failed to change plan:", err);
-      setError(err instanceof Error ? err.message : "Failed to change plan");
+      // Parse errors and provide user-friendly messages
+      const errorMessage = err instanceof Error ? err.message : "";
+      
+      if (errorMessage.includes("No active subscription")) {
+        setError("No active subscription found. Please create a new subscription.");
+      } else if (errorMessage.includes("Child not found")) {
+        setError("Could not find this account. Please go back and try again.");
+      } else if (errorMessage.includes("same plan")) {
+        setError("You're already on this plan.");
+      } else {
+        setError("Unable to change plan. Please try again later.");
+      }
       setIsLoading(false);
     }
   };
@@ -114,7 +125,18 @@ export default function ManageSubscriptionPage() {
       router.push("/dashboard");
     } catch (err) {
       console.error("Failed to cancel subscription:", err);
-      setError(err instanceof Error ? err.message : "Failed to cancel subscription");
+      // Parse errors and provide user-friendly messages
+      const errorMessage = err instanceof Error ? err.message : "";
+      
+      if (errorMessage.includes("No active subscription")) {
+        setError("No active subscription to cancel.");
+      } else if (errorMessage.includes("Child not found")) {
+        setError("Could not find this account. Please refresh and try again.");
+      } else if (errorMessage.includes("already cancelled")) {
+        setError("This subscription has already been cancelled.");
+      } else {
+        setError("Unable to cancel subscription. Please try again later.");
+      }
       setIsCancelling(false);
     }
   };
