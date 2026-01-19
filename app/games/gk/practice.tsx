@@ -50,8 +50,22 @@ export default function PracticeScreen() {
   const [sessionTotal, setSessionTotal] = useState(0);
   const [sessionCorrect, setSessionCorrect] = useState(0);
 
-  // Track what we've already synced to avoid duplicate calls
+  // OPTIMIZATION: Use refs to track stats for sync operations
+  // This prevents effect re-registration on every answer
+  const sessionTotalRef = useRef(0);
+  const sessionCorrectRef = useRef(0);
   const lastSyncedRef = useRef({ total: 0, correct: 0 });
+  const updateGKStatsRef = useRef(updateGKStats);
+  
+  // Keep refs in sync with state
+  useEffect(() => {
+    sessionTotalRef.current = sessionTotal;
+    sessionCorrectRef.current = sessionCorrect;
+  }, [sessionTotal, sessionCorrect]);
+  
+  useEffect(() => {
+    updateGKStatsRef.current = updateGKStats;
+  }, [updateGKStats]);
 
   // Lock base stats when user starts interacting to prevent double counting
   // (We don't want to add session stats to already-updated live stats)
@@ -82,41 +96,45 @@ export default function PracticeScreen() {
     };
   }, [allQuestions]);
 
-  // OPTIMIZATION: Sync stats to Convex only when exiting or every 1 minute
-  // This replaces per-answer syncing, reducing calls from ~600/hr to ~60/hr max
+  // OPTIMIZATION: Sync function uses refs - never recreated, stable reference
+  // This prevents interval/AppState effects from re-registering
   const syncStatsToConvex = useCallback(() => {
     const unsynced = {
-      total: sessionTotal - lastSyncedRef.current.total,
-      correct: sessionCorrect - lastSyncedRef.current.correct,
+      total: sessionTotalRef.current - lastSyncedRef.current.total,
+      correct: sessionCorrectRef.current - lastSyncedRef.current.correct,
     };
     
     if (unsynced.total > 0) {
-      updateGKStats({
+      updateGKStatsRef.current({
         practiceTotal: unsynced.total,
         practiceCorrect: unsynced.correct,
       });
-      lastSyncedRef.current = { total: sessionTotal, correct: sessionCorrect };
+      lastSyncedRef.current = { 
+        total: sessionTotalRef.current, 
+        correct: sessionCorrectRef.current 
+      };
     }
-  }, [sessionTotal, sessionCorrect, updateGKStats]);
+  }, []); // Empty deps - stable callback using refs
 
   // Sync on component unmount (catches ALL exit methods including Android back)
   useEffect(() => {
     return () => {
       // Use refs to get latest values in cleanup
       const unsynced = {
-        total: sessionTotal - lastSyncedRef.current.total,
-        correct: sessionCorrect - lastSyncedRef.current.correct,
+        total: sessionTotalRef.current - lastSyncedRef.current.total,
+        correct: sessionCorrectRef.current - lastSyncedRef.current.correct,
       };
       if (unsynced.total > 0) {
-        updateGKStats({
+        updateGKStatsRef.current({
           practiceTotal: unsynced.total,
           practiceCorrect: unsynced.correct,
         });
       }
     };
-  }, [sessionTotal, sessionCorrect, updateGKStats]);
+  }, []); // Empty deps - uses refs for latest values
 
   // Background safety sync every 1 minute (crash protection)
+  // OPTIMIZATION: Only registers ONCE since syncStatsToConvex is now stable
   useEffect(() => {
     const interval = setInterval(() => {
       syncStatsToConvex();
@@ -126,6 +144,7 @@ export default function PracticeScreen() {
   }, [syncStatsToConvex]);
 
   // Sync immediately when app goes to background (home button pressed)
+  // OPTIMIZATION: Only registers ONCE since syncStatsToConvex is now stable
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState === 'background' || nextAppState === 'inactive') {
