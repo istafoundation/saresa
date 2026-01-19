@@ -13,6 +13,7 @@ import {
   X,
   Brain,
   Pencil,
+  Download,
 } from "lucide-react";
 import type { Id } from "@convex/_generated/dataModel";
 
@@ -204,6 +205,47 @@ function EnglishInsaneContent() {
 
   const categories = ["grammar", "vocabulary", "idioms", "syntax"];
 
+  // CSV Download Handler
+  const handleDownloadCSV = () => {
+    if (!filteredContent || filteredContent.length === 0) return;
+
+    // Escape function for CSV values
+    const escapeCSV = (value: string) => {
+      if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+        return `"${value.replace(/"/g, '""')}"`;
+      }
+      return value;
+    };
+
+    const headers = ['Question', 'Option 1', 'Option 2', 'Option 3', 'Option 4', 'Correct Answer', 'Category', 'Explanation', 'Question Set'];
+    const rows = filteredContent.map((item) => {
+      const data = item.data as GKQuestion;
+      const setLabel = SET_OPTIONS.find(s => s.value === (item.questionSet ?? 1))?.label ?? 'Set 1';
+      return [
+        escapeCSV(data.question),
+        escapeCSV(data.options[0] ?? ''),
+        escapeCSV(data.options[1] ?? ''),
+        escapeCSV(data.options[2] ?? ''),
+        escapeCSV(data.options[3] ?? ''),
+        escapeCSV(data.options[data.correctIndex] ?? ''),
+        escapeCSV(data.category),
+        escapeCSV(data.explanation),
+        escapeCSV(setLabel),
+      ].join(',');
+    });
+
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `english-insane-questions-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -227,6 +269,15 @@ function EnglishInsaneContent() {
             </div>
           </div>
         </div>
+        <button
+          onClick={handleDownloadCSV}
+          disabled={!filteredContent || filteredContent.length === 0}
+          className="flex items-center gap-2 border border-slate-200 text-slate-600 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Download CSV"
+        >
+          <Download className="w-4 h-4" />
+          Download CSV
+        </button>
         <button
           onClick={() => setIsAddModalOpen(true)}
           className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
