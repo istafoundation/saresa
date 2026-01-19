@@ -5,7 +5,7 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, Trophy, Settings, Menu, X, Rocket, Sun, Moon, Package, Search } from "lucide-react";
+import { LayoutDashboard, Users, Trophy, Settings, Menu, X, Rocket, Package, Search } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -25,30 +25,7 @@ export default function DashboardLayout({
   
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
 
-  // Initialize dark mode from system preference or localStorage
-  useEffect(() => {
-    const stored = localStorage.getItem('theme');
-    if (stored) {
-      setIsDarkMode(stored === 'dark');
-    } else {
-      setIsDarkMode(window.matchMedia('(prefers-color-scheme: dark)').matches);
-    }
-  }, []);
-
-  // Apply dark mode class to document
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
-  }, [isDarkMode]);
-
-  const toggleDarkMode = () => setIsDarkMode(!isDarkMode);
 
   // Build navigation based on role
   const navigation = useMemo(() => {
@@ -104,15 +81,6 @@ export default function DashboardLayout({
 
             {/* User & Mobile Menu */}
             <div className="flex items-center gap-2">
-               {/* Dark Mode Toggle */}
-               <button
-                 onClick={toggleDarkMode}
-                 className="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                 title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
-               >
-                 {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
-               </button>
-               
                <UserProfileMenu />
 
               <button 
