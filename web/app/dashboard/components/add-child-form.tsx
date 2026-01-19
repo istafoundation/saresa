@@ -53,7 +53,18 @@ export function AddChildForm() {
       setTimeout(() => setSuccess(false), 3000);
     } catch (err: unknown) {
       // Parse Convex errors and provide user-friendly messages
-      const errorMessage = err instanceof Error ? err.message : "";
+      // Convex errors can have the message in different places
+      let errorMessage = "";
+      if (err instanceof Error) {
+        errorMessage = err.message;
+      }
+      // Also check for ConvexError data property
+      if (typeof err === "object" && err !== null && "data" in err) {
+        const convexErr = err as { data?: string };
+        if (typeof convexErr.data === "string") {
+          errorMessage = convexErr.data;
+        }
+      }
 
       if (errorMessage.includes("Username already taken")) {
         setError(

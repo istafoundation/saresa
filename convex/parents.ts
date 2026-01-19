@@ -1,5 +1,5 @@
 import { mutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { getISTDate } from "./lib/dates";
 
 // Level thresholds matching constants/levels.ts
@@ -273,7 +273,7 @@ export const addChild = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    if (!identity) throw new ConvexError("Not authenticated");
 
     // Get parent
     const parent = await ctx.db
@@ -281,15 +281,15 @@ export const addChild = mutation({
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
       .first();
 
-    if (!parent) throw new Error("Parent not found");
+    if (!parent) throw new ConvexError("Parent not found");
 
     // Validate username
     const username = args.username.toLowerCase().trim();
     if (username.length < 4 || username.length > 20) {
-      throw new Error("Username must be 4-20 characters");
+      throw new ConvexError("Username must be 4-20 characters");
     }
     if (!/^[a-z0-9_]+$/.test(username)) {
-      throw new Error(
+      throw new ConvexError(
         "Username can only contain letters, numbers, and underscores"
       );
     }
@@ -301,12 +301,12 @@ export const addChild = mutation({
       .first();
 
     if (existing) {
-      throw new Error("Username already taken");
+      throw new ConvexError("Username already taken");
     }
 
     // Validate password
     if (args.password.length < 6) {
-      throw new Error("Password must be at least 6 characters");
+      throw new ConvexError("Password must be at least 6 characters");
     }
 
     // Create child with optional group (defaults to B if not specified)
