@@ -399,7 +399,8 @@ export const getMyChildren = query({
           username: child.username,
           password: child.password, // Parent can always see
           role: child.role,
-          group: child.group || "B", // Default to Group B
+          // Subscription is the SINGLE SOURCE OF TRUTH for group
+          group: subscription?.planGroup || "B",
           createdAt: child.createdAt,
           lastLoginAt: child.lastLoginAt,
           // Stats from user data
@@ -568,12 +569,27 @@ export const getChildStats = query({
       .withIndex("by_child_id", (q) => q.eq("childId", args.childId))
       .first();
 
+    // Get active subscription for group (source of truth)
+    const subscription = await ctx.db
+      .query("subscriptions")
+      .withIndex("by_child", (q) => q.eq("childId", args.childId))
+      .filter((q) => 
+        q.or(
+          q.eq(q.field("status"), "active"),
+          q.eq(q.field("status"), "authenticated")
+        )
+      )
+      .first();
+    
+    // Subscription is the SINGLE SOURCE OF TRUTH for group
+    const effectiveGroup = subscription?.planGroup || "B";
+
     if (!userData) {
       return {
         child: {
           name: child.name,
           username: child.username,
-          group: child.group || "B", // Default to Group B
+          group: effectiveGroup,
           createdAt: child.createdAt,
           lastLoginAt: child.lastLoginAt,
         },
@@ -585,7 +601,7 @@ export const getChildStats = query({
       child: {
         name: child.name,
         username: child.username,
-        group: child.group || "B", // Default to Group B
+        group: effectiveGroup,
         createdAt: child.createdAt,
         lastLoginAt: child.lastLoginAt,
       },

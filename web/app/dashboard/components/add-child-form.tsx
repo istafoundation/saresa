@@ -5,11 +5,7 @@ import { api } from "../../../../convex/_generated/api";
 import { useState } from "react";
 import { UserPlus, AlertCircle, Loader2 } from "lucide-react";
 
-const GROUP_OPTIONS = [
-  { value: "A" as const, label: "Class 1-4", sublabel: "Group A" },
-  { value: "B" as const, label: "Class 5-8", sublabel: "Group B" },
-  { value: "C" as const, label: "Class 9 & 10", sublabel: "Group C" },
-];
+
 
 export function AddChildForm() {
   const addChild = useMutation(api.parents.addChild);
@@ -19,7 +15,6 @@ export function AddChildForm() {
     username: "",
     password: "",
     confirmPassword: "",
-    group: "B" as "A" | "B" | "C",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -48,9 +43,9 @@ export function AddChildForm() {
         name: formData.name,
         username: formData.username,
         password: formData.password,
-        group: formData.group,
+        // Group is determined by subscription, not user selection
       });
-      setFormData({ name: "", username: "", password: "", confirmPassword: "", group: "B" });
+      setFormData({ name: "", username: "", password: "", confirmPassword: "" });
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err: unknown) {
@@ -86,27 +81,7 @@ export function AddChildForm() {
           />
         </div>
 
-        {/* Class Level / Group Selection */}
-        <div>
-          <label className="block text-xs font-semibold uppercase text-slate-500 mb-1.5 ml-1">Class Level</label>
-          <div className="grid grid-cols-3 gap-2">
-            {GROUP_OPTIONS.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => setFormData({...formData, group: option.value})}
-                className={`p-3 rounded-xl border-2 transition-all text-center ${
-                  formData.group === option.value
-                    ? "border-emerald-500 bg-emerald-50"
-                    : "border-slate-200 bg-white hover:border-slate-300"
-                }`}
-              >
-                <p className="font-semibold text-slate-900 text-sm">{option.label}</p>
-                <p className="text-xs text-slate-500">{option.sublabel}</p>
-              </button>
-            ))}
-          </div>
-        </div>
+
 
         <div>
           <label className="block text-xs font-semibold uppercase text-slate-500 mb-1.5 ml-1">Username</label>

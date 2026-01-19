@@ -270,3 +270,34 @@ export const getActiveSubscription = internalQuery({
       .first();
   },
 });
+
+// One-time sync: Update all children's groups from their active subscriptions
+// Run this from Convex dashboard to fix existing data
+export const syncAllGroupsFromSubscriptions = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    // Get all active/authenticated subscriptions
+    const subscriptions = await ctx.db
+      .query("subscriptions")
+      .filter((q) => 
+        q.or(
+          q.eq(q.field("status"), "active"),
+          q.eq(q.field("status"), "authenticated")
+        )
+      )
+      .collect();
+    
+    let synced = 0;
+    for (const sub of subscriptions) {
+      const child = await ctx.db.get(sub.childId);
+      if (child && child.group !== sub.planGroup) {
+        console.log(`Syncing child ${sub.childId}: ${child.group} -> ${sub.planGroup}`);
+        await ctx.db.patch(sub.childId, { group: sub.planGroup });
+        synced++;
+      }
+    }
+    
+    console.log(`Synced ${synced} children's groups from subscriptions`);
+    return { synced, total: subscriptions.length };
+  },
+});

@@ -22,11 +22,10 @@ export const getMyData = query({
 
     if (!user) return null;
 
-    // Get child's group from children table
+    // Get child data
     const child = await ctx.db.get(childId);
-    const group = child?.group || "B";
 
-    // Get subscription status
+    // Get subscription status FIRST (needed for group calculation)
     const subscription = await ctx.db
       .query("subscriptions")
       .withIndex("by_child", (q) => q.eq("childId", childId))
@@ -34,6 +33,10 @@ export const getMyData = query({
       .first();
 
     const isSubscriptionActive = subscription?.status === "active" || subscription?.status === "authenticated";
+    
+    // Get group from subscription - ONLY subscribed users can access content
+    // Subscription is the SINGLE SOURCE OF TRUTH for group
+    const group = subscription?.planGroup || "B";
 
     // Pre-compute all daily limits (IST-based) to avoid separate queries
     const today = getISTDate();
