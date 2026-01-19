@@ -1,5 +1,5 @@
 import { mutation, query, internalMutation } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 
 // Generate cryptographically secure session token (32 hex characters)
 function generateToken(): string {
@@ -37,12 +37,12 @@ export const login = mutation({
       .first();
 
     if (!child) {
-      throw new Error("Invalid username or password");
+      throw new ConvexError("Invalid username or password");
     }
 
     // Check password (plaintext comparison)
     if (child.password !== args.password) {
-      throw new Error("Invalid username or password");
+      throw new ConvexError("Invalid username or password");
     }
 
     // Generate session token

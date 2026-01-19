@@ -43,7 +43,7 @@ export const getOrCreateParent = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    if (!identity) throw new ConvexError("Not authenticated");
 
     // Check if parent exists
     const existing = await ctx.db
@@ -434,18 +434,18 @@ export const getChildCredentials = query({
   args: { childId: v.id("children") },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    if (!identity) throw new ConvexError("Not authenticated");
 
     const parent = await ctx.db
       .query("parents")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
       .first();
 
-    if (!parent) throw new Error("Parent not found");
+    if (!parent) throw new ConvexError("Parent not found");
 
     const child = await ctx.db.get(args.childId);
     if (!child || child.parentId !== parent._id) {
-      throw new Error("Child not found");
+      throw new ConvexError("Child not found");
     }
 
     return {
@@ -464,22 +464,22 @@ export const regeneratePassword = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    if (!identity) throw new ConvexError("Not authenticated");
 
     const parent = await ctx.db
       .query("parents")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
       .first();
 
-    if (!parent) throw new Error("Parent not found");
+    if (!parent) throw new ConvexError("Parent not found");
 
     const child = await ctx.db.get(args.childId);
     if (!child || child.parentId !== parent._id) {
-      throw new Error("Child not found");
+      throw new ConvexError("Child not found");
     }
 
     if (args.newPassword.length < 6) {
-      throw new Error("Password must be at least 6 characters");
+      throw new ConvexError("Password must be at least 6 characters");
     }
 
     // Update password
@@ -506,18 +506,18 @@ export const deleteChild = mutation({
   args: { childId: v.id("children") },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    if (!identity) throw new ConvexError("Not authenticated");
 
     const parent = await ctx.db
       .query("parents")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
       .first();
 
-    if (!parent) throw new Error("Parent not found");
+    if (!parent) throw new ConvexError("Parent not found");
 
     const child = await ctx.db.get(args.childId);
     if (!child || child.parentId !== parent._id) {
-      throw new Error("Child not found");
+      throw new ConvexError("Child not found");
     }
 
     // Delete user data
@@ -786,23 +786,23 @@ export const updateChildName = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    if (!identity) throw new ConvexError("Not authenticated");
 
     const parent = await ctx.db
       .query("parents")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
       .first();
 
-    if (!parent) throw new Error("Parent not found");
+    if (!parent) throw new ConvexError("Parent not found");
 
     const child = await ctx.db.get(args.childId);
     if (!child || child.parentId !== parent._id) {
-      throw new Error("Child not found");
+      throw new ConvexError("Child not found");
     }
 
     const trimmedName = args.name.trim();
     if (trimmedName.length < 1 || trimmedName.length > 50) {
-      throw new Error("Name must be 1-50 characters");
+      throw new ConvexError("Name must be 1-50 characters");
     }
 
     // Update child name
@@ -830,18 +830,18 @@ export const updateChildGroup = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    if (!identity) throw new ConvexError("Not authenticated");
 
     const parent = await ctx.db
       .query("parents")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
       .first();
 
-    if (!parent) throw new Error("Parent not found");
+    if (!parent) throw new ConvexError("Parent not found");
 
     const child = await ctx.db.get(args.childId);
     if (!child || child.parentId !== parent._id) {
-      throw new Error("Child not found");
+      throw new ConvexError("Child not found");
     }
 
     await ctx.db.patch(args.childId, { group: args.group });

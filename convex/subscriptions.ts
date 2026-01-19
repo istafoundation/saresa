@@ -1,5 +1,5 @@
 // Subscription Queries and Mutations (Default Convex Runtime)
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 
@@ -37,7 +37,7 @@ export const getParentSubscriptions = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Not authenticated");
+      throw new ConvexError("Not authenticated");
     }
     
     const parent = await ctx.db
@@ -75,7 +75,7 @@ export const getPaymentHistory = query({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Not authenticated");
+      throw new ConvexError("Not authenticated");
     }
     
     // Verify parent owns this child
@@ -85,12 +85,12 @@ export const getPaymentHistory = query({
       .first();
     
     if (!parent) {
-      throw new Error("Parent not found");
+      throw new ConvexError("Parent not found");
     }
     
     const child = await ctx.db.get(args.childId);
     if (!child || child.parentId !== parent._id) {
-      throw new Error("Child not found or unauthorized");
+      throw new ConvexError("Child not found or unauthorized");
     }
     
     const payments = await ctx.db

@@ -1,5 +1,5 @@
 import { mutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { getISTDate } from "./lib/dates";
 import { getChildIdFromSession, getAuthenticatedUser } from "./lib/auth";
 
@@ -13,14 +13,14 @@ export const updateGKStats = mutation({
   },
   handler: async (ctx, args) => {
     const childId = await getChildIdFromSession(ctx, args.token);
-    if (!childId) throw new Error("Not authenticated");
+    if (!childId) throw new ConvexError("Not authenticated");
 
     const user = await ctx.db
       .query("users")
       .withIndex("by_child_id", (q) => q.eq("childId", childId))
       .first();
 
-    if (!user) throw new Error("User not found");
+    if (!user) throw new ConvexError("User not found");
 
     const updates: Record<string, any> = {};
 
@@ -69,14 +69,14 @@ export const updateWordleStats = mutation({
   },
   handler: async (ctx, args) => {
     const childId = await getChildIdFromSession(ctx, args.token);
-    if (!childId) throw new Error("Not authenticated");
+    if (!childId) throw new ConvexError("Not authenticated");
 
     const user = await ctx.db
       .query("users")
       .withIndex("by_child_id", (q) => q.eq("childId", childId))
       .first();
 
-    if (!user) throw new Error("User not found");
+    if (!user) throw new ConvexError("User not found");
 
     const today = getISTDate();
     const distribution = [...user.wordleGuessDistribution];
@@ -154,14 +154,14 @@ export const finishWordleGame = mutation({
   },
   handler: async (ctx, args) => {
     const childId = await getChildIdFromSession(ctx, args.token);
-    if (!childId) throw new Error("Not authenticated");
+    if (!childId) throw new ConvexError("Not authenticated");
 
     const user = await ctx.db
       .query("users")
       .withIndex("by_child_id", (q) => q.eq("childId", childId))
       .first();
 
-    if (!user) throw new Error("User not found");
+    if (!user) throw new ConvexError("User not found");
 
     const today = getISTDate();
     
@@ -252,14 +252,14 @@ export const useWordleHint = mutation({
   args: { token: v.string() },
   handler: async (ctx, args) => {
     const childId = await getChildIdFromSession(ctx, args.token);
-    if (!childId) throw new Error("Not authenticated");
+    if (!childId) throw new ConvexError("Not authenticated");
 
     const user = await ctx.db
       .query("users")
       .withIndex("by_child_id", (q) => q.eq("childId", childId))
       .first();
 
-    if (!user) throw new Error("User not found");
+    if (!user) throw new ConvexError("User not found");
 
     const today = getISTDate();
     await ctx.db.patch(user._id, { wordleHintUsedDate: today });
@@ -297,14 +297,14 @@ export const updateWordFinderStats = mutation({
   },
   handler: async (ctx, args) => {
     const childId = await getChildIdFromSession(ctx, args.token);
-    if (!childId) throw new Error("Not authenticated");
+    if (!childId) throw new ConvexError("Not authenticated");
 
     const user = await ctx.db
       .query("users")
       .withIndex("by_child_id", (q) => q.eq("childId", childId))
       .first();
 
-    if (!user) throw new Error("User not found");
+    if (!user) throw new ConvexError("User not found");
 
     const today = getISTDate();
     const updates: Record<string, any> = {
@@ -372,14 +372,14 @@ export const updateGrammarDetectiveStats = mutation({
   },
   handler: async (ctx, args) => {
     const childId = await getChildIdFromSession(ctx, args.token);
-    if (!childId) throw new Error("Not authenticated");
+    if (!childId) throw new ConvexError("Not authenticated");
 
     const user = await ctx.db
       .query("users")
       .withIndex("by_child_id", (q) => q.eq("childId", childId))
       .first();
 
-    if (!user) throw new Error("User not found");
+    if (!user) throw new ConvexError("User not found");
 
     await ctx.db.patch(user._id, {
       gdQuestionsAnswered: (user.gdQuestionsAnswered ?? 0) + args.questionsAnswered,
@@ -464,14 +464,14 @@ export const updateExplorerStats = mutation({
   },
   handler: async (ctx, args) => {
     const childId = await getChildIdFromSession(ctx, args.token);
-    if (!childId) throw new Error("Not authenticated");
+    if (!childId) throw new ConvexError("Not authenticated");
 
     const user = await ctx.db
       .query("users")
       .withIndex("by_child_id", (q) => q.eq("childId", childId))
       .first();
 
-    if (!user) throw new Error("User not found");
+    if (!user) throw new ConvexError("User not found");
 
     const today = getISTDate();
     

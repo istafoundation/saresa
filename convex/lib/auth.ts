@@ -4,6 +4,7 @@
  */
 import type { Id } from "../_generated/dataModel";
 import type { QueryCtx, MutationCtx } from "../_generated/server";
+import { ConvexError } from "convex/values";
 
 /**
  * Get childId from session token
@@ -50,7 +51,7 @@ export async function requireAuth(
 ): Promise<AuthResult> {
   const childId = await getChildIdFromSession(ctx, token);
   if (!childId) {
-    throw new Error("Not authenticated");
+    throw new ConvexError("Not authenticated");
   }
   return { childId };
 }
@@ -76,7 +77,7 @@ export async function getAuthenticatedUser(
     .first();
 
   if (!user) {
-    throw new Error("User not found");
+    throw new ConvexError("User not found");
   }
 
   return { childId, user };

@@ -1,5 +1,5 @@
 import { mutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { getISTDate, getYesterdayIST } from "./lib/dates";
 import { getChildIdFromSession, getAuthenticatedUser } from "./lib/auth";
 
@@ -107,10 +107,10 @@ export const createUser = mutation({
   },
   handler: async (ctx, args) => {
     const childId = await getChildIdFromSession(ctx, args.token);
-    if (!childId) throw new Error("Not authenticated");
+    if (!childId) throw new ConvexError("Not authenticated");
 
     const child = await ctx.db.get(childId);
-    if (!child) throw new Error("Child not found");
+    if (!child) throw new ConvexError("Child not found");
 
     // Check if user already exists
     const existing = await ctx.db
@@ -119,7 +119,7 @@ export const createUser = mutation({
       .first();
 
     if (existing) {
-      throw new Error("User already exists");
+      throw new ConvexError("User already exists");
     }
 
     const today = getISTDate();
@@ -245,14 +245,14 @@ export const addXP = mutation({
   },
   handler: async (ctx, args) => {
     const childId = await getChildIdFromSession(ctx, args.token);
-    if (!childId) throw new Error("Not authenticated");
+    if (!childId) throw new ConvexError("Not authenticated");
 
     const user = await ctx.db
       .query("users")
       .withIndex("by_child_id", (q) => q.eq("childId", childId))
       .first();
 
-    if (!user) throw new Error("User not found");
+    if (!user) throw new ConvexError("User not found");
 
     const newXP = user.xp + args.amount;
     const unlockedArtifacts = [...user.unlockedArtifacts];
@@ -282,14 +282,14 @@ export const syncProgression = mutation({
   args: { token: v.string() },
   handler: async (ctx, args) => {
     const childId = await getChildIdFromSession(ctx, args.token);
-    if (!childId) throw new Error("Not authenticated");
+    if (!childId) throw new ConvexError("Not authenticated");
 
     const user = await ctx.db
       .query("users")
       .withIndex("by_child_id", (q) => q.eq("childId", childId))
       .first();
 
-    if (!user) throw new Error("User not found");
+    if (!user) throw new ConvexError("User not found");
 
     const unlockedArtifacts = [...user.unlockedArtifacts];
     let updated = false;
@@ -322,14 +322,14 @@ export const unlockArtifact = mutation({
   },
   handler: async (ctx, args) => {
     const childId = await getChildIdFromSession(ctx, args.token);
-    if (!childId) throw new Error("Not authenticated");
+    if (!childId) throw new ConvexError("Not authenticated");
 
     const user = await ctx.db
       .query("users")
       .withIndex("by_child_id", (q) => q.eq("childId", childId))
       .first();
 
-    if (!user) throw new Error("User not found");
+    if (!user) throw new ConvexError("User not found");
 
     if (!user.unlockedArtifacts.includes(args.artifactId)) {
       await ctx.db.patch(user._id, {
@@ -347,14 +347,14 @@ export const unlockWeapon = mutation({
   },
   handler: async (ctx, args) => {
     const childId = await getChildIdFromSession(ctx, args.token);
-    if (!childId) throw new Error("Not authenticated");
+    if (!childId) throw new ConvexError("Not authenticated");
 
     const user = await ctx.db
       .query("users")
       .withIndex("by_child_id", (q) => q.eq("childId", childId))
       .first();
 
-    if (!user) throw new Error("User not found");
+    if (!user) throw new ConvexError("User not found");
 
     if (!user.unlockedWeapons.includes(args.weaponId)) {
       await ctx.db.patch(user._id, {
@@ -373,20 +373,20 @@ export const updateShards = mutation({
   },
   handler: async (ctx, args) => {
     const childId = await getChildIdFromSession(ctx, args.token);
-    if (!childId) throw new Error("Not authenticated");
+    if (!childId) throw new ConvexError("Not authenticated");
 
     const user = await ctx.db
       .query("users")
       .withIndex("by_child_id", (q) => q.eq("childId", childId))
       .first();
 
-    if (!user) throw new Error("User not found");
+    if (!user) throw new ConvexError("User not found");
 
     const newAmount = args.operation === "add"
       ? user.weaponShards + args.amount
       : user.weaponShards - args.amount;
 
-    if (newAmount < 0) throw new Error("Insufficient shards");
+    if (newAmount < 0) throw new ConvexError("Insufficient shards");
 
     await ctx.db.patch(user._id, {
       weaponShards: newAmount,
@@ -404,14 +404,14 @@ export const addWeaponDuplicate = mutation({
   },
   handler: async (ctx, args) => {
     const childId = await getChildIdFromSession(ctx, args.token);
-    if (!childId) throw new Error("Not authenticated");
+    if (!childId) throw new ConvexError("Not authenticated");
 
     const user = await ctx.db
       .query("users")
       .withIndex("by_child_id", (q) => q.eq("childId", childId))
       .first();
 
-    if (!user) throw new Error("User not found");
+    if (!user) throw new ConvexError("User not found");
 
     const current = user.weaponDuplicates[args.weaponId] || 0;
     await ctx.db.patch(user._id, {

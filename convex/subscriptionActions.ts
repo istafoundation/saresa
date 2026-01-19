@@ -2,7 +2,7 @@
 // Razorpay Actions (Node.js Runtime)
 // This file contains actions that use the Razorpay SDK which requires Node.js
 
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { action } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { RAZORPAY_PLANS, getPlanByGroup } from "./lib/razorpay";
@@ -35,7 +35,7 @@ export const createSubscription = action({
   handler: async (ctx, args): Promise<SubscriptionResult> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Not authenticated");
+      throw new ConvexError("Not authenticated");
     }
     
     // Get parent and child
@@ -44,7 +44,7 @@ export const createSubscription = action({
     });
     
     if (!parent) {
-      throw new Error("Parent not found");
+      throw new ConvexError("Parent not found");
     }
     
     const child = await ctx.runQuery(internal.subscriptions.getChildById, {
@@ -52,7 +52,7 @@ export const createSubscription = action({
     });
     
     if (!child || child.parentId !== parent._id) {
-      throw new Error("Child not found or unauthorized");
+      throw new ConvexError("Child not found or unauthorized");
     }
     
     // Get plan details
@@ -127,7 +127,7 @@ export const cancelSubscription = action({
   handler: async (ctx, args): Promise<{ success: boolean }> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Not authenticated");
+      throw new ConvexError("Not authenticated");
     }
     
     // Get current subscription
@@ -136,7 +136,7 @@ export const cancelSubscription = action({
     });
     
     if (!subscription) {
-      throw new Error("No active subscription found");
+      throw new ConvexError("No active subscription found");
     }
     
     // Cancel on Razorpay
@@ -162,7 +162,7 @@ export const changePlan = action({
   handler: async (ctx, args): Promise<SubscriptionResult> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Not authenticated");
+      throw new ConvexError("Not authenticated");
     }
     
     // Check for existing active subscription and cancel it
@@ -192,7 +192,7 @@ export const changePlan = action({
     });
     
     if (!parent) {
-      throw new Error("Parent not found");
+      throw new ConvexError("Parent not found");
     }
     
     const child = await ctx.runQuery(internal.subscriptions.getChildById, {
@@ -200,7 +200,7 @@ export const changePlan = action({
     });
     
     if (!child || child.parentId !== parent._id) {
-      throw new Error("Child not found or unauthorized");
+      throw new ConvexError("Child not found or unauthorized");
     }
     
     // Get plan details

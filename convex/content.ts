@@ -1,5 +1,5 @@
 import { mutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import type { Id, Doc } from "./_generated/dataModel";
 
 // ============================================
@@ -52,14 +52,14 @@ export const posQuestionContentValidator = v.object({
 // Verify admin status (parents can manage content)
 async function requireAdmin(ctx: any): Promise<Id<"parents">> {
   const identity = await ctx.auth.getUserIdentity();
-  if (!identity) throw new Error("Not authenticated");
+  if (!identity) throw new ConvexError("Not authenticated");
 
   const parent = await ctx.db
     .query("parents")
     .withIndex("by_clerk_id", (q: any) => q.eq("clerkId", identity.subject))
     .first();
 
-  if (!parent) throw new Error("Not authorized - admin access required");
+  if (!parent) throw new ConvexError("Not authorized - admin access required");
   return parent._id;
 }
 
@@ -590,7 +590,7 @@ export const addContent = mutation({
     // Validate content data
     const validation = validateContentData(args.type, args.data);
     if (!validation.valid) {
-      throw new Error(validation.error);
+      throw new ConvexError(validation.error ?? "Invalid content data");
     }
 
     // Check for duplicate content (for wordle words)
@@ -608,7 +608,7 @@ export const addContent = mutation({
       );
       
       if (duplicate) {
-        throw new Error(`Word "${args.data.word}" already exists`);
+        throw new ConvexError(`Word "${args.data.word}" already exists`);
       }
     }
 
@@ -670,7 +670,7 @@ export const updateContent = mutation({
     await requireAdmin(ctx);
 
     const content = await ctx.db.get(args.contentId);
-    if (!content) throw new Error("Content not found");
+    if (!content) throw new ConvexError("Content not found");
 
     // Get current version for this game
     const latestVersion = await ctx.db
