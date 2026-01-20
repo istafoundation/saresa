@@ -15,6 +15,7 @@ import {
   Pencil,
   Download,
   Upload,
+  FileText,
 } from "lucide-react";
 import type { Id } from "@convex/_generated/dataModel";
 
@@ -57,13 +58,13 @@ function WordFinderContent() {
   const [typeFilter, setTypeFilter] = useState<"all" | "word_set" | "hard_question">("all");
   const [setFilter, setSetFilter] = useState<"all" | 1 | 2 | 3 | 4 | 5>("all");
 
-  // Set options with descriptive labels
+  // Set options with simple labels (for display and CSV export)
   const SET_OPTIONS = [
-    { value: 1, label: "Set 1 (EasyC, MediumB, HardA)" },
-    { value: 2, label: "Set 2 (MediumC, HardB)" },
-    { value: 3, label: "Set 3 (EasyB, MediumA)" },
-    { value: 4, label: "Set 4 (HardC)" },
-    { value: 5, label: "Set 5 (EasyA)" },
+    { value: 1, label: "Set 1" },
+    { value: 2, label: "Set 2" },
+    { value: 3, label: "Set 3" },
+    { value: 4, label: "Set 4" },
+    { value: 5, label: "Set 5" },
   ];
 
   // Word Set form
@@ -349,11 +350,10 @@ function WordFinderContent() {
     const headers = ['Theme', 'Word 1', 'Word 2', 'Word 3', 'Word 4', 'Word 5', 'Question Set'];
     const rows = wordSets.map((item) => {
       const data = item.data as WordSet;
-      const setLabel = SET_OPTIONS.find(s => s.value === (item.questionSet ?? 1))?.label ?? 'Set 1';
       return [
         escapeCSV(data.theme),
         ...data.words.map(w => escapeCSV(w)),
-        escapeCSV(setLabel),
+        String(item.questionSet ?? 1),
       ].join(',');
     });
 
@@ -377,12 +377,11 @@ function WordFinderContent() {
     const headers = ['Question', 'Answer', 'Hint', 'Question Set'];
     const rows = questions.map((item) => {
       const data = item.data as HardQuestion;
-      const setLabel = SET_OPTIONS.find(s => s.value === (item.questionSet ?? 1))?.label ?? 'Set 1';
       return [
         escapeCSV(data.question),
         escapeCSV(data.answer),
         escapeCSV(data.hint),
-        escapeCSV(setLabel),
+        String(item.questionSet ?? 1),
       ].join(',');
     });
 
@@ -392,6 +391,77 @@ function WordFinderContent() {
     const link = document.createElement('a');
     link.href = url;
     link.download = `word-finder-questions-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // Set Instructions Download Handler
+  const handleDownloadSetInstructions = () => {
+    const instructions = `============================
+WORD FINDER CONTENT GUIDELINES
+============================
+
+📚 GROUPS & CLASS RANGES
+========================
+Group A: Classes 1-4 (Primary)
+Group B: Classes 5-8 (Middle School)
+Group C: Classes 9-10 (High School)
+
+
+📋 SET ACCESSIBILITY
+====================
+• Group A (Class 1-4):  Set 1, Set 3, Set 5
+• Group B (Class 5-8):  Set 1, Set 2, Set 3
+• Group C (Class 9-10): Set 1, Set 2, Set 4
+
+
+🎯 SET DIFFICULTY GUIDE
+=======================
+Set 1: Universal (All) → EasyC | MediumB | HardA
+Set 2: Groups B, C → MediumC | HardB
+Set 3: Groups A, B → EasyB | MediumA
+Set 4: Group C only → HardC
+Set 5: Group A only → EasyA
+
+
+📝 WORD FINDER CONTENT TYPES
+============================
+
+1. WORD SETS (Easy Mode)
+   - Theme + 5 words (max 6 letters each)
+   - Use familiar themes for younger sets
+   - Example themes: Animals, Colors, Food, Sports
+   
+2. HARD QUESTIONS (Hard Mode)
+   - Question + Answer (max 6 letters) + Hint
+   - Riddles, definitions, or clues
+   - Match difficulty to target set
+
+
+✅ QUICK REFERENCE TABLE
+========================
+┌──────────┬──────────┬───────────────────────┐
+│ Set      │ Groups   │ Difficulty Target     │
+├──────────┼──────────┼───────────────────────┤
+│ Set 1    │ A, B, C  │ EasyC, MediumB, HardA │
+│ Set 2    │ B, C     │ MediumC, HardB        │
+│ Set 3    │ A, B     │ EasyB, MediumA        │
+│ Set 4    │ C only   │ HardC                 │
+│ Set 5    │ A only   │ EasyA                 │
+└──────────┴──────────┴───────────────────────┘
+
+============================
+Happy Content Making! 🎉
+============================
+`;
+
+    const blob = new Blob([instructions], { type: 'text/plain;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'word-finder-set-instructions.txt';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -605,6 +675,14 @@ function WordFinderContent() {
             </div>
           </div>
         </div>
+        <button
+          onClick={handleDownloadSetInstructions}
+          className="flex items-center gap-2 border border-slate-200 text-slate-600 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors text-sm"
+          title="Download Set Instructions"
+        >
+          <FileText className="w-4 h-4" />
+          Guide
+        </button>
         <div className="flex gap-2">
           <button
             onClick={handleDownloadWordSetsCSV}

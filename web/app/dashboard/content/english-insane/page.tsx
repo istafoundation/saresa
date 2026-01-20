@@ -15,6 +15,7 @@ import {
   Pencil,
   Download,
   Upload,
+  FileText,
 } from "lucide-react";
 import type { Id } from "@convex/_generated/dataModel";
 
@@ -49,13 +50,13 @@ function EnglishInsaneContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [setFilter, setSetFilter] = useState<"all" | 1 | 2 | 3 | 4 | 5>("all");
 
-  // Set options with descriptive labels
+  // Set options with simple labels (for display and CSV export)
   const SET_OPTIONS = [
-    { value: 1, label: "Set 1 (EasyC, MediumB, HardA)" },
-    { value: 2, label: "Set 2 (MediumC, HardB)" },
-    { value: 3, label: "Set 3 (EasyB, MediumA)" },
-    { value: 4, label: "Set 4 (HardC)" },
-    { value: 5, label: "Set 5 (EasyA)" },
+    { value: 1, label: "Set 1" },
+    { value: 2, label: "Set 2" },
+    { value: 3, label: "Set 3" },
+    { value: 4, label: "Set 4" },
+    { value: 5, label: "Set 5" },
   ];
 
   // Form state
@@ -223,7 +224,6 @@ function EnglishInsaneContent() {
     const headers = ['Question', 'Option 1', 'Option 2', 'Option 3', 'Option 4', 'Correct Option', 'Category', 'Explanation', 'Question Set'];
     const rows = filteredContent.map((item) => {
       const data = item.data as GKQuestion;
-      const setLabel = SET_OPTIONS.find(s => s.value === (item.questionSet ?? 1))?.label ?? 'Set 1';
       return [
         escapeCSV(data.question),
         escapeCSV(data.options[0] ?? ''),
@@ -233,7 +233,7 @@ function EnglishInsaneContent() {
         String(data.correctIndex + 1),
         escapeCSV(data.category),
         escapeCSV(data.explanation),
-        escapeCSV(setLabel),
+        String(item.questionSet ?? 1),
       ].join(',');
     });
 
@@ -243,6 +243,90 @@ function EnglishInsaneContent() {
     const link = document.createElement('a');
     link.href = url;
     link.download = `english-insane-questions-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // Set Instructions Download Handler
+  const handleDownloadSetInstructions = () => {
+    const instructions = `==============================
+ENGLISH INSANE CONTENT GUIDELINES
+==============================
+
+📚 GROUPS & CLASS RANGES
+========================
+Group A: Classes 1-4 (Primary)
+Group B: Classes 5-8 (Middle School)
+Group C: Classes 9-10 (High School)
+
+
+📋 SET ACCESSIBILITY
+====================
+Each user group can only access certain sets:
+
+• Group A (Class 1-4):  Set 1, Set 3, Set 5
+• Group B (Class 5-8):  Set 1, Set 2, Set 3
+• Group C (Class 9-10): Set 1, Set 2, Set 4
+
+
+🎯 SET DIFFICULTY GUIDE
+=======================
+Set 1: Universal Set (All Groups)
+  → EasyC | MediumB | HardA
+
+Set 2: Intermediate-Advanced (Groups B, C)
+  → MediumC | HardB
+  → NOT accessible to Group A
+
+Set 3: Beginner-Intermediate (Groups A, B)
+  → EasyB | MediumA
+  → NOT accessible to Group C
+
+Set 4: Advanced Only (Group C Only)
+  → HardC
+
+Set 5: Beginner Only (Group A Only)
+  → EasyA
+
+
+📝 ENGLISH INSANE QUESTION TIPS
+===============================
+Categories: grammar, vocabulary, idioms, syntax
+
+1. Grammar: Sentence correction, tense usage, subject-verb agreement
+2. Vocabulary: Word meanings, synonyms, antonyms
+3. Idioms: Common phrases and their meanings
+4. Syntax: Sentence structure and word order
+
+For younger sets (3, 5): Use basic grammar rules
+For older sets (2, 4): Include complex grammar and idioms
+For universal set (1): Balance difficulty for all groups
+
+
+✅ QUICK REFERENCE TABLE
+========================
+┌──────────┬──────────┬───────────────────────┐
+│ Set      │ Groups   │ Difficulty Target     │
+├──────────┼──────────┼───────────────────────┤
+│ Set 1    │ A, B, C  │ EasyC, MediumB, HardA │
+│ Set 2    │ B, C     │ MediumC, HardB        │
+│ Set 3    │ A, B     │ EasyB, MediumA        │
+│ Set 4    │ C only   │ HardC                 │
+│ Set 5    │ A only   │ EasyA                 │
+└──────────┴──────────┴───────────────────────┘
+
+==============================
+Happy Question Making! 🎉
+==============================
+`;
+
+    const blob = new Blob([instructions], { type: 'text/plain;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'english-insane-set-instructions.txt';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -429,6 +513,14 @@ function EnglishInsaneContent() {
             </div>
           </div>
         </div>
+        <button
+          onClick={handleDownloadSetInstructions}
+          className="flex items-center gap-2 border border-slate-200 text-slate-600 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors"
+          title="Download Set Instructions"
+        >
+          <FileText className="w-4 h-4" />
+          Set Instructions
+        </button>
         <button
           onClick={handleDownloadCSV}
           disabled={!filteredContent || filteredContent.length === 0}

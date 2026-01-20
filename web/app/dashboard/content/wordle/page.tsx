@@ -17,6 +17,7 @@ import {
   BookOpen,
   Download,
   Upload,
+  FileText,
 } from "lucide-react";
 import type { Id } from "@convex/_generated/dataModel";
 
@@ -138,6 +139,72 @@ function WordleContent() {
     const link = document.createElement('a');
     link.href = url;
     link.download = `wordle-words-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // Set Instructions Download Handler
+  const handleDownloadSetInstructions = () => {
+    const instructions = `========================
+WORDLE CONTENT GUIDELINES
+========================
+
+📝 ABOUT WORDLE
+===============
+Wordle displays the SAME daily word to ALL users regardless of their group.
+There are no sets or difficulty levels - just one word per day for everyone.
+
+
+📚 USER GROUPS (Reference)
+==========================
+Group A: Classes 1-4 (Primary)
+Group B: Classes 5-8 (Middle School)  
+Group C: Classes 9-10 (High School)
+
+
+🎯 WORD SELECTION TIPS
+======================
+Since ALL age groups see the same word:
+
+1. Choose words that are recognizable across age groups
+2. Prefer common English words over obscure vocabulary
+3. Avoid words that only older students would know
+4. The hint should help younger students without giving it away
+
+
+✅ GOOD WORD EXAMPLES
+====================
+• APPLE - Common fruit, known by all ages
+• HAPPY - Basic emotion word
+• WATER - Everyday word
+• HOUSE - Simple noun
+
+
+❌ AVOID
+========
+• Very complex vocabulary (USURP, QUALM)
+• Technical terms (CODEC, PROXY)
+• Words with unusual spellings
+
+
+📋 CSV FORMAT
+=============
+Word, Hint
+APPLE, A common red or green fruit
+HAPPY, Feeling of joy
+
+========================
+Happy Word Adding! 🎉
+========================
+`;
+
+    const blob = new Blob([instructions], { type: 'text/plain;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'wordle-set-instructions.txt';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -291,6 +358,14 @@ function WordleContent() {
             </div>
           </div>
         </div>
+        <button
+          onClick={handleDownloadSetInstructions}
+          className="flex items-center gap-2 border border-slate-200 text-slate-600 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors"
+          title="Download Set Instructions"
+        >
+          <FileText className="w-4 h-4" />
+          Set Instructions
+        </button>
         <button
           onClick={handleDownloadCSV}
           disabled={!filteredContent || filteredContent.length === 0}
