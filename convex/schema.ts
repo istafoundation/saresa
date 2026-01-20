@@ -373,4 +373,38 @@ export default defineSchema({
   })
     .index("by_child", ["childId"])
     .index("by_child_level", ["childId", "levelId"]),
+
+  // ============================================
+  // RATE LIMITING & SECURITY
+  // ============================================
+
+  // Track rate limit events per user/action
+  rateLimitEvents: defineTable({
+    childId: v.optional(v.id("children")),  // null for unauthenticated requests (like login)
+    parentId: v.optional(v.id("parents")),  // For parent-side rate limiting
+    action: v.string(),                      // "login", "addXP", "mutation", etc.
+    identifier: v.string(),                  // username for login, childId for others
+    timestamp: v.number(),
+    windowStart: v.number(),                 // Start of the rate limit window
+    count: v.number(),                       // Count in current window
+  })
+    .index("by_identifier_action", ["identifier", "action"])
+    .index("by_child_action", ["childId", "action"])
+    .index("by_timestamp", ["timestamp"]),
+
+  // Notifications when users hit rate limits (for admin dashboard)
+  rateLimitNotifications: defineTable({
+    childId: v.optional(v.id("children")),
+    parentId: v.optional(v.id("parents")),
+    childName: v.optional(v.string()),
+    username: v.optional(v.string()),
+    action: v.string(),                      // Which action was rate limited
+    limit: v.number(),                       // The limit that was hit
+    count: v.number(),                       // How many times they tried
+    windowMinutes: v.number(),               // The window in minutes
+    createdAt: v.number(),
+    isRead: v.boolean(),                     // For marking as read
+  })
+    .index("by_created", ["createdAt"])
+    .index("by_read", ["isRead"]),
 });

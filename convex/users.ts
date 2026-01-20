@@ -2,6 +2,12 @@ import { mutation, query } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { getISTDate, getYesterdayIST } from "./lib/dates";
 import { getChildIdFromSession, getAuthenticatedUser } from "./lib/auth";
+import { checkRateLimit } from "./lib/rateLimit";
+
+// Maximum XP that can be added in a single operation (prevents exploits)
+const MAX_XP_PER_OPERATION = 100;
+// Maximum shards that can be added in a single operation
+const MAX_SHARDS_PER_OPERATION = 50;
 
 // Get current user data (for child app)
 // OPTIMIZED: Returns pre-computed daily limits to eliminate separate queries
@@ -247,6 +253,24 @@ export const addXP = mutation({
     const childId = await getChildIdFromSession(ctx, args.token);
     if (!childId) throw new ConvexError("Not authenticated");
 
+    // Validate XP amount bounds
+    if (args.amount <= 0 || args.amount > MAX_XP_PER_OPERATION) {
+      throw new ConvexError(`XP amount must be between 1 and ${MAX_XP_PER_OPERATION}`);
+    }
+
+    // Get child info for rate limiting
+    const child = await ctx.db.get(childId);
+    
+    // Rate limit: 20 XP operations per minute
+    await checkRateLimit(
+      ctx, 
+      "addXP", 
+      childId as string, 
+      childId, 
+      child?.name, 
+      child?.username
+    );
+
     const user = await ctx.db
       .query("users")
       .withIndex("by_child_id", (q) => q.eq("childId", childId))
@@ -314,7 +338,12 @@ export const syncProgression = mutation({
   },
 });
 
-// Unlock artifact
+// Valid artifact IDs (extracted from LEVELS array)
+const VALID_ARTIFACT_IDS = LEVELS
+  .map(l => l.artifactId)
+  .filter((id): id is string => id !== null);
+
+// Unlock artifact - validates against known artifacts
 export const unlockArtifact = mutation({
   args: {
     token: v.string(),
@@ -324,12 +353,23 @@ export const unlockArtifact = mutation({
     const childId = await getChildIdFromSession(ctx, args.token);
     if (!childId) throw new ConvexError("Not authenticated");
 
+    // Validate artifact ID against known artifacts
+    if (!VALID_ARTIFACT_IDS.includes(args.artifactId)) {
+      throw new ConvexError("Invalid artifact ID");
+    }
+
     const user = await ctx.db
       .query("users")
       .withIndex("by_child_id", (q) => q.eq("childId", childId))
       .first();
 
     if (!user) throw new ConvexError("User not found");
+
+    // Check if user has enough XP for this artifact
+    const requiredLevel = LEVELS.find(l => l.artifactId === args.artifactId);
+    if (requiredLevel && user.xp < requiredLevel.xpRequired) {
+      throw new ConvexError("Not enough XP to unlock this artifact");
+    }
 
     if (!user.unlockedArtifacts.includes(args.artifactId)) {
       await ctx.db.patch(user._id, {
@@ -374,6 +414,22 @@ export const updateShards = mutation({
   handler: async (ctx, args) => {
     const childId = await getChildIdFromSession(ctx, args.token);
     if (!childId) throw new ConvexError("Not authenticated");
+
+    // Validate amount bounds
+    if (args.amount <= 0 || args.amount > MAX_SHARDS_PER_OPERATION) {
+      throw new ConvexError(`Shard amount must be between 1 and ${MAX_SHARDS_PER_OPERATION}`);
+    }
+
+    // Rate limit for shard operations
+    const child = await ctx.db.get(childId);
+    await checkRateLimit(
+      ctx, 
+      "updateShards", 
+      childId as string, 
+      childId, 
+      child?.name, 
+      child?.username
+    );
 
     const user = await ctx.db
       .query("users")

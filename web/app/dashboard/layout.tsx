@@ -5,7 +5,7 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, Trophy, Settings, Menu, X, Rocket, Package, Search } from "lucide-react";
+import { LayoutDashboard, Users, Trophy, Settings, Menu, X, Rocket, Package, Search, Shield } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -36,7 +36,8 @@ export default function DashboardLayout({
     if (isAdmin) {
       baseNav.push(
         { name: "Content", href: "/dashboard/content", icon: Package },
-        { name: "Students", href: "/dashboard/admin/students", icon: Search }
+        { name: "Students", href: "/dashboard/admin/students", icon: Search },
+        { name: "User Management", href: "/dashboard/admin/user-management", icon: Shield }
       );
     }
 

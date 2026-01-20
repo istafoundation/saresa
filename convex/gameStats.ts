@@ -140,8 +140,49 @@ const LEVELS = [
 ];
 
 /**
+ * Calculate Wordle XP reward server-side
+ * XP is based on performance: fewer guesses = more XP
+ * Using hint reduces XP by 50%
+ */
+function calculateWordleXP(won: boolean, guessCount?: number, usedHint?: boolean): number {
+  if (!won) return 10; // Consolation XP for trying
+  
+  // Base XP by guess count (fewer guesses = more XP)
+  const baseXP: Record<number, number> = {
+    1: 50, // Perfect!
+    2: 45,
+    3: 40,
+    4: 35,
+    5: 30,
+    6: 25,
+  };
+  
+  const xp = baseXP[guessCount ?? 6] ?? 25;
+  return usedHint ? Math.floor(xp * 0.5) : xp;
+}
+
+/**
+ * Calculate Wordle shard reward server-side
+ */
+function calculateWordleShards(won: boolean, guessCount?: number): number {
+  if (!won) return 2; // Small consolation
+  
+  const shards: Record<number, number> = {
+    1: 15,
+    2: 12,
+    3: 10,
+    4: 8,
+    5: 6,
+    6: 5,
+  };
+  
+  return shards[guessCount ?? 6] ?? 5;
+}
+
+/**
  * BATCHED: Finish Wordle game - handles XP, shards, and stats in one atomic operation
  * Reduces 3 separate API calls to 1, eliminating race conditions
+ * SECURITY: Rewards are now calculated SERVER-SIDE to prevent manipulation
  */
 export const finishWordleGame = mutation({
   args: {
@@ -149,12 +190,18 @@ export const finishWordleGame = mutation({
     won: v.boolean(),
     guessCount: v.optional(v.number()), // 1-6 if won
     usedHint: v.boolean(),
-    xpReward: v.number(),      // Pre-calculated XP to award
-    shardReward: v.number(),   // Pre-calculated shards to award
+    // Client values are IGNORED for security - kept for backward compatibility
+    xpReward: v.optional(v.number()),
+    shardReward: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const childId = await getChildIdFromSession(ctx, args.token);
     if (!childId) throw new ConvexError("Not authenticated");
+
+    // Validate guessCount if provided
+    if (args.guessCount !== undefined && (args.guessCount < 1 || args.guessCount > 6)) {
+      throw new ConvexError("Invalid guess count");
+    }
 
     const user = await ctx.db
       .query("users")
@@ -182,8 +229,12 @@ export const finishWordleGame = mutation({
       usedHint: args.usedHint,
     };
 
+    // ---- Calculate Rewards SERVER-SIDE (ignore client values) ----
+    const xpReward = calculateWordleXP(args.won, args.guessCount, args.usedHint);
+    const shardReward = calculateWordleShards(args.won, args.guessCount);
+
     // ---- Calculate XP and Artifact Unlocks ----
-    const newXP = user.xp + args.xpReward;
+    const newXP = user.xp + xpReward;
     const unlockedArtifacts = [...user.unlockedArtifacts];
     let artifactsUpdated = false;
 
@@ -197,7 +248,7 @@ export const finishWordleGame = mutation({
     }
 
     // ---- Calculate Shards ----
-    const newShards = user.weaponShards + args.shardReward;
+    const newShards = user.weaponShards + shardReward;
 
     // ---- Single Atomic Database Update ----
     await ctx.db.patch(user._id, {

@@ -1,24 +1,15 @@
 // SparkleBackground - Floating sparkles/stars for magical atmosphere
 // ✨ Various background effects for different screens
-import { StyleSheet, View, Dimensions, Text } from 'react-native';
+import { useMemo } from 'react';
+import { StyleSheet, View, Text, useWindowDimensions } from 'react-native';
 import { MotiView } from 'moti';
 import { COLORS } from '../../constants/theme';
 
-const { width, height } = Dimensions.get('window');
-
-// Generate random sparkle positions
-const generateSparkles = (count: number) => {
-  return Array.from({ length: count }, (_, i) => ({
-    id: i,
-    x: Math.random() * width,
-    y: Math.random() * height,
-    size: 4 + Math.random() * 8,
-    delay: Math.random() * 2000,
-    duration: 1500 + Math.random() * 1500,
-  }));
-};
-
-const SPARKLES = generateSparkles(15);
+// Seeded random number generator for consistent positions across renders
+function seededRandom(seed: number): number {
+  const x = Math.sin(seed) * 10000;
+  return x - Math.floor(x);
+}
 
 interface SparkleBackgroundProps {
   color?: string;
@@ -29,8 +20,20 @@ export default function SparkleBackground({
   color = COLORS.sparkle, 
   intensity = 'medium' 
 }: SparkleBackgroundProps) {
+  const { width, height } = useWindowDimensions();
   const sparkleCount = intensity === 'low' ? 8 : intensity === 'medium' ? 15 : 25;
-  const sparkles = SPARKLES.slice(0, sparkleCount);
+  
+  // Generate sparkles with seeded random for stability, reactive to dimensions
+  const sparkles = useMemo(() => {
+    return Array.from({ length: sparkleCount }, (_, i) => ({
+      id: i,
+      x: seededRandom(i * 1.1) * width,
+      y: seededRandom(i * 2.2) * height,
+      size: 4 + seededRandom(i * 3.3) * 8,
+      delay: seededRandom(i * 4.4) * 2000,
+      duration: 1500 + seededRandom(i * 5.5) * 1500,
+    }));
+  }, [width, height, sparkleCount]);
 
   return (
     <View style={styles.container} pointerEvents="none">
@@ -63,13 +66,17 @@ export default function SparkleBackground({
 
 // Floating bubbles variant
 export function BubbleBackground({ color = COLORS.primaryLight }: { color?: string }) {
-  const bubbles = Array.from({ length: 8 }, (_, i) => ({
-    id: i,
-    x: 20 + Math.random() * (width - 40),
-    size: 20 + Math.random() * 40,
-    delay: i * 500,
-    duration: 4000 + Math.random() * 2000,
-  }));
+  const { width, height } = useWindowDimensions();
+  
+  const bubbles = useMemo(() => {
+    return Array.from({ length: 8 }, (_, i) => ({
+      id: i,
+      x: 20 + seededRandom(i * 6.6) * (width - 40),
+      size: 20 + seededRandom(i * 7.7) * 40,
+      delay: i * 500,
+      duration: 4000 + seededRandom(i * 8.8) * 2000,
+    }));
+  }, [width]);
 
   return (
     <View style={styles.container} pointerEvents="none">
@@ -119,26 +126,29 @@ const CANDY_COLORS = [
   COLORS.primary,  // Pink
 ];
 
-const CANDY_PARTICLES = Array.from({ length: 12 }, (_, i) => ({
-  id: i,
-  x: 20 + Math.random() * (width - 40),
-  y: Math.random() * height * 0.8,
-  size: 8 + Math.random() * 12,
-  color: CANDY_COLORS[i % CANDY_COLORS.length],
-  delay: i * 300,
-  duration: 4000 + Math.random() * 2000,
-  isCircle: Math.random() > 0.3, // 70% circles, 30% stars
-}));
-
 // 🍬 Static candy background for home screen - optimized for performance
 export function CandyBackground() {
+  const { width, height } = useWindowDimensions();
+  
+  // Generate candy particles with seeded random, reactive to dimensions
+  const candyParticles = useMemo(() => {
+    return Array.from({ length: 12 }, (_, i) => ({
+      id: i,
+      x: 20 + seededRandom(i * 9.9) * (width - 40),
+      y: seededRandom(i * 10.1) * height * 0.8,
+      size: 8 + seededRandom(i * 11.2) * 12,
+      color: CANDY_COLORS[i % CANDY_COLORS.length],
+      isCircle: seededRandom(i * 12.3) > 0.3, // 70% circles, 30% stars
+    }));
+  }, [width, height]);
+
   return (
     <View style={styles.container} pointerEvents="none">
       {/* Soft gradient overlay at top */}
       <View style={styles.gradientOverlay} />
       
       {/* Static candy particles - no animation loops */}
-      {CANDY_PARTICLES.map((candy) => (
+      {candyParticles.map((candy) => (
         <View
           key={candy.id}
           style={[
@@ -210,12 +220,5 @@ const styles = StyleSheet.create({
   starText: {
     fontSize: 8,
     color: 'rgba(255, 255, 255, 0.9)',
-  },
-  tinySparkle: {
-    position: 'absolute',
-  },
-  sparkleEmoji: {
-    fontSize: 12,
-    opacity: 0.6,
   },
 });

@@ -1,25 +1,20 @@
 import { mutation, query, internalMutation } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
+import { checkRateLimit, RATE_LIMIT_ERROR } from "./lib/rateLimit";
 
 // Generate cryptographically secure session token (32 hex characters)
 function generateToken(): string {
-  // Use crypto.randomUUID() which is available in modern runtimes
-  // Fallback to timestamp + random for older environments
-  try {
-    // Generate two UUIDs and extract hex portions for 32 chars
-    const uuid = crypto.randomUUID().replace(/-/g, '');
-    return uuid.slice(0, 32);
-  } catch {
-    // Fallback: use multiple random sources for better entropy
-    const timestamp = Date.now().toString(16);
-    const random1 = Math.random().toString(16).slice(2);
-    const random2 = Math.random().toString(16).slice(2);
-    return (timestamp + random1 + random2).slice(0, 32).padEnd(32, '0');
-  }
+  // Use crypto.getRandomValues which is always available in Convex
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 // Session duration: 30 days in milliseconds
 const SESSION_DURATION = 30 * 24 * 60 * 60 * 1000;
+
+// Maximum sessions per child account
+const MAX_SESSIONS_PER_CHILD = 5;
 
 // Login child with username and password
 export const login = mutation({
@@ -29,6 +24,9 @@ export const login = mutation({
   },
   handler: async (ctx, args) => {
     const username = args.username.toLowerCase().trim();
+
+    // Rate limit: 5 login attempts per 5 minutes per username
+    await checkRateLimit(ctx, "login", username, undefined, undefined, username);
 
     // Find child by username
     const child = await ctx.db
@@ -40,7 +38,7 @@ export const login = mutation({
       throw new ConvexError("Invalid username or password");
     }
 
-    // Check password (plaintext comparison)
+    // Check password (plaintext comparison - TODO: implement encryption)
     if (child.password !== args.password) {
       throw new ConvexError("Invalid username or password");
     }
@@ -48,6 +46,21 @@ export const login = mutation({
     // Generate session token
     const token = generateToken();
     const now = Date.now();
+
+    // Enforce session limit: max 5 sessions per child
+    const existingSessions = await ctx.db
+      .query("childSessions")
+      .withIndex("by_child", (q) => q.eq("childId", child._id))
+      .collect();
+
+    if (existingSessions.length >= MAX_SESSIONS_PER_CHILD) {
+      // Delete oldest sessions to make room
+      const sortedSessions = existingSessions.sort((a, b) => a.createdAt - b.createdAt);
+      const sessionsToDelete = sortedSessions.slice(0, existingSessions.length - MAX_SESSIONS_PER_CHILD + 1);
+      for (const session of sessionsToDelete) {
+        await ctx.db.delete(session._id);
+      }
+    }
 
     // Create session
     await ctx.db.insert("childSessions", {

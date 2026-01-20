@@ -30,7 +30,7 @@ export default function HomeScreen() {
         </View>
         <View style={styles.streakBadge}>
           <Text style={styles.streakIcon}>🔥</Text>
-          <Text style={styles.streakText}>{streak}</Text>
+          <Text style={styles.streakText}>{streak ?? 0}</Text>
         </View>
       </MotiView>
       

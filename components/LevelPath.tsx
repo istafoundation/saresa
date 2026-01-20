@@ -5,8 +5,8 @@ import {
   View,
   ScrollView,
   StyleSheet,
-  Dimensions,
   Text,
+  useWindowDimensions,
 } from "react-native";
 import { useQuery } from "convex/react";
 import Svg, {
@@ -24,7 +24,12 @@ import { COLORS, SPACING } from "../constants/theme";
 import LevelNode from "./LevelNode";
 import type { Id } from "../convex/_generated/dataModel";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+// Constants for layout calculation - derived from LevelNode styles
+const NODE_SIZE = 76;
+const LEVEL_MARGIN_VERTICAL = SPACING.lg + 4; // 28px
+const LEVEL_SPACING = LEVEL_MARGIN_VERTICAL * 2 + NODE_SIZE; // ~132px
+const PATH_START_Y = 60;
+const MAX_ANIMATION_DELAY = 800; // Cap delays to prevent slow animations
 
 // Type for level data from query
 type LevelWithProgress = {
@@ -55,21 +60,24 @@ type LevelWithProgress = {
   } | null;
 };
 
-// Floating candy decoration component
-// Selective animation - only some candies bob gently for performance
+// Seeded random for consistent positions
+function seededRandom(seed: number): number {
+  const x = Math.sin(seed) * 10000;
+  return x - Math.floor(x);
+}
+
+// Floating candy decoration component (removed unused delay prop)
 function FloatingCandy({
   x,
   y,
   size,
   color,
-  delay,
   shouldAnimate = false,
 }: {
   x: number;
   y: number;
   size: number;
   color: string;
-  delay: number;
   shouldAnimate?: boolean;
 }) {
   const candyContent = (
@@ -109,7 +117,6 @@ function FloatingCandy({
 }
 
 // Glowing orb waypoint between nodes
-// Static orb waypoint - entry animation only for performance
 function GlowingOrb({
   x,
   y,
@@ -128,7 +135,7 @@ function GlowingOrb({
       transition={{
         type: "timing",
         duration: 400,
-        delay: delay * 80,
+        delay: Math.min(delay * 80, MAX_ANIMATION_DELAY),
       }}
       style={[styles.orbContainer, { left: x - 12, top: y - 12 }]}
     >
@@ -149,48 +156,48 @@ function GlowingOrb({
 // Magical path with fairy dust trail
 function MagicalPath({
   height,
-  levelCount,
   levels,
+  screenWidth,
 }: {
   height: number;
-  levelCount: number;
-  levels: Array<{ state: 'locked' | 'unlocked' | 'completed' | 'coming_soon' }>;
+  levels: LevelWithProgress[];
+  screenWidth: number;
 }) {
+  const levelCount = levels.length;
+  
   // Generate path data with connected orbs as waypoints
-  // LevelNode has marginVertical: 28px (SPACING.lg + 4), NODE_SIZE: 76px
-  // Total spacing per level = 28*2 + some flex spacing ≈ 132px
   const pathData = useMemo(() => {
-    const levelSpacing = 132; // Matches LevelNode marginVertical*2 + height
-    const startY = 60; // Account for content paddingTop + first node position
-    const amplitude = 60;
-    const centerX = SCREEN_WIDTH / 2;
-    
-    const orbPositions: Array<{ x: number; y: number; delay: number; color: string; isLocked: boolean }> = [];
-    
     const magicColors = [
-      COLORS.primary,      // Pink
-      COLORS.accent,       // Blue  
-      COLORS.accentGold,   // Gold
-      COLORS.rainbow4,     // Lavender
-      COLORS.rainbow5,     // Light blue
+      COLORS.primary,
+      COLORS.accent,
+      COLORS.accentGold,
+      COLORS.rainbow4,
+      COLORS.rainbow5,
     ];
     
-    const grayColor = '#A8A8A8'; // Gray for locked levels
+    const grayColor = '#A8A8A8';
     
-    // Generate orb positions at each level position
+    const orbPositions: Array<{ 
+      x: number; 
+      y: number; 
+      delay: number; 
+      color: string; 
+      isLocked: boolean;
+      levelId: string;
+    }> = [];
+    
+    // Generate orb positions at each level position with bounds checking
     for (let i = 0; i < levelCount; i++) {
-      // Calculate Y position to match where level nodes render
-      const y = startY + i * levelSpacing;
+      const level = levels[i];
+      if (!level) continue; // Bounds safety check
       
-      // Alternate left/right based on isLeft prop (index % 2 === 0 is left)
+      const y = PATH_START_Y + i * LEVEL_SPACING;
       const isLeft = i % 2 === 0;
-      // Position orbs near the level nodes (offset from center)
       const nodeX = isLeft 
-        ? SCREEN_WIDTH * 0.25  // Left side
-        : SCREEN_WIDTH * 0.75; // Right side
+        ? screenWidth * 0.25
+        : screenWidth * 0.75;
       
-      const levelState = levels[i]?.state;
-      const isLocked = levelState === 'locked' || levelState === 'coming_soon';
+      const isLocked = level.state === 'locked' || level.state === 'coming_soon';
       
       orbPositions.push({
         x: nodeX,
@@ -198,42 +205,46 @@ function MagicalPath({
         delay: i,
         color: isLocked ? grayColor : magicColors[i % magicColors.length],
         isLocked,
+        levelId: level._id,
       });
     }
     
-    // Generate separate paths for unlocked and locked segments
+    // Generate paths with smooth transition between unlocked and locked
     let unlockedPath = '';
     let lockedPath = '';
     
     if (orbPositions.length > 0) {
-      for (let i = 0; i < orbPositions.length; i++) {
+      // Find the transition point (first locked level)
+      let transitionIndex = orbPositions.findIndex(orb => orb.isLocked);
+      if (transitionIndex === -1) transitionIndex = orbPositions.length;
+      
+      // Build unlocked path
+      for (let i = 0; i < transitionIndex; i++) {
+        const curr = orbPositions[i];
         if (i === 0) {
-          // First point - start path based on whether it's locked
-          if (orbPositions[i].isLocked) {
-            lockedPath = `M ${orbPositions[i].x} ${orbPositions[i].y}`;
-          } else {
-            unlockedPath = `M ${orbPositions[i].x} ${orbPositions[i].y}`;
-          }
+          unlockedPath = `M ${curr.x} ${curr.y}`;
         } else {
           const prev = orbPositions[i - 1];
+          const midY = (prev.y + curr.y) / 2;
+          unlockedPath += ` C ${prev.x} ${midY}, ${curr.x} ${midY}, ${curr.x} ${curr.y}`;
+        }
+      }
+      
+      // Build locked path - starts from the last unlocked position for smooth connection
+      if (transitionIndex < orbPositions.length) {
+        const startOrb = transitionIndex > 0 
+          ? orbPositions[transitionIndex - 1] 
+          : orbPositions[transitionIndex];
+        
+        lockedPath = `M ${startOrb.x} ${startOrb.y}`;
+        
+        for (let i = transitionIndex; i < orbPositions.length; i++) {
+          const prev = i === transitionIndex && transitionIndex > 0
+            ? orbPositions[transitionIndex - 1]
+            : orbPositions[i - 1];
           const curr = orbPositions[i];
           const midY = (prev.y + curr.y) / 2;
-          const segment = ` C ${prev.x} ${midY}, ${curr.x} ${midY}, ${curr.x} ${curr.y}`;
-          
-          // If current is locked, add to locked path
-          if (curr.isLocked) {
-            // Start locked path if not started, from previous point
-            if (!lockedPath) {
-              lockedPath = `M ${prev.x} ${prev.y}`;
-            }
-            lockedPath += segment;
-          } else {
-            // Add to unlocked path
-            if (!unlockedPath) {
-              unlockedPath = `M ${prev.x} ${prev.y}`;
-            }
-            unlockedPath += segment;
-          }
+          lockedPath += ` C ${prev.x} ${midY}, ${curr.x} ${midY}, ${curr.x} ${curr.y}`;
         }
       }
     }
@@ -243,12 +254,12 @@ function MagicalPath({
       lockedPath,
       orbPositions,
     };
-  }, [levelCount, levels]);
+  }, [levelCount, levels, screenWidth]);
 
   return (
     <View style={styles.svgPath}>
       {/* SVG path lines */}
-      <Svg width={SCREEN_WIDTH} height={height}>
+      <Svg width={screenWidth} height={height}>
         <Defs>
           {/* Magical gradient for main path */}
           <LinearGradient id="magicGradient" x1="0" y1="1" x2="0" y2="0">
@@ -359,9 +370,9 @@ function MagicalPath({
         )}
         
         {/* Orb glow circles in SVG */}
-        {pathData.orbPositions.map((orb, index) => (
+        {pathData.orbPositions.map((orb) => (
           <Circle
-            key={`orb-glow-${index}`}
+            key={`orb-glow-${orb.levelId}`}
             cx={orb.x}
             cy={orb.y}
             r={12}
@@ -372,9 +383,9 @@ function MagicalPath({
       </Svg>
       
       {/* Glowing orb waypoints */}
-      {pathData.orbPositions.map((orb, index) => (
+      {pathData.orbPositions.map((orb) => (
         <GlowingOrb
-          key={`orb-${index}`}
+          key={`orb-${orb.levelId}`}
           x={orb.x}
           y={orb.y}
           delay={orb.delay}
@@ -387,37 +398,36 @@ function MagicalPath({
 
 // Generate random candy positions for decoration
 const CANDY_COLORS = [
-  COLORS.rainbow1, // Coral
-  COLORS.rainbow2, // Teal
-  COLORS.rainbow3, // Yellow
-  COLORS.rainbow4, // Lavender
-  COLORS.rainbow5, // Light blue
-  COLORS.rainbow6, // Mint
+  COLORS.rainbow1,
+  COLORS.rainbow2,
+  COLORS.rainbow3,
+  COLORS.rainbow4,
+  COLORS.rainbow5,
+  COLORS.rainbow6,
 ];
 
-function generateCandyDecorations(levelCount: number) {
+function generateCandyDecorations(levelCount: number, screenWidth: number) {
   const decorations = [];
-  const totalHeight = levelCount * 132 + 100;
-  const candyCount = levelCount * 2;
+  const totalHeight = levelCount * LEVEL_SPACING + 100;
+  const candyCount = Math.max(levelCount * 2, 1); // Prevent division by zero
   const spacingY = totalHeight / candyCount;
 
   for (let i = 0; i < candyCount; i++) {
     // Use seeded pseudo-random for consistent positions
-    const seed = (i + 1) * 0.618033988749895; // Golden ratio for even distribution
-    const randomX = ((seed * 1000) % 40);
-    const randomY = ((seed * 500) % (spacingY * 0.4));
-    const randomSize = 12 + ((seed * 100) % 10);
+    const seed = (i + 1) * 0.618033988749895;
+    const randomX = seededRandom(seed * 1000) * 40;
+    const randomY = seededRandom(seed * 500) * spacingY * 0.4;
+    const randomSize = 12 + seededRandom(seed * 100) * 10;
     
     decorations.push({
-      id: i,
+      id: `candy-${i}`,
       x: i % 2 === 0
         ? 20 + randomX
-        : SCREEN_WIDTH - 60 - randomX,
+        : screenWidth - 60 - randomX,
       y: 60 + i * spacingY + randomY,
       size: randomSize,
       color: CANDY_COLORS[i % CANDY_COLORS.length],
-      delay: i,
-      animationDuration: 2500 + ((seed * 200) % 1000), // Varied duration for natural feel
+      animationDuration: 2500 + seededRandom(seed * 200) * 1000,
     });
   }
   return decorations;
@@ -426,6 +436,7 @@ function generateCandyDecorations(levelCount: number) {
 export default function LevelPath() {
   const { token } = useChildAuth();
   const { safePush } = useSafeNavigation();
+  const { width: screenWidth } = useWindowDimensions();
 
   // Fetch levels with progress
   const levels = useQuery(
@@ -446,19 +457,18 @@ export default function LevelPath() {
   );
 
   const candyDecorations = useMemo(
-    () => generateCandyDecorations(levels?.length || 5),
-    [levels?.length],
+    () => generateCandyDecorations(levels?.length || 5, screenWidth),
+    [levels?.length, screenWidth],
   );
 
   const pathHeight = useMemo(
-    () => (levels?.length || 5) * 132 + 100,
+    () => (levels?.length || 5) * LEVEL_SPACING + 100,
     [levels?.length],
   );
 
   if (!levels) {
     return (
       <View style={styles.loadingContainer}>
-        {/* Simple loading indicator */}
         <View style={styles.centerCircle}>
           <Text style={styles.centerIcon}>🎮</Text>
         </View>
@@ -489,8 +499,8 @@ export default function LevelPath() {
       {/* Magical fairy dust path */}
       <MagicalPath 
         height={pathHeight} 
-        levelCount={levels.length}
         levels={levels}
+        screenWidth={screenWidth}
       />
 
       {/* Floating candy decorations - continuous looping animation */}
@@ -511,13 +521,12 @@ export default function LevelPath() {
             y={candy.y}
             size={candy.size}
             color={candy.color}
-            delay={candy.delay}
             shouldAnimate={false}
           />
         </MotiView>
       ))}
 
-      {/* Level nodes - top to bottom order with staggered delays synced to path */}
+      {/* Level nodes - top to bottom order with capped staggered delays */}
       {levels.map((level, index) => (
         <MotiView
           key={level._id}
@@ -526,7 +535,7 @@ export default function LevelPath() {
           transition={{ 
             type: 'timing', 
             duration: 350,
-            delay: 100 + (index * 80),
+            delay: Math.min(100 + (index * 80), MAX_ANIMATION_DELAY),
           }}
         >
           <LevelNode
@@ -588,33 +597,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: SPACING.lg,
   },
-  candyOrbitContainer: {
-    width: 120,
-    height: 120,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: SPACING.md,
-  },
-  orbitCandy: {
-    position: "absolute",
-    width: 120,
-    height: 120,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  orbitCandyBall: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  centerPulse: {
-    position: "absolute",
-  },
   centerCircle: {
     width: 50,
     height: 50,
@@ -631,16 +613,6 @@ const styles = StyleSheet.create({
   centerIcon: {
     fontSize: 24,
     color: "#FFFFFF",
-  },
-  dotsContainer: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: SPACING.sm,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
   },
   loadingText: {
     fontSize: 17,
@@ -672,17 +644,6 @@ const styles = StyleSheet.create({
   bottomPadding: {
     height: 100,
   },
-  // Fairy dust particle styles
-  fairyParticle: {
-    position: "absolute",
-    zIndex: 1,
-  },
-  particleCore: {
-    borderRadius: 999,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 4,
-  },
-  // Glowing orb waypoint styles
   orbContainer: {
     position: "absolute",
     width: 24,

@@ -22,27 +22,37 @@ interface LevelNodeProps {
       passed: boolean;
     }>;
   };
-  totalDifficulties: number; // Actual count of difficulties for this level
+  totalDifficulties: number;
   onPress: () => void;
   isLeft: boolean;
 }
 
+// Max animation delay to prevent slow animations on high level numbers
+const MAX_ANIMATION_DELAY = 800;
+
 // Candy-like gradient colors - more vibrant and glossy
 const CANDY_GRADIENTS: { colors: [string, string, string]; glow: string }[] = [
-  { colors: ['#FF7B8A', '#FF5C6C', '#E84A5F'], glow: '#FF5C6C' }, // Cherry
-  { colors: ['#5CE1E6', '#42C9CE', '#2EB8BE'], glow: '#42C9CE' }, // Mint
-  { colors: ['#6EC1FF', '#4AAEF7', '#2D9CDB'], glow: '#4AAEF7' }, // Blueberry
-  { colors: ['#A8E6A3', '#8CD987', '#6FCF68'], glow: '#8CD987' }, // Apple
-  { colors: ['#FFD166', '#FFB830', '#FFA502'], glow: '#FFB830' }, // Lemon
-  { colors: ['#E2A4FF', '#D177F3', '#BB6BD9'], glow: '#D177F3' }, // Grape
-  { colors: ['#FF9F9F', '#FF7B7B', '#FF5757'], glow: '#FF7B7B' }, // Strawberry
-  { colors: ['#7FE5D0', '#5DD9C1', '#3ECFAE'], glow: '#5DD9C1' }, // Lime
-  { colors: ['#FFB8E0', '#FF94CC', '#FF70B8'], glow: '#FF94CC' }, // Bubblegum
-  { colors: ['#9DBFFF', '#7BA3FF', '#5987FF'], glow: '#7BA3FF' }, // Sapphire
+  { colors: ['#FF7B8A', '#FF5C6C', '#E84A5F'], glow: '#FF5C6C' },
+  { colors: ['#5CE1E6', '#42C9CE', '#2EB8BE'], glow: '#42C9CE' },
+  { colors: ['#6EC1FF', '#4AAEF7', '#2D9CDB'], glow: '#4AAEF7' },
+  { colors: ['#A8E6A3', '#8CD987', '#6FCF68'], glow: '#8CD987' },
+  { colors: ['#FFD166', '#FFB830', '#FFA502'], glow: '#FFB830' },
+  { colors: ['#E2A4FF', '#D177F3', '#BB6BD9'], glow: '#D177F3' },
+  { colors: ['#FF9F9F', '#FF7B7B', '#FF5757'], glow: '#FF7B7B' },
+  { colors: ['#7FE5D0', '#5DD9C1', '#3ECFAE'], glow: '#5DD9C1' },
+  { colors: ['#FFB8E0', '#FF94CC', '#FF70B8'], glow: '#FF94CC' },
+  { colors: ['#9DBFFF', '#7BA3FF', '#5987FF'], glow: '#7BA3FF' },
 ];
 
-// Cute emojis for levels
-const LEVEL_EMOJIS = ['🌟', '⭐', '✨', '💫', '🎯', '🎨', '🎪', '🎭', '🎮', '🏆', '👑', '💎'];
+// Helper to safely append alpha to hex colors
+function withAlpha(color: string, alpha: string): string {
+  // Only append alpha if it's a 6-character hex color (e.g., #FF5C6C)
+  if (color.match(/^#[0-9A-Fa-f]{6}$/)) {
+    return color + alpha;
+  }
+  // For other formats (rgba, 8-char hex, etc.), return as-is
+  return color;
+}
 
 export default function LevelNode({
   levelNumber,
@@ -77,7 +87,9 @@ export default function LevelNode({
   };
   
   const candyGradient = getCandyGradient();
-  const levelEmoji = theme?.emoji ?? LEVEL_EMOJIS[(levelNumber - 1) % LEVEL_EMOJIS.length];
+  
+  // Capped animation delay for staggered effects
+  const baseDelay = Math.min(levelNumber * 80, MAX_ANIMATION_DELAY);
   
   return (
     <View
@@ -115,7 +127,7 @@ export default function LevelNode({
 
         {/* Outer candy shell ring */}
         {isInteractive && (
-          <View style={[styles.candyShellRing, { borderColor: candyGradient.glow + '50' }]} />
+          <View style={[styles.candyShellRing, { borderColor: withAlpha(candyGradient.glow, '50') }]} />
         )}
         
         {/* Main candy node */}
@@ -154,7 +166,7 @@ export default function LevelNode({
           <MotiView
             from={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: 'timing', duration: 300, delay: levelNumber * 80 + 150 }}
+            transition={{ type: 'timing', duration: 300, delay: baseDelay + 150 }}
             style={styles.completeBadgeOuter}
           >
             <Ionicons name="checkmark" size={14} color="#FFFFFF" />
@@ -192,9 +204,9 @@ export default function LevelNode({
             <View style={styles.comingSoonBadge}>
               <Text style={styles.comingSoonText}>Soon!</Text>
             </View>
-          ) : state !== 'locked' && (
+          ) : state !== 'locked' && totalDifficulties > 0 ? (
             <View style={styles.starsContainer}>
-              {Array.from({ length: totalDifficulties }).map((_, i) => (
+              {Array.from<number>({ length: totalDifficulties }).map((_, i) => (
                 <MotiView
                   key={i}
                   from={{ scale: 0.9, opacity: 0 }}
@@ -202,7 +214,7 @@ export default function LevelNode({
                   transition={{ 
                     type: 'timing', 
                     duration: 250,
-                    delay: levelNumber * 80 + i * 60 + 200,
+                    delay: Math.min(baseDelay + i * 60 + 200, MAX_ANIMATION_DELAY + 200),
                   }}
                 >
                   <Text style={[styles.starEmoji, i < passedCount && styles.starFilled]}>
@@ -211,7 +223,7 @@ export default function LevelNode({
                 </MotiView>
               ))}
             </View>
-          )}
+          ) : null}
         </View>
       </View>
     </View>
@@ -310,33 +322,9 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 1, height: 2 },
     textShadowRadius: 3,
   },
-  nodeEmoji: {
-    fontSize: 34,
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
   lockContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  completeBadge: {
-    position: 'absolute',
-    bottom: -3,
-    right: -3,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: COLORS.success,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2.5,
-    borderColor: '#FFFFFF',
-    shadowColor: COLORS.success,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 4,
-    elevation: 4,
   },
   completeBadgeOuter: {
     position: 'absolute',
