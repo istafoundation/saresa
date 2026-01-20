@@ -16,6 +16,7 @@ import {
   Package,
   BarChart3,
   Upload,
+  Layers,
 } from "lucide-react";
 
 export default function ContentManagementPage() {
@@ -24,8 +25,20 @@ export default function ContentManagementPage() {
   const wordFinderContent = useQuery(api.content.getAllContent, { gameId: "word-finder" });
   const englishInsaneContent = useQuery(api.content.getAllContent, { gameId: "english-insane" });
   const grammarDetectiveContent = useQuery(api.content.getAllContent, { gameId: "grammar-detective" });
+  const levelsData = useQuery(api.levels.getLevelsAdmin);
 
   const games = [
+    {
+      id: "levels",
+      name: "Level Progression",
+      description: "Candy Crush-style levels with questions",
+      icon: Layers,
+      color: "indigo",
+      href: "/dashboard/content/levels",
+      contentCount: levelsData?.reduce((sum, l) => sum + l.totalQuestions, 0) ?? 0,
+      activeCount: levelsData?.length ?? 0,
+      isLevels: true,
+    },
     {
       id: "wordle",
       name: "Wordle",
@@ -61,7 +74,7 @@ export default function ContentManagementPage() {
       name: "Grammar Detective",
       description: "Parts of speech questions",
       icon: Search,
-      color: "indigo",
+      color: "amber",
       href: "/dashboard/content/grammar-detective",
       contentCount: grammarDetectiveContent?.length ?? 0,
       activeCount: grammarDetectiveContent?.filter((c) => c.status === "active").length ?? 0,
@@ -156,6 +169,8 @@ export default function ContentManagementPage() {
               ? "bg-blue-500"
               : game.color === "indigo"
               ? "bg-indigo-500"
+              : game.color === "amber"
+              ? "bg-amber-500"
               : "bg-purple-500";
           const lightBg =
             game.color === "emerald"
@@ -164,6 +179,8 @@ export default function ContentManagementPage() {
               ? "bg-blue-50"
               : game.color === "indigo"
               ? "bg-indigo-50"
+              : game.color === "amber"
+              ? "bg-amber-50"
               : "bg-purple-50";
           const textColor =
             game.color === "emerald"
@@ -172,6 +189,8 @@ export default function ContentManagementPage() {
               ? "text-blue-600"
               : game.color === "indigo"
               ? "text-indigo-600"
+              : game.color === "amber"
+              ? "text-amber-600"
               : "text-purple-600";
 
           return (
@@ -197,14 +216,18 @@ export default function ContentManagementPage() {
                   <span className="font-medium text-slate-900">
                     {game.contentCount}
                   </span>
-                  <span className="text-slate-500">total</span>
+                  <span className="text-slate-500">
+                    {(game as any).isLevels ? "questions" : "total"}
+                  </span>
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="w-2 h-2 bg-green-500 rounded-full"></span>
                   <span className="font-medium text-slate-900">
                     {game.activeCount}
                   </span>
-                  <span className="text-slate-500">active</span>
+                  <span className="text-slate-500">
+                    {(game as any).isLevels ? "levels" : "active"}
+                  </span>
                 </div>
               </div>
             </Link>
@@ -217,7 +240,20 @@ export default function ContentManagementPage() {
         <h2 className="text-lg font-semibold text-slate-900 mb-4">
           Quick Actions
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <Link
+            href="/dashboard/content/levels"
+            className="flex items-center gap-3 p-4 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors border border-indigo-200"
+          >
+            <div className="p-2 bg-indigo-100 rounded-lg">
+              <Layers className="w-4 h-4 text-indigo-600" />
+            </div>
+            <div>
+              <p className="font-medium text-slate-900">Manage Levels</p>
+              <p className="text-sm text-slate-500">Add questions to levels</p>
+            </div>
+          </Link>
+
           <Link
             href="/dashboard/content/wordle?action=add"
             className="flex items-center gap-3 p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
