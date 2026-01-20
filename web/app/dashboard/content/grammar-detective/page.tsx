@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, Suspense, useRef } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import Link from "next/link";
@@ -13,6 +13,8 @@ import {
   Archive,
   X,
   Check,
+  Download,
+  Upload,
 } from "lucide-react";
 import type { Id } from "@convex/_generated/dataModel";
 
@@ -51,6 +53,8 @@ function GrammarDetectiveContent() {
   const [explanation, setExplanation] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-split sentence into words
   const words = sentence.trim().split(/\s+/).filter(Boolean);
@@ -140,6 +144,186 @@ function GrammarDetectiveContent() {
 
   const totalQuestions = content?.filter((c) => c.status !== "archived").length ?? 0;
 
+  // Parse CSV with proper escape handling
+  const parseCSV = (text: string): string[][] => {
+    const rows: string[][] = [];
+    let currentRow: string[] = [];
+    let currentCell = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      const nextChar = text[i + 1];
+
+      if (inQuotes) {
+        if (char === '"' && nextChar === '"') {
+          currentCell += '"';
+          i++;
+        } else if (char === '"') {
+          inQuotes = false;
+        } else {
+          currentCell += char;
+        }
+      } else {
+        if (char === '"') {
+          inQuotes = true;
+        } else if (char === ',') {
+          currentRow.push(currentCell);
+          currentCell = '';
+        } else if (char === '\n' || (char === '\r' && nextChar === '\n')) {
+          currentRow.push(currentCell);
+          if (currentRow.some(c => c.trim())) rows.push(currentRow);
+          currentRow = [];
+          currentCell = '';
+          if (char === '\r') i++;
+        } else if (char !== '\r') {
+          currentCell += char;
+        }
+      }
+    }
+
+    currentRow.push(currentCell);
+    if (currentRow.some(c => c.trim())) rows.push(currentRow);
+
+    return rows;
+  };
+
+  const escapeCSV = (value: string) => {
+    if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+      return `"${value.replace(/"/g, '""')}"`;
+    }
+    return value;
+  };
+
+  // CSV Download Handler
+  const handleDownloadCSV = () => {
+    if (!filteredContent || filteredContent.length === 0) return;
+
+    const headers = ['Sentence', 'Question Text', 'Correct Word Indices', 'Explanation'];
+    const rows = filteredContent.map((item) => {
+      const data = item.data as POSQuestion;
+      // Use pipe-separated indices since commas are CSV delimiters
+      const indicesStr = data.correctIndices?.join('|') ?? '';
+      return [
+        escapeCSV(data.sentence),
+        escapeCSV(data.questionText),
+        indicesStr,
+        escapeCSV(data.explanation),
+      ].join(',');
+    });
+
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `grammar-detective-questions-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // CSV Upload Handler
+  const handleUploadCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploadStatus(null);
+    setIsSubmitting(true);
+
+    try {
+      const text = await file.text();
+      const rows = parseCSV(text);
+      
+      if (rows.length < 2) {
+        setUploadStatus({ success: 0, failed: 0, errors: ['CSV file is empty or has no data rows'] });
+        setIsSubmitting(false);
+        return;
+      }
+
+      const dataRows = rows.slice(1);
+      let success = 0;
+      let failed = 0;
+      const errors: string[] = [];
+
+      for (let i = 0; i < dataRows.length; i++) {
+        const row = dataRows[i];
+        const rowNum = i + 2;
+
+        if (row.length < 4) {
+          errors.push(`Row ${rowNum}: Not enough columns (need Sentence, Question, Indices, Explanation)`);
+          failed++;
+          continue;
+        }
+
+        const [sentenceText, questionTextRaw, indicesStr, explanationText] = row;
+
+        if (!sentenceText?.trim()) {
+          errors.push(`Row ${rowNum}: Sentence is required`);
+          failed++;
+          continue;
+        }
+
+        if (!questionTextRaw?.trim()) {
+          errors.push(`Row ${rowNum}: Question text is required`);
+          failed++;
+          continue;
+        }
+
+        // Parse pipe-separated indices
+        const wordsArray = sentenceText.trim().split(/\s+/).filter(Boolean);
+        if (wordsArray.length === 0) {
+          errors.push(`Row ${rowNum}: Sentence must have at least one word`);
+          failed++;
+          continue;
+        }
+
+        const indices = indicesStr?.split('|')
+          .map(s => parseInt(s.trim(), 10))
+          .filter(n => !isNaN(n) && n >= 0 && n < wordsArray.length);
+        
+        if (!indices || indices.length === 0) {
+          errors.push(`Row ${rowNum}: At least one valid word index is required (0-${wordsArray.length - 1})`);
+          failed++;
+          continue;
+        }
+
+        if (!explanationText?.trim()) {
+          errors.push(`Row ${rowNum}: Explanation is required`);
+          failed++;
+          continue;
+        }
+
+        try {
+          await addContent({
+            type: "pos_question",
+            gameId: "grammar-detective",
+            data: {
+              sentence: sentenceText.trim(),
+              words: wordsArray,
+              questionText: questionTextRaw.trim(),
+              correctIndices: indices.sort((a, b) => a - b),
+              explanation: explanationText.trim(),
+            },
+            status: "active",
+          });
+          success++;
+        } catch (err) {
+          errors.push(`Row ${rowNum}: Failed to add - ${err instanceof Error ? err.message : 'Unknown error'}`);
+          failed++;
+        }
+      }
+
+      setUploadStatus({ success, failed, errors: errors.slice(0, 10) });
+    } catch (err) {
+      setUploadStatus({ success: 0, failed: 0, errors: ['Failed to parse CSV file'] });
+    }
+
+    setIsSubmitting(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -164,6 +348,31 @@ function GrammarDetectiveContent() {
           </div>
         </div>
         <button
+          onClick={handleDownloadCSV}
+          disabled={!filteredContent || filteredContent.length === 0}
+          className="flex items-center gap-2 border border-slate-200 text-slate-600 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Download CSV"
+        >
+          <Download className="w-4 h-4" />
+          Download
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv"
+          onChange={handleUploadCSV}
+          className="hidden"
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isSubmitting}
+          className="flex items-center gap-2 border border-slate-200 text-slate-600 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
+          title="Upload CSV"
+        >
+          <Upload className="w-4 h-4" />
+          {isSubmitting ? 'Uploading...' : 'Upload'}
+        </button>
+        <button
           onClick={() => { resetForm(); setIsAddModalOpen(true); }}
           className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
         >
@@ -171,6 +380,34 @@ function GrammarDetectiveContent() {
           Add Question
         </button>
       </div>
+
+      {/* Upload Status Notification */}
+      {uploadStatus && (
+        <div className={`p-4 rounded-lg ${uploadStatus.failed > 0 ? 'bg-amber-50 border border-amber-200' : 'bg-green-50 border border-green-200'}`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className={`font-medium ${uploadStatus.failed > 0 ? 'text-amber-800' : 'text-green-800'}`}>
+                {uploadStatus.success > 0 && `✓ ${uploadStatus.success} question${uploadStatus.success !== 1 ? 's' : ''} imported successfully`}
+                {uploadStatus.success > 0 && uploadStatus.failed > 0 && ' • '}
+                {uploadStatus.failed > 0 && `✗ ${uploadStatus.failed} failed`}
+                {uploadStatus.success === 0 && uploadStatus.failed === 0 && 'No questions imported'}
+              </p>
+              {uploadStatus.errors.length > 0 && (
+                <ul className="mt-2 text-sm text-amber-700 list-disc list-inside">
+                  {uploadStatus.errors.map((err, i) => <li key={i}>{err}</li>)}
+                  {uploadStatus.failed > 10 && <li>...and {uploadStatus.failed - 10} more errors</li>}
+                </ul>
+              )}
+            </div>
+            <button
+              onClick={() => setUploadStatus(null)}
+              className="p-1 hover:bg-slate-100 rounded"
+            >
+              <X className="w-4 h-4 text-slate-500" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Search */}
       <div className="relative max-w-md">

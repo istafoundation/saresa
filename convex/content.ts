@@ -10,7 +10,6 @@ import type { Id, Doc } from "./_generated/dataModel";
 export const wordleContentValidator = v.object({
   word: v.string(),
   hint: v.string(),
-  difficulty: v.optional(v.union(v.literal("easy"), v.literal("medium"), v.literal("hard"))),
 });
 
 // Word Finder - Easy mode word set

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, Suspense, useRef } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import Link from "next/link";
@@ -13,6 +13,8 @@ import {
   X,
   Puzzle,
   Pencil,
+  Download,
+  Upload,
 } from "lucide-react";
 import type { Id } from "@convex/_generated/dataModel";
 
@@ -76,6 +78,9 @@ function WordFinderContent() {
 
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
+  const wordSetFileInputRef = useRef<HTMLInputElement>(null);
+  const questionFileInputRef = useRef<HTMLInputElement>(null);
 
   const filteredContent = content?.filter((item: { type: string; data: WordSet | HardQuestion; questionSet?: number; status?: string }) => {
     const matchesType = typeFilter === "all" || item.type === typeFilter;
@@ -285,6 +290,298 @@ function WordFinderContent() {
   const wordSetCount = content?.filter((c: { type: string }) => c.type === "word_set").length ?? 0;
   const questionCount = content?.filter((c: { type: string }) => c.type === "hard_question").length ?? 0;
 
+  // Parse CSV with proper escape handling
+  const parseCSV = (text: string): string[][] => {
+    const rows: string[][] = [];
+    let currentRow: string[] = [];
+    let currentCell = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      const nextChar = text[i + 1];
+
+      if (inQuotes) {
+        if (char === '"' && nextChar === '"') {
+          currentCell += '"';
+          i++;
+        } else if (char === '"') {
+          inQuotes = false;
+        } else {
+          currentCell += char;
+        }
+      } else {
+        if (char === '"') {
+          inQuotes = true;
+        } else if (char === ',') {
+          currentRow.push(currentCell);
+          currentCell = '';
+        } else if (char === '\n' || (char === '\r' && nextChar === '\n')) {
+          currentRow.push(currentCell);
+          if (currentRow.some(c => c.trim())) rows.push(currentRow);
+          currentRow = [];
+          currentCell = '';
+          if (char === '\r') i++;
+        } else if (char !== '\r') {
+          currentCell += char;
+        }
+      }
+    }
+
+    currentRow.push(currentCell);
+    if (currentRow.some(c => c.trim())) rows.push(currentRow);
+
+    return rows;
+  };
+
+  const escapeCSV = (value: string) => {
+    if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+      return `"${value.replace(/"/g, '""')}"`;
+    }
+    return value;
+  };
+
+  // Word Sets CSV Download
+  const handleDownloadWordSetsCSV = () => {
+    const wordSets = content?.filter((c: { type: string; status?: string }) => c.type === "word_set" && c.status !== "archived");
+    if (!wordSets || wordSets.length === 0) return;
+
+    const headers = ['Theme', 'Word 1', 'Word 2', 'Word 3', 'Word 4', 'Word 5', 'Question Set'];
+    const rows = wordSets.map((item) => {
+      const data = item.data as WordSet;
+      const setLabel = SET_OPTIONS.find(s => s.value === (item.questionSet ?? 1))?.label ?? 'Set 1';
+      return [
+        escapeCSV(data.theme),
+        ...data.words.map(w => escapeCSV(w)),
+        escapeCSV(setLabel),
+      ].join(',');
+    });
+
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `word-finder-word-sets-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // Hard Questions CSV Download
+  const handleDownloadQuestionsCSV = () => {
+    const questions = content?.filter((c: { type: string; status?: string }) => c.type === "hard_question" && c.status !== "archived");
+    if (!questions || questions.length === 0) return;
+
+    const headers = ['Question', 'Answer', 'Hint', 'Question Set'];
+    const rows = questions.map((item) => {
+      const data = item.data as HardQuestion;
+      const setLabel = SET_OPTIONS.find(s => s.value === (item.questionSet ?? 1))?.label ?? 'Set 1';
+      return [
+        escapeCSV(data.question),
+        escapeCSV(data.answer),
+        escapeCSV(data.hint),
+        escapeCSV(setLabel),
+      ].join(',');
+    });
+
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `word-finder-questions-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // Word Sets CSV Upload
+  const handleUploadWordSetsCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploadStatus(null);
+    setIsSubmitting(true);
+
+    try {
+      const text = await file.text();
+      const rows = parseCSV(text);
+      
+      if (rows.length < 2) {
+        setUploadStatus({ success: 0, failed: 0, errors: ['CSV file is empty or has no data rows'] });
+        setIsSubmitting(false);
+        return;
+      }
+
+      const dataRows = rows.slice(1);
+      let success = 0;
+      let failed = 0;
+      const errors: string[] = [];
+
+      for (let i = 0; i < dataRows.length; i++) {
+        const row = dataRows[i];
+        const rowNum = i + 2;
+
+        if (row.length < 6) {
+          errors.push(`Row ${rowNum}: Not enough columns (need Theme + 5 Words)`);
+          failed++;
+          continue;
+        }
+
+        const [themeText, ...rest] = row;
+        const wordTexts = rest.slice(0, 5);
+        const questionSetStr = rest[5] || '';
+
+        if (!themeText?.trim()) {
+          errors.push(`Row ${rowNum}: Theme is required`);
+          failed++;
+          continue;
+        }
+
+        const validWords = wordTexts.filter(w => w?.trim()).map(w => w.trim().toUpperCase());
+        if (validWords.length !== 5) {
+          errors.push(`Row ${rowNum}: Exactly 5 words are required`);
+          failed++;
+          continue;
+        }
+
+        if (validWords.some(w => w.length > 6)) {
+          errors.push(`Row ${rowNum}: Words must be 6 letters or less`);
+          failed++;
+          continue;
+        }
+
+        let qSet: 1 | 2 | 3 | 4 | 5 = 1;
+        const setMatch = questionSetStr?.match(/Set\s*(\d)/);
+        if (setMatch) {
+          const setNum = parseInt(setMatch[1], 10);
+          if (setNum >= 1 && setNum <= 5) qSet = setNum as 1 | 2 | 3 | 4 | 5;
+        }
+
+        try {
+          await addContent({
+            type: "word_set",
+            gameId: "word-finder",
+            data: {
+              theme: themeText.trim(),
+              words: validWords,
+            },
+            status: "active",
+            questionSet: qSet,
+          });
+          success++;
+        } catch (err) {
+          errors.push(`Row ${rowNum}: Failed to add - ${err instanceof Error ? err.message : 'Unknown error'}`);
+          failed++;
+        }
+      }
+
+      setUploadStatus({ success, failed, errors: errors.slice(0, 10) });
+    } catch (err) {
+      setUploadStatus({ success: 0, failed: 0, errors: ['Failed to parse CSV file'] });
+    }
+
+    setIsSubmitting(false);
+    if (wordSetFileInputRef.current) wordSetFileInputRef.current.value = '';
+  };
+
+  // Hard Questions CSV Upload
+  const handleUploadQuestionsCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploadStatus(null);
+    setIsSubmitting(true);
+
+    try {
+      const text = await file.text();
+      const rows = parseCSV(text);
+      
+      if (rows.length < 2) {
+        setUploadStatus({ success: 0, failed: 0, errors: ['CSV file is empty or has no data rows'] });
+        setIsSubmitting(false);
+        return;
+      }
+
+      const dataRows = rows.slice(1);
+      let success = 0;
+      let failed = 0;
+      const errors: string[] = [];
+
+      for (let i = 0; i < dataRows.length; i++) {
+        const row = dataRows[i];
+        const rowNum = i + 2;
+
+        if (row.length < 3) {
+          errors.push(`Row ${rowNum}: Not enough columns (need Question, Answer, Hint)`);
+          failed++;
+          continue;
+        }
+
+        const [questionText, answerText, hintText, questionSetStr] = row;
+
+        if (!questionText?.trim()) {
+          errors.push(`Row ${rowNum}: Question is required`);
+          failed++;
+          continue;
+        }
+
+        const cleanAnswer = answerText?.trim().toUpperCase();
+        if (!cleanAnswer) {
+          errors.push(`Row ${rowNum}: Answer is required`);
+          failed++;
+          continue;
+        }
+        if (cleanAnswer.length > 6) {
+          errors.push(`Row ${rowNum}: Answer must be 6 letters or less`);
+          failed++;
+          continue;
+        }
+
+        if (!hintText?.trim()) {
+          errors.push(`Row ${rowNum}: Hint is required`);
+          failed++;
+          continue;
+        }
+
+        let qSet: 1 | 2 | 3 | 4 | 5 = 1;
+        const setMatch = questionSetStr?.match(/Set\s*(\d)/);
+        if (setMatch) {
+          const setNum = parseInt(setMatch[1], 10);
+          if (setNum >= 1 && setNum <= 5) qSet = setNum as 1 | 2 | 3 | 4 | 5;
+        }
+
+        try {
+          await addContent({
+            type: "hard_question",
+            gameId: "word-finder",
+            data: {
+              question: questionText.trim(),
+              answer: cleanAnswer,
+              hint: hintText.trim(),
+            },
+            status: "active",
+            questionSet: qSet,
+          });
+          success++;
+        } catch (err) {
+          errors.push(`Row ${rowNum}: Failed to add - ${err instanceof Error ? err.message : 'Unknown error'}`);
+          failed++;
+        }
+      }
+
+      setUploadStatus({ success, failed, errors: errors.slice(0, 10) });
+    } catch (err) {
+      setUploadStatus({ success: 0, failed: 0, errors: ['Failed to parse CSV file'] });
+    }
+
+    setIsSubmitting(false);
+    if (questionFileInputRef.current) questionFileInputRef.current.value = '';
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -308,6 +605,60 @@ function WordFinderContent() {
             </div>
           </div>
         </div>
+        <div className="flex gap-2">
+          <button
+            onClick={handleDownloadWordSetsCSV}
+            disabled={wordSetCount === 0}
+            className="flex items-center gap-2 border border-slate-200 text-slate-600 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            title="Download Word Sets CSV"
+          >
+            <Download className="w-4 h-4" />
+            Sets
+          </button>
+          <button
+            onClick={handleDownloadQuestionsCSV}
+            disabled={questionCount === 0}
+            className="flex items-center gap-2 border border-slate-200 text-slate-600 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            title="Download Questions CSV"
+          >
+            <Download className="w-4 h-4" />
+            Qs
+          </button>
+        </div>
+        <input
+          ref={wordSetFileInputRef}
+          type="file"
+          accept=".csv"
+          onChange={handleUploadWordSetsCSV}
+          className="hidden"
+        />
+        <input
+          ref={questionFileInputRef}
+          type="file"
+          accept=".csv"
+          onChange={handleUploadQuestionsCSV}
+          className="hidden"
+        />
+        <div className="flex gap-2">
+          <button
+            onClick={() => wordSetFileInputRef.current?.click()}
+            disabled={isSubmitting}
+            className="flex items-center gap-2 border border-slate-200 text-slate-600 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 text-sm"
+            title="Upload Word Sets CSV"
+          >
+            <Upload className="w-4 h-4" />
+            Sets
+          </button>
+          <button
+            onClick={() => questionFileInputRef.current?.click()}
+            disabled={isSubmitting}
+            className="flex items-center gap-2 border border-slate-200 text-slate-600 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 text-sm"
+            title="Upload Questions CSV"
+          >
+            <Upload className="w-4 h-4" />
+            Qs
+          </button>
+        </div>
         <button
           onClick={() => setIsAddModalOpen(true)}
           className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
@@ -316,6 +667,34 @@ function WordFinderContent() {
           Add Content
         </button>
       </div>
+
+      {/* Upload Status Notification */}
+      {uploadStatus && (
+        <div className={`p-4 rounded-lg ${uploadStatus.failed > 0 ? 'bg-amber-50 border border-amber-200' : 'bg-green-50 border border-green-200'}`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className={`font-medium ${uploadStatus.failed > 0 ? 'text-amber-800' : 'text-green-800'}`}>
+                {uploadStatus.success > 0 && `✓ ${uploadStatus.success} item${uploadStatus.success !== 1 ? 's' : ''} imported successfully`}
+                {uploadStatus.success > 0 && uploadStatus.failed > 0 && ' • '}
+                {uploadStatus.failed > 0 && `✗ ${uploadStatus.failed} failed`}
+                {uploadStatus.success === 0 && uploadStatus.failed === 0 && 'No items imported'}
+              </p>
+              {uploadStatus.errors.length > 0 && (
+                <ul className="mt-2 text-sm text-amber-700 list-disc list-inside">
+                  {uploadStatus.errors.map((err, i) => <li key={i}>{err}</li>)}
+                  {uploadStatus.failed > 10 && <li>...and {uploadStatus.failed - 10} more errors</li>}
+                </ul>
+              )}
+            </div>
+            <button
+              onClick={() => setUploadStatus(null)}
+              className="p-1 hover:bg-slate-100 rounded"
+            >
+              <X className="w-4 h-4 text-slate-500" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex items-center gap-4">

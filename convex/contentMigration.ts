@@ -239,7 +239,7 @@ export const migrateWordleContent = mutation({
       await ctx.db.insert("gameContent", {
         type: "wordle_word",
         gameId: "wordle",
-        data: { word: w.word, hint: w.hint, difficulty: "medium" },
+        data: { word: w.word, hint: w.hint },
         status: "active",
         version: 1,
         tags: [],
