@@ -92,7 +92,12 @@ export async function checkRateLimit(
           username
         );
         
-        throw new ConvexError(RATE_LIMIT_ERROR);
+        // Use structured error format for proper client extraction
+        throw new ConvexError({
+          type: "RATE_LIMIT",
+          message: "Too many login attempts. Please try again after 5 minutes.",
+          retryAfterMinutes: config.windowMinutes,
+        });
       }
       
       // Update the count

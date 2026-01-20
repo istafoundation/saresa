@@ -88,7 +88,29 @@ export function ChildAuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: 'Login failed' };
     } catch (error: any) {
       console.error('[ChildAuth] Login error:', error);
-      return { success: false, error: error.message || 'Login failed' };
+      
+      // Extract error message from ConvexError
+      // ConvexError stores the message in error.data (string or object)
+      let errorMessage = 'Login failed. Please try again.';
+      
+      if (error?.data) {
+        // ConvexError format - error.data contains the message
+        if (typeof error.data === 'string') {
+          errorMessage = error.data;
+        } else if (error.data?.message) {
+          errorMessage = error.data.message;
+        }
+      } else if (error?.message) {
+        // Check if it's a rate limit error (contains specific text)
+        if (error.message.includes('rate limited') || error.message.includes('Rate limit')) {
+          errorMessage = 'Too many login attempts. Please try again after 5 minutes.';
+        } else if (!error.message.includes('Server Error')) {
+          // Only use message if it's not the generic "Server Error"
+          errorMessage = error.message;
+        }
+      }
+      
+      return { success: false, error: errorMessage };
     }
   };
 
