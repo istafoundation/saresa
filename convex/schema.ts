@@ -298,4 +298,79 @@ export default defineSchema({
     .index("by_subscription", ["subscriptionId"])
     .index("by_child", ["childId"])
     .index("by_parent", ["parentId"]),
+
+  // ============================================
+  // LEVEL PROGRESSION SYSTEM (Candy Crush Style)
+  // ============================================
+
+  // Level configuration
+  levels: defineTable({
+    levelNumber: v.number(),           // Display order (1, 2, 3...)
+    name: v.string(),                  // "The Beginning"
+    description: v.optional(v.string()),
+    isEnabled: v.boolean(),            // false = "Coming Soon" (default: false)
+    
+    // Dynamic difficulties - admin can add/remove
+    difficulties: v.array(v.object({
+      name: v.string(),                // "easy", "medium", "hard"
+      displayName: v.string(),         // "Easy", "Medium", "Hard"
+      requiredScore: v.number(),       // 90, 65, 33 (percentage to pass)
+      order: v.number(),               // 1, 2, 3 (sequential unlock)
+    })),
+    
+    // Visual theming
+    theme: v.optional(v.object({
+      emoji: v.string(),               // 🌟, 🔥, 🏆
+      color: v.string(),               // hex color for node
+    })),
+    
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_level_number", ["levelNumber"])
+    .index("by_enabled", ["isEnabled"]),
+
+  // Questions for each level
+  levelQuestions: defineTable({
+    levelId: v.id("levels"),
+    difficultyName: v.string(),        // Must match level's difficulty name
+    
+    // Question type determines rendering
+    questionType: v.union(
+      v.literal("mcq"),                // English Insane style MCQ
+      v.literal("grid"),               // Word Finder style grid
+      v.literal("map"),                // Explorer style map selection
+      v.literal("select")              // Grammar Detective style word selection
+    ),
+    
+    question: v.string(),              // The question/prompt text
+    data: v.any(),                     // Type-specific data (options, solution, etc.)
+    
+    status: v.union(v.literal("active"), v.literal("archived")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_level", ["levelId"])
+    .index("by_level_difficulty", ["levelId", "difficultyName"])
+    .index("by_status", ["status"]),
+
+  // User progress per level
+  levelProgress: defineTable({
+    childId: v.id("children"),
+    levelId: v.id("levels"),
+    
+    // Dynamic progress matching level's difficulties
+    difficultyProgress: v.array(v.object({
+      difficultyName: v.string(),
+      highScore: v.number(),           // 0-100 percentage
+      passed: v.boolean(),
+      attempts: v.number(),
+    })),
+    
+    isCompleted: v.boolean(),          // All difficulties passed
+    completedAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  })
+    .index("by_child", ["childId"])
+    .index("by_child_level", ["childId", "levelId"]),
 });

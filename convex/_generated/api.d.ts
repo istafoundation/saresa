@@ -14,6 +14,7 @@ import type * as contentMigration from "../contentMigration.js";
 import type * as crons from "../crons.js";
 import type * as gameStats from "../gameStats.js";
 import type * as http from "../http.js";
+import type * as levels from "../levels.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_dates from "../lib/dates.js";
 import type * as lib_razorpay from "../lib/razorpay.js";
@@ -36,6 +37,7 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   gameStats: typeof gameStats;
   http: typeof http;
+  levels: typeof levels;
   "lib/auth": typeof lib_auth;
   "lib/dates": typeof lib_dates;
   "lib/razorpay": typeof lib_razorpay;
