@@ -109,6 +109,7 @@ export const getLevelQuestions = query({
     }
     
     // Get active questions for this level and difficulty
+    // Return in creation order (as entered in dashboard)
     const questions = await ctx.db
       .query("levelQuestions")
       .withIndex("by_level_difficulty", (q) => 
@@ -117,8 +118,8 @@ export const getLevelQuestions = query({
       .filter((q) => q.eq(q.field("status"), "active"))
       .collect();
     
-    // Shuffle questions for variety
-    return questions.sort(() => Math.random() - 0.5);
+    // Sort by creation time to maintain order as added in dashboard
+    return questions.sort((a, b) => a.createdAt - b.createdAt);
   },
 });
 

@@ -1,8 +1,8 @@
 // Unified Game Engine - Handles level gameplay with all question types
-import { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
+// Optimized for smooth performance with proper state resets
+import { useEffect, useState, useCallback, useRef, memo } from 'react';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, InteractionManager } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView } from 'moti';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery, useMutation } from 'convex/react';
@@ -15,7 +15,7 @@ import { useGameAudio } from '../../../utils/sound-manager';
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../../../constants/theme';
 import type { Id } from '../../../convex/_generated/dataModel';
 
-// Question renderers
+// Question renderers - lazy loaded
 import MCQRenderer from '../../../components/questions/MCQRenderer';
 import GridRenderer from '../../../components/questions/GridRenderer';
 import MapRenderer from '../../../components/questions/MapRenderer';
@@ -42,12 +42,18 @@ export default function LevelGameScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
   const [showResult, setShowResult] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [questionKey, setQuestionKey] = useState(0); // Force re-render of question component
   const [gameResult, setGameResult] = useState<{
     score: number;
     passed: boolean;
     isNewHighScore: boolean;
     levelCompleted: boolean;
   } | null>(null);
+  
+  // Refs for avoiding stale closures
+  const correctCountRef = useRef(0);
+  const isProcessingRef = useRef(false);
   
   // Fetch questions
   const questions = useQuery(
@@ -73,41 +79,72 @@ export default function LevelGameScreen() {
   const currentQuestion = questions?.[currentIndex];
   const totalQuestions = questions?.length ?? 0;
   
-  // Start music when playing
+  // Start music when questions are loaded
   useEffect(() => {
     if (questions && questions.length > 0 && !showResult) {
-      startMusic();
+      // Delay music start to avoid blocking render
+      const timer = setTimeout(() => {
+        startMusic();
+      }, 100);
+      return () => clearTimeout(timer);
     }
+  }, [questions?.length, showResult]);
+  
+  // Cleanup on unmount
+  useEffect(() => {
     return () => stopMusic();
-  }, [questions, showResult, startMusic, stopMusic]);
+  }, []);
   
   // Handle answer from any renderer
-  const handleAnswer = useCallback(async (isCorrect: boolean) => {
+  const handleAnswer = useCallback((isCorrect: boolean) => {
+    // Prevent double-processing
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
+    setIsTransitioning(true);
+    
+    // Update count immediately using ref BEFORE anything else
     if (isCorrect) {
-      playCorrect();
-      triggerTap('heavy');
-      setCorrectCount(prev => prev + 1);
-    } else {
-      playWrong();
-      triggerTap('light');
+      correctCountRef.current += 1;
+      setCorrectCount(correctCountRef.current);
     }
+    
+    // Play sound without blocking
+    requestAnimationFrame(() => {
+      if (isCorrect) {
+        playCorrect();
+        triggerTap('heavy');
+      } else {
+        playWrong();
+        triggerTap('light');
+      }
+    });
     
     // Move to next question after delay
     setTimeout(() => {
       if (currentIndex < totalQuestions - 1) {
+        // Update question key to force fresh state
+        setQuestionKey(prev => prev + 1);
         setCurrentIndex(prev => prev + 1);
+        
+        // Allow interactions after render settles
+        InteractionManager.runAfterInteractions(() => {
+          setIsTransitioning(false);
+          isProcessingRef.current = false;
+        });
       } else {
-        // Game finished - calculate score
-        finishGame(isCorrect);
+        // Game finished - score already updated in correctCountRef
+        finishGame();
       }
-    }, 1500);
-  }, [currentIndex, totalQuestions, playCorrect, playWrong, triggerTap]);
+    }, 1200);
+  }, [currentIndex, totalQuestions]);
   
   // Finish game and submit score
-  const finishGame = async (lastAnswerCorrect: boolean) => {
+  const finishGame = async () => {
     stopMusic();
     
-    const finalCorrect = correctCount + (lastAnswerCorrect ? 1 : 0);
+    // correctCountRef.current already contains the final correct count
+    // (including the last answer which was already counted)
+    const finalCorrect = correctCountRef.current;
     const score = Math.round((finalCorrect / totalQuestions) * 100);
     
     if (!token || !levelId || !difficulty) return;
@@ -128,7 +165,7 @@ export default function LevelGameScreen() {
       });
       
       if (result.passed) {
-        playWin();
+        requestAnimationFrame(() => playWin());
       }
     } catch (error) {
       console.error('Failed to submit attempt:', error);
@@ -141,21 +178,29 @@ export default function LevelGameScreen() {
     }
     
     setShowResult(true);
+    setIsTransitioning(false);
+    isProcessingRef.current = false;
   };
   
   // Handle back
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     triggerTap('medium');
     stopMusic();
     safeBack();
-  };
+  }, [triggerTap, stopMusic, safeBack]);
   
   // Loading state
   if (!questions) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+          <MotiView
+            from={{ rotate: '0deg' }}
+            animate={{ rotate: '360deg' }}
+            transition={{ type: 'timing', duration: 1000, loop: true }}
+          >
+            <Text style={styles.loadingEmoji}>🎯</Text>
+          </MotiView>
           <Text style={styles.loadingText}>Loading questions...</Text>
         </View>
       </SafeAreaView>
@@ -186,7 +231,7 @@ export default function LevelGameScreen() {
           <MotiView
             from={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: 'spring' }}
+            transition={{ type: 'spring', damping: 15 }}
             style={styles.resultCard}
           >
             <Text style={styles.resultEmoji}>
@@ -204,7 +249,7 @@ export default function LevelGameScreen() {
             <View style={styles.resultInfo}>
               <View style={styles.resultInfoItem}>
                 <Text style={styles.resultInfoValue}>
-                  {correctCount + (gameResult.score > (correctCount / totalQuestions) * 100 ? 1 : 0)}/{totalQuestions}
+                  {correctCountRef.current}/{totalQuestions}
                 </Text>
                 <Text style={styles.resultInfoLabel}>Correct</Text>
               </View>
@@ -225,13 +270,13 @@ export default function LevelGameScreen() {
             {gameResult.levelCompleted && (
               <View style={styles.levelCompleteBadge}>
                 <Ionicons name="star" size={20} color={COLORS.accentGold} />
-                <Text style={styles.levelCompleteText}>Level Complete! Next level unlocked!</Text>
+                <Text style={styles.levelCompleteText}>Level Complete!</Text>
               </View>
             )}
             
             {!gameResult.passed && (
               <Text style={styles.encourageText}>
-                You need {currentDifficulty?.requiredScore}% to pass. Try again!
+                You need {currentDifficulty?.requiredScore}% to pass
               </Text>
             )}
             
@@ -261,10 +306,11 @@ export default function LevelGameScreen() {
             {currentIndex + 1} / {totalQuestions}
           </Text>
           <View style={styles.progressBar}>
-            <MotiView
-              animate={{ width: `${((currentIndex + 1) / totalQuestions) * 100}%` }}
-              transition={{ type: 'timing', duration: 300 }}
-              style={styles.progressFill}
+            <View 
+              style={[
+                styles.progressFill, 
+                { width: `${((currentIndex + 1) / totalQuestions) * 100}%` }
+              ]} 
             />
           </View>
         </View>
@@ -276,11 +322,12 @@ export default function LevelGameScreen() {
         </View>
       </View>
       
-      {/* Question Renderer based on type */}
-      {currentQuestion && (
+      {/* Question Renderer - key forces fresh state on question change */}
+      {currentQuestion && !isTransitioning && (
         <View style={styles.questionContainer}>
           {currentQuestion.questionType === 'mcq' && (
             <MCQRenderer
+              key={`mcq-${questionKey}`}
               question={currentQuestion.question}
               data={currentQuestion.data}
               onAnswer={handleAnswer}
@@ -288,6 +335,7 @@ export default function LevelGameScreen() {
           )}
           {currentQuestion.questionType === 'grid' && (
             <GridRenderer
+              key={`grid-${questionKey}`}
               question={currentQuestion.question}
               data={currentQuestion.data}
               onAnswer={handleAnswer}
@@ -295,6 +343,7 @@ export default function LevelGameScreen() {
           )}
           {currentQuestion.questionType === 'map' && (
             <MapRenderer
+              key={`map-${questionKey}`}
               question={currentQuestion.question}
               data={currentQuestion.data}
               onAnswer={handleAnswer}
@@ -302,11 +351,25 @@ export default function LevelGameScreen() {
           )}
           {currentQuestion.questionType === 'select' && (
             <SelectRenderer
+              key={`select-${questionKey}`}
               question={currentQuestion.question}
               data={currentQuestion.data}
               onAnswer={handleAnswer}
             />
           )}
+        </View>
+      )}
+      
+      {/* Transition loading */}
+      {isTransitioning && (
+        <View style={styles.transitionContainer}>
+          <MotiView
+            from={{ opacity: 0.5, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: 'timing', duration: 200 }}
+          >
+            <Text style={styles.transitionText}>Next question...</Text>
+          </MotiView>
         </View>
       )}
     </SafeAreaView>
@@ -323,6 +386,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: SPACING.md,
+  },
+  loadingEmoji: {
+    fontSize: 48,
   },
   loadingText: {
     fontSize: 16,
@@ -404,6 +470,15 @@ const styles = StyleSheet.create({
   },
   questionContainer: {
     flex: 1,
+  },
+  transitionContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  transitionText: {
+    fontSize: 16,
+    color: COLORS.textMuted,
   },
   resultContainer: {
     flex: 1,

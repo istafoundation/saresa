@@ -1,46 +1,41 @@
 // Home Screen - Level-based progression with Candy Crush style path
+// 🍬 Playful, candy-themed level progression
 import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback } from 'react';
-import { useSafeNavigation } from '../../utils/useSafeNavigation';
-import { COLORS, SPACING, BORDER_RADIUS } from '../../constants/theme';
+import { MotiView } from 'moti';
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants/theme';
 import { useUserStore } from '../../stores/user-store';
-import { BubbleBackground } from '../../components/animations/SparkleBackground';
+import { CandyBackground } from '../../components/animations/SparkleBackground';
 import LevelPath from '../../components/LevelPath';
-import type { Id } from '../../convex/_generated/dataModel';
 
 export default function HomeScreen() {
-  const { safePush } = useSafeNavigation();
   const { name, streak } = useUserStore();
-  
-  // Handle starting a level
-  const handleStartLevel = useCallback((levelId: Id<"levels">, difficulty: string) => {
-    safePush({
-      pathname: '/games/levels/game',
-      params: { levelId, difficulty },
-    });
-  }, [safePush]);
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
-      <BubbleBackground color={COLORS.primaryLight} />
+      <CandyBackground />
       
-      {/* Header */}
-      <View style={styles.header}>
+      {/* Header with playful styling */}
+      <MotiView
+        from={{ opacity: 0, translateY: -10 }}
+        animate={{ opacity: 1, translateY: 0 }}
+        transition={{ type: 'spring', damping: 15 }}
+        style={styles.header}
+      >
         <View>
-          <Text style={styles.greeting}>Hey there, Hero!</Text>
+          <Text style={styles.greeting}>Hey there, Hero! 🎮</Text>
           <Text style={styles.username}>{name || 'Explorer'} ✨</Text>
         </View>
         <View style={styles.streakBadge}>
           <Text style={styles.streakIcon}>🔥</Text>
           <Text style={styles.streakText}>{streak}</Text>
         </View>
-      </View>
+      </MotiView>
       
       {/* Level Path - scrollable Candy Crush style */}
-      <LevelPath onStartLevel={handleStartLevel} />
+      <LevelPath />
     </SafeAreaView>
   );
 }
@@ -56,11 +51,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
+    paddingTop: SPACING.sm,
   },
   greeting: {
     fontSize: 14,
     color: COLORS.textSecondary,
     marginBottom: 4,
+    fontWeight: '500',
   },
   username: {
     fontSize: 24,
@@ -70,17 +67,20 @@ const styles = StyleSheet.create({
   streakBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
+    backgroundColor: COLORS.surfaceLight,
+    paddingHorizontal: SPACING.md + 2,
+    paddingVertical: SPACING.sm + 2,
     borderRadius: BORDER_RADIUS.full,
-    gap: 4,
+    gap: 6,
+    ...SHADOWS.sm,
+    borderWidth: 1,
+    borderColor: COLORS.accentGold + '30',
   },
   streakIcon: {
-    fontSize: 18,
+    fontSize: 20,
   },
   streakText: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '700',
     color: COLORS.accent,
   },

@@ -1,9 +1,10 @@
-// Select Renderer - Word selection component (Grammar Detective style)
-import { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+// Select Renderer - Word selection from sentence (Grammar Detective style)
+// Uses inline text with tappable words like the Grammar Detective game
+import { useState, useMemo, useCallback } from 'react';
+import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { MotiView } from 'moti';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, BORDER_RADIUS } from '../../constants/theme';
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants/theme';
 
 interface SelectRendererProps {
   question: string;
@@ -22,130 +23,172 @@ export default function SelectRenderer({
   onAnswer,
   disabled = false,
 }: SelectRendererProps) {
-  const [selectedWords, setSelectedWords] = useState<Set<string>>(new Set());
+  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
   const [showResult, setShowResult] = useState(false);
+  const [isCorrect, setIsCorrect] = useState(false);
   
-  // Parse statement into words
+  // Parse statement into words (preserving punctuation attached to words)
   const words = useMemo(() => {
     return data.statement.split(/\s+/).filter(w => w.length > 0);
   }, [data.statement]);
   
-  const handleWordPress = (word: string) => {
+  // Find correct word indices based on correctWords array
+  const correctIndices = useMemo(() => {
+    const indices: number[] = [];
+    words.forEach((word, index) => {
+      // Strip punctuation for comparison
+      const cleanWord = word.replace(/[.,!?;:'"]/g, '');
+      if (data.correctWords.some(cw => 
+        cw.toLowerCase() === cleanWord.toLowerCase() ||
+        cw.toLowerCase() === word.toLowerCase()
+      )) {
+        indices.push(index);
+      }
+    });
+    return indices;
+  }, [words, data.correctWords]);
+  
+  const handleWordPress = useCallback((index: number) => {
     if (disabled || showResult) return;
     
-    const newSelected = new Set(selectedWords);
+    const newSelected = new Set(selectedIndices);
     
     if (data.selectMode === 'single') {
-      // Single mode: replace selection
-      if (newSelected.has(word)) {
-        newSelected.delete(word);
+      if (newSelected.has(index)) {
+        newSelected.delete(index);
       } else {
         newSelected.clear();
-        newSelected.add(word);
+        newSelected.add(index);
       }
     } else {
-      // Multiple mode: toggle selection
-      if (newSelected.has(word)) {
-        newSelected.delete(word);
+      if (newSelected.has(index)) {
+        newSelected.delete(index);
       } else {
-        newSelected.add(word);
+        newSelected.add(index);
       }
     }
     
-    setSelectedWords(newSelected);
-  };
+    setSelectedIndices(newSelected);
+  }, [disabled, showResult, selectedIndices, data.selectMode]);
   
-  const handleSubmit = () => {
-    if (selectedWords.size === 0 || showResult) return;
+  const handleSubmit = useCallback(() => {
+    if (selectedIndices.size === 0 || showResult) return;
     
+    // Check if selection matches correct indices
+    const selectedArray = Array.from(selectedIndices);
+    const correct = 
+      selectedArray.length === correctIndices.length &&
+      selectedArray.every(i => correctIndices.includes(i));
+    
+    setIsCorrect(correct);
     setShowResult(true);
     
-    // Check if answer is correct
-    const selectedArray = Array.from(selectedWords);
-    const correctSet = new Set(data.correctWords);
-    
-    const isCorrect = 
-      selectedArray.length === data.correctWords.length &&
-      selectedArray.every(w => correctSet.has(w));
-    
-    // Delay before calling onAnswer
     setTimeout(() => {
-      onAnswer(isCorrect);
+      onAnswer(correct);
     }, 1500);
-  };
-  
-  const getWordStyle = (word: string) => {
-    const isSelected = selectedWords.has(word);
-    const isCorrect = data.correctWords.includes(word);
-    
-    if (!showResult) {
-      return isSelected ? styles.wordSelected : styles.word;
-    }
-    
-    if (isCorrect) {
-      return styles.wordCorrect;
-    }
-    if (isSelected && !isCorrect) {
-      return styles.wordWrong;
-    }
-    return styles.word;
-  };
-  
-  const getWordTextStyle = (word: string) => {
-    const isSelected = selectedWords.has(word);
-    const isCorrect = data.correctWords.includes(word);
-    
-    if (!showResult) {
-      return isSelected ? styles.wordTextSelected : styles.wordText;
-    }
-    
-    if (isCorrect || (isSelected && !isCorrect)) {
-      return styles.wordTextResult;
-    }
-    return styles.wordText;
-  };
+  }, [selectedIndices, showResult, correctIndices, onAnswer]);
   
   return (
-    <View style={styles.container}>
-      {/* Question */}
-      <Text style={styles.question}>{question}</Text>
+    <ScrollView 
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+    >
+      {/* Question Card */}
+      <MotiView
+        from={{ opacity: 0, translateY: -10 }}
+        animate={{ opacity: 1, translateY: 0 }}
+        style={styles.questionCard}
+      >
+        <View style={styles.questionBadge}>
+          <Text style={styles.questionBadgeText}>QUESTION</Text>
+        </View>
+        <Text style={styles.questionText}>{question}</Text>
+        <Text style={styles.hintText}>
+          {data.selectMode === 'single' 
+            ? 'Tap on the correct word below' 
+            : 'Tap on all correct words below'}
+        </Text>
+      </MotiView>
       
-      {/* Instructions */}
-      <Text style={styles.instructions}>
-        {data.selectMode === 'single' 
-          ? 'Tap the correct word' 
-          : 'Tap all correct words'}
-      </Text>
-      
-      {/* Words */}
-      <View style={styles.wordsContainer}>
-        {words.map((word, index) => (
+      {/* Sentence Card - Inline text like Grammar Detective */}
+      <MotiView
+        from={{ opacity: 0, translateY: 15 }}
+        animate={{ opacity: 1, translateY: 0 }}
+        transition={{ type: 'spring', delay: 100 }}
+        style={styles.sentenceCard}
+      >
+        <View style={styles.sentenceHeader}>
+          <Ionicons name="document-text-outline" size={18} color={COLORS.textSecondary} />
+          <Text style={styles.sentenceLabel}>Read the sentence:</Text>
+        </View>
+        
+        {/* Sentence as inline text with tappable words */}
+        <Text style={styles.sentenceText}>
+          {words.map((word, index) => {
+            const isSelected = selectedIndices.has(index);
+            const isCorrectWord = correctIndices.includes(index);
+            const isWrongSelection = showResult && isSelected && !isCorrectWord;
+            const isMissedCorrect = showResult && isCorrectWord && !isSelected;
+            
+            // Determine background and text color based on state
+            let bgStyle = {};
+            let textColor = COLORS.text;
+            
+            if (showResult) {
+              if (isCorrectWord) {
+                bgStyle = styles.wordCorrectBg;
+                textColor = COLORS.success;
+              } else if (isWrongSelection) {
+                bgStyle = styles.wordWrongBg;
+                textColor = COLORS.error;
+              }
+            } else if (isSelected) {
+              bgStyle = styles.wordSelectedBg;
+              textColor = COLORS.primary;
+            }
+            
+            const isLastWord = index === words.length - 1;
+            
+            return (
+              <Text key={`word-${index}`}>
+                <Text
+                  onPress={() => handleWordPress(index)}
+                  style={[
+                    styles.inlineWord,
+                    bgStyle,
+                    { color: textColor },
+                    isMissedCorrect && styles.wordMissedText,
+                  ]}
+                >
+                  {word}
+                </Text>
+                {!isLastWord && <Text style={styles.wordSpace}> </Text>}
+              </Text>
+            );
+          })}
+        </Text>
+        
+        {/* Selection indicator */}
+        {selectedIndices.size > 0 && !showResult && (
           <MotiView
-            key={`${word}-${index}`}
-            from={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: 'spring', delay: index * 50 }}
+            from={{ opacity: 0, translateY: 5 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            style={styles.selectionSummary}
           >
-            <Pressable
-              onPress={() => handleWordPress(word)}
-              disabled={disabled || showResult}
-              style={({ pressed }) => [
-                getWordStyle(word),
-                pressed && !showResult && styles.wordPressed,
-              ]}
-            >
-              <Text style={getWordTextStyle(word)}>{word}</Text>
-            </Pressable>
+            <Ionicons name="checkmark-done" size={16} color={COLORS.primary} />
+            <Text style={styles.selectionText}>
+              Selected: {Array.from(selectedIndices).map(i => words[i]).join(', ')}
+            </Text>
           </MotiView>
-        ))}
-      </View>
+        )}
+      </MotiView>
       
       {/* Submit button */}
-      {!showResult && selectedWords.size > 0 && (
+      {!showResult && selectedIndices.size > 0 && (
         <MotiView
           from={{ opacity: 0, translateY: 20 }}
           animate={{ opacity: 1, translateY: 0 }}
-          style={styles.submitContainer}
         >
           <Pressable
             onPress={handleSubmit}
@@ -154,115 +197,161 @@ export default function SelectRenderer({
               pressed && styles.submitPressed,
             ]}
           >
-            <Text style={styles.submitText}>Check Answer</Text>
-            <Ionicons name="checkmark-circle" size={24} color={COLORS.text} />
+            <Ionicons name="send" size={20} color={COLORS.text} />
+            <Text style={styles.submitText}>Submit Answer</Text>
           </Pressable>
         </MotiView>
       )}
       
-      {/* Result feedback */}
+      {/* Result Feedback */}
       {showResult && (
         <MotiView
-          from={{ opacity: 0, translateY: 10 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          style={styles.resultContainer}
+          from={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ type: 'spring', damping: 15 }}
+          style={[
+            styles.resultCard,
+            isCorrect ? styles.resultCardCorrect : styles.resultCardWrong,
+          ]}
         >
-          {Array.from(selectedWords).length === data.correctWords.length &&
-           Array.from(selectedWords).every(w => data.correctWords.includes(w)) ? (
-            <View style={styles.resultCorrect}>
-              <Ionicons name="checkmark-circle" size={24} color={COLORS.success} />
-              <Text style={styles.resultTextCorrect}>Correct!</Text>
+          <View style={styles.resultHeader}>
+            <View style={[
+              styles.resultIconBg,
+              { backgroundColor: isCorrect ? COLORS.success + '20' : COLORS.error + '20' }
+            ]}>
+              <Ionicons
+                name={isCorrect ? 'checkmark' : 'close'}
+                size={24}
+                color={isCorrect ? COLORS.success : COLORS.error}
+              />
             </View>
-          ) : (
-            <View style={styles.resultWrong}>
-              <Ionicons name="close-circle" size={24} color={COLORS.error} />
-              <Text style={styles.resultTextWrong}>
+            <Text style={[
+              styles.resultTitle,
+              { color: isCorrect ? COLORS.success : COLORS.error }
+            ]}>
+              {isCorrect ? 'Excellent!' : 'Not quite!'}
+            </Text>
+          </View>
+          {!isCorrect && (
+            <View style={styles.correctAnswerContainer}>
+              <Ionicons name="bulb-outline" size={18} color={COLORS.accentGold} />
+              <Text style={styles.correctAnswerText}>
                 Correct: {data.correctWords.join(', ')}
               </Text>
             </View>
           )}
         </MotiView>
       )}
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: SPACING.lg,
   },
-  question: {
+  content: {
+    padding: SPACING.md,
+    gap: SPACING.md,
+  },
+  questionCard: {
+    backgroundColor: COLORS.primary + '15',
+    borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.lg,
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  questionBadge: {
+    backgroundColor: COLORS.primary + '30',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.full,
+  },
+  questionBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: COLORS.primary,
+    letterSpacing: 1,
+  },
+  questionText: {
     fontSize: 22,
     fontWeight: '700',
     color: COLORS.text,
-    marginBottom: SPACING.md,
-    lineHeight: 32,
+    textAlign: 'center',
+    lineHeight: 30,
   },
-  instructions: {
-    fontSize: 14,
+  hintText: {
+    fontSize: 13,
     color: COLORS.textMuted,
-    marginBottom: SPACING.xl,
+    fontStyle: 'italic',
   },
-  wordsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: SPACING.sm,
-    justifyContent: 'center',
-    marginBottom: SPACING.xl,
-  },
-  word: {
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
+  sentenceCard: {
     backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.lg,
+    gap: SPACING.md,
+    ...SHADOWS.md,
   },
-  wordSelected: {
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    backgroundColor: COLORS.primaryLight + '30',
-    borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 2,
-    borderColor: COLORS.primary,
+  sentenceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
   },
-  wordCorrect: {
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    backgroundColor: COLORS.success,
-    borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 2,
-    borderColor: COLORS.success,
+  sentenceLabel: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
   },
-  wordWrong: {
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    backgroundColor: COLORS.error,
-    borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 2,
-    borderColor: COLORS.error,
-  },
-  wordPressed: {
-    opacity: 0.8,
-  },
-  wordText: {
-    fontSize: 18,
-    fontWeight: '600',
+  sentenceText: {
+    fontSize: 20,
+    lineHeight: 36,
     color: COLORS.text,
   },
-  wordTextSelected: {
-    fontSize: 18,
-    fontWeight: '600',
+  inlineWord: {
+    fontSize: 20,
+    fontWeight: '500',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  wordSpace: {
+    fontSize: 20,
+  },
+  wordSelectedBg: {
+    backgroundColor: COLORS.primary + '30',
+    borderRadius: 6,
+    fontWeight: '700',
+  },
+  wordCorrectBg: {
+    backgroundColor: COLORS.success + '30',
+    borderRadius: 6,
+    fontWeight: '700',
+  },
+  wordWrongBg: {
+    backgroundColor: COLORS.error + '30',
+    borderRadius: 6,
+    fontWeight: '700',
+  },
+  wordMissedText: {
+    textDecorationLine: 'underline',
+    textDecorationStyle: 'dashed',
+    color: COLORS.success,
+    fontWeight: '700',
+  },
+  selectionSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    paddingTop: SPACING.sm,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.textMuted + '20',
+  },
+  selectionText: {
+    fontSize: 14,
     color: COLORS.primary,
-  },
-  wordTextResult: {
-    fontSize: 18,
     fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  submitContainer: {
-    marginTop: 'auto',
+    flex: 1,
   },
   submitButton: {
     flexDirection: 'row',
@@ -270,45 +359,63 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: SPACING.sm,
     backgroundColor: COLORS.primary,
-    padding: SPACING.md,
-    borderRadius: BORDER_RADIUS.lg,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.xl,
+    borderRadius: BORDER_RADIUS.xl,
+    ...SHADOWS.md,
   },
   submitPressed: {
     opacity: 0.9,
+    transform: [{ scale: 0.98 }],
   },
   submitText: {
     fontSize: 18,
     fontWeight: '700',
     color: COLORS.text,
   },
-  resultContainer: {
-    marginTop: SPACING.lg,
+  resultCard: {
+    borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.lg,
+    gap: SPACING.md,
   },
-  resultCorrect: {
+  resultCardCorrect: {
+    backgroundColor: COLORS.success + '10',
+    borderWidth: 1.5,
+    borderColor: COLORS.success + '30',
+  },
+  resultCardWrong: {
+    backgroundColor: COLORS.error + '10',
+    borderWidth: 1.5,
+    borderColor: COLORS.error + '30',
+  },
+  resultHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.sm,
-    padding: SPACING.md,
-    backgroundColor: COLORS.success + '20',
-    borderRadius: BORDER_RADIUS.md,
+    gap: SPACING.md,
   },
-  resultWrong: {
-    flexDirection: 'row',
+  resultIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resultTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  correctAnswerContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     gap: SPACING.sm,
+    backgroundColor: COLORS.backgroundCard,
     padding: SPACING.md,
-    backgroundColor: COLORS.error + '20',
-    borderRadius: BORDER_RADIUS.md,
+    borderRadius: BORDER_RADIUS.lg,
   },
-  resultTextCorrect: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.success,
-  },
-  resultTextWrong: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.error,
+  correctAnswerText: {
+    fontSize: 15,
+    color: COLORS.textSecondary,
+    lineHeight: 22,
     flex: 1,
   },
 });

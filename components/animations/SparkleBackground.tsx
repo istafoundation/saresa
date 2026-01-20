@@ -1,5 +1,6 @@
 // SparkleBackground - Floating sparkles/stars for magical atmosphere
-import { StyleSheet, View, Dimensions } from 'react-native';
+// ✨ Various background effects for different screens
+import { StyleSheet, View, Dimensions, Text } from 'react-native';
 import { MotiView } from 'moti';
 import { COLORS } from '../../constants/theme';
 
@@ -107,6 +108,63 @@ export function BubbleBackground({ color = COLORS.primaryLight }: { color?: stri
   );
 }
 
+// 🍬 Candy land background - dreamy floating candies for home screen
+const CANDY_COLORS = [
+  COLORS.rainbow1, // Coral
+  COLORS.rainbow2, // Teal  
+  COLORS.rainbow3, // Yellow
+  COLORS.rainbow4, // Lavender
+  COLORS.rainbow5, // Light blue
+  COLORS.rainbow6, // Mint
+  COLORS.primary,  // Pink
+];
+
+const CANDY_PARTICLES = Array.from({ length: 12 }, (_, i) => ({
+  id: i,
+  x: 20 + Math.random() * (width - 40),
+  y: Math.random() * height * 0.8,
+  size: 8 + Math.random() * 12,
+  color: CANDY_COLORS[i % CANDY_COLORS.length],
+  delay: i * 300,
+  duration: 4000 + Math.random() * 2000,
+  isCircle: Math.random() > 0.3, // 70% circles, 30% stars
+}));
+
+// 🍬 Static candy background for home screen - optimized for performance
+export function CandyBackground() {
+  return (
+    <View style={styles.container} pointerEvents="none">
+      {/* Soft gradient overlay at top */}
+      <View style={styles.gradientOverlay} />
+      
+      {/* Static candy particles - no animation loops */}
+      {CANDY_PARTICLES.map((candy) => (
+        <View
+          key={candy.id}
+          style={[
+            styles.candyParticle,
+            {
+              left: candy.x,
+              top: candy.y,
+              width: candy.size,
+              height: candy.size,
+              backgroundColor: candy.color,
+              opacity: 0.5,
+            },
+          ]}
+        >
+          {/* Glossy shine on candy */}
+          <View style={[styles.candyShine, { width: candy.size * 0.4, height: candy.size * 0.25 }]} />
+          {/* Show star emoji for non-circle candies */}
+          {!candy.isCircle && (
+            <Text style={styles.starText}>✦</Text>
+          )}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
@@ -120,5 +178,44 @@ const styles = StyleSheet.create({
     position: 'absolute',
     borderRadius: 999,
     borderWidth: 2,
+  },
+  gradientOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 120,
+    backgroundColor: COLORS.primaryLight + '20',
+  },
+  candyParticle: {
+    position: 'absolute',
+    borderRadius: 999,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    elevation: 2,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  candyShine: {
+    position: 'absolute',
+    top: 2,
+    left: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    borderRadius: 999,
+    transform: [{ rotate: '-25deg' }],
+  },
+  starText: {
+    fontSize: 8,
+    color: 'rgba(255, 255, 255, 0.9)',
+  },
+  tinySparkle: {
+    position: 'absolute',
+  },
+  sparkleEmoji: {
+    fontSize: 12,
+    opacity: 0.6,
   },
 });
