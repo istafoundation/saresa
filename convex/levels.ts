@@ -618,7 +618,8 @@ export const deleteQuestion = mutation({
 export const seedDemoLevels = mutation({
   args: {},
   handler: async (ctx) => {
-    await requireAdmin(ctx);
+    // NOTE: This function intentionally skips auth for initial seeding
+    // It can only run once (checks for existing levels)
     
     // Check if levels already exist
     const existingLevels = await ctx.db
