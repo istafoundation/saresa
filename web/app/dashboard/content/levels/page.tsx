@@ -21,6 +21,9 @@ import {
   Grid3X3,
   X,
   AlertCircle,
+  Download,
+  Upload,
+  FileText,
 } from "lucide-react";
 import type { Id, Doc } from "@convex/_generated/dataModel";
 
@@ -61,6 +64,7 @@ function LevelsContent() {
   const addQuestion = useMutation(api.levels.addQuestion);
   const updateQuestion = useMutation(api.levels.updateQuestion);
   const deleteQuestion = useMutation(api.levels.deleteQuestion);
+  const bulkReplaceQuestions = useMutation(api.levels.bulkReplaceQuestions);
 
   // UI State
   const [expandedLevels, setExpandedLevels] = useState<Set<string>>(new Set());
@@ -76,6 +80,9 @@ function LevelsContent() {
   // Form state
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadLevelId, setUploadLevelId] = useState<Id<"levels"> | null>(null);
 
   const toggleLevel = (levelId: string) => {
     const newExpanded = new Set(expandedLevels);
@@ -119,6 +126,291 @@ function LevelsContent() {
     }
   };
 
+  // CSV Helpers
+  const escapeCSV = (value: string | undefined | null) => {
+    if (value === undefined || value === null) return '';
+    const str = String(value);
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  // Guide Download
+  const handleDownloadGuide = () => {
+    const guide = `===========================================
+LEVEL CREATION GUIDE - CSV FORMAT
+===========================================
+
+This guide explains how to create levels using the CSV upload feature.
+Each level requires a specific CSV format that can contain MULTIPLE types of questions.
+
+REQUIRED CSV HEADERS (exact spelling):
+Order,Type,Difficulty,Question,Option 1,Option 2,Option 3,Option 4,Correct Option,Solution,Statement,Correct Words,Select Mode,Explanation
+
+-------------------------------------------
+COLUMN EXPLANATIONS
+-------------------------------------------
+
+1. Order (Required)
+   - Number (1, 2, 3...)
+   - Determines the sequence of questions in the level.
+   - EXISTING QUESTIONS WILL BE REPLACED by this upload to match this exact order.
+
+2. Type (Required)
+   - Must be one of: mcq, grid, map, select
+
+3. Difficulty (Required)
+   - Must be one of: easy, medium, hard
+   - The difficulty must exist in the level settings.
+
+4. Question (Required)
+   - The main question text displayed to the child.
+
+-------------------------------------------
+TYPE-SPECIFIC COLUMNS
+-------------------------------------------
+
+A. For MCQ Questions (Type = mcq):
+   - Option 1, Option 2, Option 3, Option 4: The 4 answer choices.
+   - Correct Option: Number 1-4 indicating which option is correct.
+   - Explanation: (Optional) Text explaining why.
+
+B. For Grid Questions (Type = grid):
+   - Solution: The single word to find in the letter grid.
+   - (Leave Option columns empty)
+
+C. For Map Questions (Type = map):
+   - Solution: The ISO code for the state/region (e.g., IN-MH, IN-DL).
+   - (Leave Option columns empty)
+
+D. For Select Questions (Type = select):
+   - Statement: The full sentence/text to display.
+   - Correct Words: Comma-separated list of words to select (e.g. "cat, mat").
+   - Select Mode: "single" or "multiple".
+   - (Leave Option columns empty)
+
+-------------------------------------------
+EXAMPLE ROWS
+-------------------------------------------
+
+1,mcq,easy,What is 2+2?,3,4,5,6,2,,,,,Simple addition
+2,grid,medium,Find the word 'happy',,,,,glad,,,,
+3,select,hard,Find the nouns,,, ,,,,The cat sat,cat,single,
+4,map,hard,Where is Mumbai?,,,,,IN-MH,,,,
+
+===========================================
+`;
+    
+    const blob = new Blob([guide], { type: 'text/plain;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'level-creation-guide.txt';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // CSV Download
+  const handleDownloadCSV = async (levelId: Id<"levels">) => {
+    // We need to fetch questions for this level to download them
+    // Since we don't have direct access to all questions in this component state (they are fetched inside Accordion)
+    // We will cheat slightly by triggering a window alert or simpler:
+    // Ideally we should move the questions query up or use a separate query here.
+    // For simplicity/reliability in this architecture, let's create a one-off query component or just ask user to fix it?
+    // Actually, we can use the `useQuery` hook here but we need to pass arguments.
+    // Better approach: Passes data DOWN from LevelAccordion or fetch on demand?
+    // Fetch on demand is hard with hooks.
+    // Let's implement a "Download" button inside the Accordion where data exists!
+    // -> Moved logic to LevelAccordion component (see below changes)
+  };
+
+  // CSV Upload
+  const handleUploadCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !uploadLevelId) return;
+
+    setUploadStatus(null);
+    setIsSubmitting(true);
+
+    try {
+      const text = await file.text();
+      // Parse CSV
+      const rows: string[][] = [];
+      let currentRow: string[] = [];
+      let currentCell = '';
+      let inQuotes = false;
+
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        const nextChar = text[i + 1];
+
+        if (inQuotes) {
+          if (char === '"' && nextChar === '"') {
+            currentCell += '"';
+            i++; 
+          } else if (char === '"') {
+            inQuotes = false;
+          } else {
+            currentCell += char;
+          }
+        } else {
+          if (char === '"') {
+            inQuotes = true;
+          } else if (char === ',') {
+            currentRow.push(currentCell);
+            currentCell = '';
+          } else if (char === '\n' || (char === '\r' && nextChar === '\n')) {
+            currentRow.push(currentCell);
+            if (currentRow.some(c => c.trim())) rows.push(currentRow);
+            currentRow = [];
+            currentCell = '';
+            if (char === '\r') i++;
+          } else if (char !== '\r') {
+            currentCell += char;
+          }
+        }
+      }
+      currentRow.push(currentCell);
+      if (currentRow.some(c => c.trim())) rows.push(currentRow);
+
+      if (rows.length < 2) {
+        throw new Error("CSV file is empty or missing headers");
+      }
+
+      // Validate Headers
+      const headers = rows[0].map(h => h.trim().toLowerCase());
+      const expectedHeaders = ['order','type','difficulty','question','option 1','option 2','option 3','option 4','correct option','solution','statement','correct words','select mode','explanation'];
+      
+      const missingHeaders = expectedHeaders.filter(h => !headers.includes(h));
+      if (missingHeaders.length > 0) {
+        throw new Error(`Missing required headers: ${missingHeaders.join(', ')}`);
+      }
+
+      // Map header indices
+      const idx = expectedHeaders.reduce((acc, h) => {
+        acc[h] = headers.indexOf(h);
+        return acc;
+      }, {} as Record<string, number>);
+
+      const dataRows = rows.slice(1);
+      const parsedQuestions: any[] = [];
+      const errors: string[] = [];
+
+      dataRows.forEach((row, rowIndex) => {
+        const rowNum = rowIndex + 2;
+        if (row.length < expectedHeaders.length) {
+          // Pad with empty strings if trailing commas missing
+          while (row.length < expectedHeaders.length) row.push('');
+        }
+
+        const getVal = (header: string) => row[idx[header]]?.trim();
+
+        const orderStr = getVal('order');
+        const type = getVal('type').toLowerCase();
+        const diff = getVal('difficulty');
+        const question = getVal('question');
+
+        if (!question) {
+          errors.push(`Row ${rowNum}: Question is required`);
+          return;
+        }
+        if (!['mcq', 'grid', 'map', 'select'].includes(type)) {
+          errors.push(`Row ${rowNum}: Invalid Type "${type}"`);
+          return;
+        }
+
+        const order = parseInt(orderStr);
+        if (isNaN(order)) {
+          errors.push(`Row ${rowNum}: Invalid Order "${orderStr}"`);
+          return;
+        }
+
+        let data: any = {};
+        
+        if (type === 'mcq') {
+          const opt1 = getVal('option 1');
+          const opt2 = getVal('option 2');
+          const opt3 = getVal('option 3');
+          const opt4 = getVal('option 4');
+          const correctStr = getVal('correct option');
+          
+          if (!opt1 || !opt2 || !opt3 || !opt4) {
+            errors.push(`Row ${rowNum}: MCQ requires all 4 options`);
+            return;
+          }
+          const correct = parseInt(correctStr);
+          if (isNaN(correct) || correct < 1 || correct > 4) {
+            errors.push(`Row ${rowNum}: Correct Option must be 1-4`);
+            return;
+          }
+          data = {
+            options: [opt1, opt2, opt3, opt4],
+            correctIndex: correct - 1,
+            explanation: getVal('explanation')
+          };
+        } else if (type === 'grid') {
+          const sol = getVal('solution');
+          if (!sol) {
+            errors.push(`Row ${rowNum}: Grid requires Solution`);
+            return;
+          }
+          data = { solution: sol.toLowerCase() };
+        } else if (type === 'map') {
+          const sol = getVal('solution');
+          if (!sol) {
+            errors.push(`Row ${rowNum}: Map requires Solution`);
+            return;
+          }
+          data = { solution: sol, mapType: 'india' };
+        } else if (type === 'select') {
+          const stmt = getVal('statement');
+          const words = getVal('correct words');
+          const mode = getVal('select mode') || 'single';
+          
+          if (!stmt || !words) {
+            errors.push(`Row ${rowNum}: Select requires Statement and Correct Words`);
+            return;
+          }
+          data = {
+            statement: stmt,
+            correctWords: words.split(',').map(w => w.trim()),
+            selectMode: mode
+          };
+        }
+
+        parsedQuestions.push({
+          difficultyName: diff,
+          questionType: type,
+          question,
+          data,
+          order
+        });
+      });
+
+      if (errors.length > 0) {
+        setUploadStatus({ success: 0, failed: errors.length, errors: errors.slice(0, 10) });
+      } else {
+        // EXECUTE BULK REPLACE
+        await bulkReplaceQuestions({
+          levelId: uploadLevelId,
+          questions: parsedQuestions
+        });
+        setUploadStatus({ success: parsedQuestions.length, failed: 0, errors: [] });
+      }
+
+    } catch (err) {
+      console.error(err);
+      setUploadStatus({ success: 0, failed: 1, errors: [(err as Error).message] });
+    }
+    
+    setIsSubmitting(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    setUploadLevelId(null);
+  };
+
   const totalLevels = levels?.length ?? 0;
   const totalQuestions = levels?.reduce((sum, l) => sum + l.totalQuestions, 0) ?? 0;
 
@@ -146,6 +438,13 @@ function LevelsContent() {
           </div>
         </div>
         <button
+          onClick={handleDownloadGuide}
+          className="flex items-center gap-2 text-slate-600 hover:bg-slate-100 px-4 py-2 rounded-lg transition-colors"
+        >
+          <FileText className="w-4 h-4" />
+          Instructions
+        </button>
+        <button
           onClick={() => setShowAddLevelModal(true)}
           className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
         >
@@ -153,6 +452,42 @@ function LevelsContent() {
           Add Level
         </button>
       </div>
+
+      {/* Hidden File Input */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleUploadCSV}
+        accept=".csv"
+        className="hidden"
+      />
+
+      {/* Upload Status */}
+      {uploadStatus && (
+        <div className={`p-4 rounded-lg flex items-start gap-3 ${
+          uploadStatus.failed > 0 ? 'bg-red-50 text-red-800' : 'bg-green-50 text-green-800'
+        }`}>
+          <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="font-medium">
+              Upload Complete: {uploadStatus.success} imported, {uploadStatus.failed} failed
+            </p>
+            {uploadStatus.errors.length > 0 && (
+              <ul className="text-sm list-disc pl-4 space-y-1">
+                {uploadStatus.errors.map((err, i) => (
+                  <li key={i}>{err}</li>
+                ))}
+              </ul>
+            )}
+            <button 
+              onClick={() => setUploadStatus(null)}
+              className="text-sm underline mt-2 hover:opacity-80"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Levels accordion */}
       <div className="space-y-4">
@@ -172,6 +507,11 @@ function LevelsContent() {
             onAddQuestion={(diffName) => setShowAddQuestionModal({ levelId: level._id, difficultyName: diffName })}
             onEditQuestion={(q) => setShowEditQuestionModal(q)}
             onDeleteQuestion={handleDeleteQuestion}
+            onUploadCSV={() => {
+              setUploadLevelId(level._id);
+              fileInputRef.current?.click();
+            }}
+            escapeCSV={escapeCSV} // Pass helper down
           />
         ))}
 
@@ -281,6 +621,8 @@ function LevelAccordion({
   onAddQuestion,
   onEditQuestion,
   onDeleteQuestion,
+  onUploadCSV,
+  escapeCSV,
 }: {
   level: Level;
   isExpanded: boolean;
@@ -295,10 +637,78 @@ function LevelAccordion({
   onAddQuestion: (diffName: string) => void;
   onEditQuestion: (q: LevelQuestion) => void;
   onDeleteQuestion: (id: Id<"levelQuestions">) => void;
+  onUploadCSV: () => void;
+  escapeCSV: (val: string | undefined | null) => string;
 }) {
   const questions = useQuery(api.levels.getLevelQuestionsAdmin, { levelId: level._id });
   
   const sortedDifficulties = [...level.difficulties].sort((a, b) => a.order - b.order);
+
+  const handleDownload = () => {
+    if (!questions) return;
+
+    // Flatten logic similar to upload
+    const headers = ['Order','Type','Difficulty','Question','Option 1','Option 2','Option 3','Option 4','Correct Option','Solution','Statement','Correct Words','Select Mode','Explanation'];
+    
+    // Flatten all questions into a single list
+    // We need to establish an order. Ideally we sort by createdAt or similar if order field not guaranteed?
+    // Convex `getLevelQuestionsAdmin` returns grouped object.
+    const allQuestions: LevelQuestion[] = [];
+    Object.values(questions).forEach(qs => allQuestions.push(...qs));
+    
+    // Sort by createdAt (default order)
+    allQuestions.sort((a, b) => a.createdAt - b.createdAt);
+
+    const rows = allQuestions.map((q, index) => {
+      const order = index + 1;
+      const type = q.questionType;
+      const diff = q.difficultyName;
+      const qt = escapeCSV(q.question);
+      
+      let opt1 = '', opt2 = '', opt3 = '', opt4 = '', correct = '', solution = '', stmt = '', words = '', mode = '', expl = '';
+      
+      const d = q.data as any;
+      if (type === 'mcq') {
+        opt1 = escapeCSV(d.options?.[0]);
+        opt2 = escapeCSV(d.options?.[1]);
+        opt3 = escapeCSV(d.options?.[2]);
+        opt4 = escapeCSV(d.options?.[3]);
+        correct = String(d.correctIndex + 1);
+        expl = escapeCSV(d.explanation);
+      } else if (type === 'grid') {
+        solution = escapeCSV(d.solution);
+      } else if (type === 'map') {
+        solution = escapeCSV(d.solution);
+      } else if (type === 'select') {
+        stmt = escapeCSV(d.statement);
+        words = escapeCSV(d.correctWords?.join(', '));
+        mode = escapeCSV(d.selectMode);
+      }
+
+      return [
+        order,
+        type,
+        diff,
+        qt,
+        opt1, opt2, opt3, opt4, correct,
+        solution,
+        stmt,
+        words,
+        mode,
+        expl
+      ].join(',');
+    });
+
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `Level-${level.levelNumber}-${level.name.replace(/\s+/g, '_')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -334,6 +744,24 @@ function LevelAccordion({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* CSV Actions */}
+          <button
+            onClick={handleDownload}
+            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+            title="Download questions CSV"
+          >
+            <Download className="w-4 h-4" />
+          </button>
+          <button
+            onClick={onUploadCSV}
+            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+            title="Upload questions CSV (Replaces all)"
+          >
+            <Upload className="w-4 h-4" />
+          </button>
+          
+          <div className="w-px h-6 bg-slate-300 mx-2" />
+
           <button
             onClick={onToggleEnabled}
             className={`p-2 rounded-lg transition-colors ${

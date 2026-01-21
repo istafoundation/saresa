@@ -612,6 +612,65 @@ export const deleteQuestion = mutation({
   },
 });
 
+// Bulk replace questions (Sync Mode for CSV Upload)
+export const bulkReplaceQuestions = mutation({
+  args: {
+    levelId: v.id("levels"),
+    questions: v.array(v.object({
+      difficultyName: v.string(),
+      questionType: v.union(
+        v.literal("mcq"),
+        v.literal("grid"),
+        v.literal("map"),
+        v.literal("select")
+      ),
+      question: v.string(),
+      data: v.any(),
+      order: v.optional(v.number()), // For maintaining CSV order
+    })),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    
+    // Validate level exists
+    const level = await ctx.db.get(args.levelId);
+    if (!level) {
+      throw new ConvexError("Level not found");
+    }
+    
+    // Delete all existing questions for this level
+    const existingQuestions = await ctx.db
+      .query("levelQuestions")
+      .withIndex("by_level", (q) => q.eq("levelId", args.levelId))
+      .collect();
+      
+    for (const q of existingQuestions) {
+      await ctx.db.delete(q._id);
+    }
+    
+    // Insert new questions
+    // Note: We use the order from the CSV if provided, otherwise we rely on insertion order
+    // Since insertion is sequential in the loop, created time will roughly follow CSV order
+    for (const q of args.questions) {
+      // Validate difficulty
+      // If difficulty doesn't exist in level, we might want to auto-add it or throw error
+      // Ideally validation happens on frontend, but double checking here is good practice
+      // For now, we assume frontend validation ensures difficulty exists
+      
+      await ctx.db.insert("levelQuestions", {
+        levelId: args.levelId,
+        difficultyName: q.difficultyName,
+        questionType: q.questionType,
+        question: q.question,
+        data: q.data,
+        status: "active",
+        createdAt: Date.now() + (q.order || 0), // Slight offset to ensure exact sort order if relied upon
+        updatedAt: Date.now(),
+      });
+    }
+  },
+});
+
 // ============================================
 // SEED DATA - Demo Questions for Level 1 & 2
 // ============================================
