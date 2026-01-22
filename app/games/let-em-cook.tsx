@@ -96,6 +96,13 @@ export default function LetEmCookScreen() {
     }
   }, [isStarting, spicesFromConvex, initGameWithSpices]);
   
+  // Auto-start game if allowed
+  useEffect(() => {
+    if (canPlay?.canPlay && gameState === 'idle' && !isStarting) {
+      setIsStarting(true);
+    }
+  }, [canPlay, gameState, isStarting]);
+
   // Start game handler - triggers spice fetch
   const handleStartGame = useCallback(() => {
     if (!canPlay?.canPlay) return;
@@ -224,7 +231,9 @@ export default function LetEmCookScreen() {
     );
   }
   
-  // Idle state - show start screen
+
+  
+  // Idle state - show loading while starting, or start screen (fallback)
   if (gameState === 'idle') {
     return (
       <SafeAreaView style={styles.container}>
@@ -236,53 +245,18 @@ export default function LetEmCookScreen() {
           <View style={{ width: 40 }} />
         </View>
         
-        <View style={styles.startContainer}>
+        <View style={styles.loadingContainer}>
           <MotiView
-            from={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: 'spring', delay: 100 }}
+            from={{ scale: 0.9, opacity: 0.8 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'timing', duration: 800, loop: true }}
           >
-            <View style={styles.startCard}>
-              <LinearGradient
-                colors={['#e74c3c', '#c0392b']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.startCardGradient}
-              >
-                <Text style={styles.startEmoji}>🌶️</Text>
-                <Text style={styles.startTitle}>Daily Spice Challenge</Text>
-                <Text style={styles.startSubtitle}>
-                  Match {DEFAULT_SPICE_COUNT} randomly selected spices
-                </Text>
-              </LinearGradient>
-              
-              <View style={styles.startInfo}>
-                <View style={styles.startInfoItem}>
-                  <Ionicons name="grid" size={18} color={COLORS.textSecondary} />
-                  <Text style={styles.startInfoText}>~8 rounds</Text>
-                </View>
-                <View style={styles.startInfoItem}>
-                  <Ionicons name="time" size={18} color={COLORS.accentGold} />
-                  <Text style={styles.startInfoText}>Once per day</Text>
-                </View>
-              </View>
-              
-              <Pressable 
-                style={[styles.startButton, isStarting && styles.startButtonDisabled]}
-                onPress={handleStartGame}
-                disabled={isStarting}
-              >
-                {isStarting ? (
-                  <ActivityIndicator color={COLORS.text} />
-                ) : (
-                  <>
-                    <Text style={styles.startButtonText}>Start Cooking!</Text>
-                    <Ionicons name="flame" size={20} color={COLORS.text} />
-                  </>
-                )}
-              </Pressable>
-            </View>
+            <Text style={{ fontSize: 48 }}>👨‍🍳</Text>
           </MotiView>
+          <Text style={[styles.loadingText, { marginTop: SPACING.lg }]}>
+            Getting ingredients ready...
+          </Text>
+          <ActivityIndicator size="small" color={COLORS.primary} style={{ marginTop: SPACING.md }} />
         </View>
       </SafeAreaView>
     );
