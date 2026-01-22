@@ -29,6 +29,14 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import type { Id, Doc } from "@convex/_generated/dataModel";
+import ImageKit from "imagekit-javascript";
+
+// Initialize ImageKit for client-side uploads
+const imagekit = new ImageKit({
+  publicKey: "public_S+qCGuJevV08lqWzX9O5Vfbq+OU=", 
+  urlEndpoint: "https://ik.imagekit.io/rx4099", 
+  authenticationEndpoint: "/api/imagekit",
+} as any);
 
 type Level = Doc<"levels"> & {
   questionCounts: Record<string, number>;
@@ -140,6 +148,48 @@ function LevelsContent() {
     return str;
   };
 
+  // Helper to process image URLs in CSV
+  const extractImagesAndUpload = async (url: string, rowNum: number): Promise<string> => {
+    if (!url) throw new Error(`Row ${rowNum}: Image URL missing`);
+    
+    // 1. Check if already ImageKit
+    if (url.includes("imagekit.io")) {
+      // Optional: Verify existence logic here if needed, but for now trust the user
+      return url; 
+    }
+
+    // 2. Upload from external source
+    try {
+      // Fetch the image
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Failed to fetch image: ${url}`);
+      const blob = await response.blob();
+      
+      // Upload to ImageKit
+      const file = new File([blob], "match-upload.jpg", { type: blob.type });
+      
+      const authRes = await fetch("/api/imagekit");
+      if (!authRes.ok) throw new Error("Failed to get upload auth");
+      const authParams = await authRes.json();
+
+      const result = await imagekit.upload({
+        file: file,
+        fileName: `match_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+        useUniqueFileName: true,
+        tags: ["match-csv-import"],
+        folder: "/match-questions",
+        token: authParams.token,
+        signature: authParams.signature,
+        expire: authParams.expire
+      });
+      
+      return result.url;
+    } catch (err) {
+      console.error("Image processing error:", err);
+      throw new Error(`Row ${rowNum}: Failed to process image ${url}. Error: ${(err as Error).message}`);
+    }
+  };
+
   // Guide Download
   const handleDownloadGuide = () => {
     const guide = `===========================================
@@ -150,7 +200,7 @@ This guide explains how to create levels using the CSV upload feature.
 Each level requires a specific CSV format that can contain MULTIPLE types of questions.
 
 REQUIRED CSV HEADERS (exact spelling):
-Order,Type,Difficulty,Question,Option 1,Option 2,Option 3,Option 4,Correct Option,Solution,Statement,Correct Words,Select Mode,Explanation
+Order,Type,Difficulty,Question,Option 1,Option 2,Option 3,Option 4,Correct Option,Solution,Statement,Correct Words,Select Mode,Explanation,Pairs
 
 -------------------------------------------
 COLUMN EXPLANATIONS
@@ -162,7 +212,7 @@ COLUMN EXPLANATIONS
    - EXISTING QUESTIONS WILL BE REPLACED by this upload to match this exact order.
 
 2. Type (Required)
-   - Must be one of: mcq, grid, map, select
+   - Must be one of: mcq, grid, map, select, match
 
 3. Difficulty (Required)
    - Must be one of: easy, medium, hard
@@ -194,14 +244,21 @@ D. For Select Questions (Type = select):
    - Select Mode: "single" or "multiple".
    - (Leave Option columns empty)
 
+E. For Match Questions (Type = match):
+   - Pairs: Semicolon separated pairs of "ImageURL|Text".
+     Format: url1|text1;url2|text2;url3|text3
+     Example: https://site.com/cat.jpg|Cat;https://site.com/dog.jpg|Dog
+     Note: If Image URL is not from ImageKit, it will be automatically uploaded.
+
 -------------------------------------------
 EXAMPLE ROWS
 -------------------------------------------
 
-1,mcq,easy,What is 2+2?,3,4,5,6,2,,,,,Simple addition
-2,grid,medium,Find the word 'happy',,,,,glad,,,,
-3,select,hard,Find the nouns,,, ,,,,The cat sat,cat,single,
-4,map,hard,Where is Mumbai?,,,,,IN-MH,,,,
+1,mcq,easy,What is 2+2?,3,4,5,6,2,,,,,Simple addition,
+2,grid,medium,Find the word 'happy',,,,,glad,,,,,
+3,select,hard,Find the nouns,,, ,,,,The cat sat,cat,single,,
+4,map,hard,Where is Mumbai?,,,,,IN-MH,,,,-
+5,match,easy,Match animals to names,,,,,,,,,,,https://url.com/c.jpg|Cat;https://url.com/d.jpg|Dog
 
 ===========================================
 `;
@@ -286,31 +343,49 @@ EXAMPLE ROWS
 
       // Validate Headers
       const headers = rows[0].map(h => h.trim().toLowerCase());
-      const expectedHeaders = ['order','type','difficulty','question','option 1','option 2','option 3','option 4','correct option','solution','statement','correct words','select mode','explanation'];
+      const expectedHeaders = ['order','type','difficulty','question','option 1','option 2','option 3','option 4','correct option','solution','statement','correct words','select mode','explanation','pairs'];
       
-      const missingHeaders = expectedHeaders.filter(h => !headers.includes(h));
-      if (missingHeaders.length > 0) {
-        throw new Error(`Missing required headers: ${missingHeaders.join(', ')}`);
-      }
-
-      // Map header indices
+      const missingHeaders = expectedHeaders.filter(h => !headers.includes(h) && h !== 'pairs'); // pairs is optional for other types
+      // Actually, if we enforce all headers to be present in CSV even if empty, strictly checking might be annoying.
+      // Let's check for critical ones. 
+      // The current code checks for ALL. I should append 'pairs' to the check list but maybe make it lenient if missing in old CSVs?
+      // For now, let's just add it to expectedHeaders. Users downloading new CSVs will get it.
+      
       const idx = expectedHeaders.reduce((acc, h) => {
-        acc[h] = headers.indexOf(h);
+        const foundIndex = headers.indexOf(h);
+        if (foundIndex !== -1) acc[h] = foundIndex;
+        // If not found (e.g. old CSV upload), verify later if needed
         return acc;
       }, {} as Record<string, number>);
+
+      // Check strictly required headers
+      const requiredCols = ['order','type','difficulty','question'];
+      const missingRequired = requiredCols.filter(h => !headers.includes(h));
+      if (missingRequired.length > 0) {
+        throw new Error(`Missing required headers: ${missingRequired.join(', ')}`);
+      }
 
       const dataRows = rows.slice(1);
       const parsedQuestions: any[] = [];
       const errors: string[] = [];
 
-      dataRows.forEach((row, rowIndex) => {
+      // Use for...of loop to handle async image processing
+      let rowIndex = 0;
+      for (const row of dataRows) {
+        rowIndex++;
         const rowNum = rowIndex + 2;
-        if (row.length < expectedHeaders.length) {
-          // Pad with empty strings if trailing commas missing
-          while (row.length < expectedHeaders.length) row.push('');
+        
+        if (row.length < headers.length) { 
+           // padding handled by logic below via idx check?
+           // Original code padded row. Let's keep it safe.
+           // But headers length might vary if user uploaded partial.
         }
 
-        const getVal = (header: string) => row[idx[header]]?.trim();
+        const getVal = (header: string) => {
+            const i = idx[header];
+            if (i === undefined || i >= row.length) return '';
+            return row[i]?.trim();
+        };
 
         const orderStr = getVal('order');
         const type = getVal('type').toLowerCase();
@@ -319,80 +394,96 @@ EXAMPLE ROWS
 
         if (!question) {
           errors.push(`Row ${rowNum}: Question is required`);
-          return;
+          continue;
         }
-        if (!['mcq', 'grid', 'map', 'select'].includes(type)) {
+        if (!['mcq', 'grid', 'map', 'select', 'match'].includes(type)) {
           errors.push(`Row ${rowNum}: Invalid Type "${type}"`);
-          return;
+          continue;
         }
 
         const order = parseInt(orderStr);
         if (isNaN(order)) {
           errors.push(`Row ${rowNum}: Invalid Order "${orderStr}"`);
-          return;
+          continue;
         }
 
         let data: any = {};
         
-        if (type === 'mcq') {
-          const opt1 = getVal('option 1');
-          const opt2 = getVal('option 2');
-          const opt3 = getVal('option 3');
-          const opt4 = getVal('option 4');
-          const correctStr = getVal('correct option');
-          
-          if (!opt1 || !opt2 || !opt3 || !opt4) {
-            errors.push(`Row ${rowNum}: MCQ requires all 4 options`);
-            return;
+        try {
+          if (type === 'mcq') {
+            const opt1 = getVal('option 1');
+            const opt2 = getVal('option 2');
+            const opt3 = getVal('option 3');
+            const opt4 = getVal('option 4');
+            const correctStr = getVal('correct option');
+            
+            if (!opt1 || !opt2 || !opt3 || !opt4) {
+              throw new Error("MCQ requires all 4 options");
+            }
+            const correct = parseInt(correctStr);
+            if (isNaN(correct) || correct < 1 || correct > 4) {
+               throw new Error("Correct Option must be 1-4");
+            }
+            data = {
+              options: [opt1, opt2, opt3, opt4],
+              correctIndex: correct - 1,
+              explanation: getVal('explanation')
+            };
+          } else if (type === 'grid') {
+            const sol = getVal('solution');
+            if (!sol) throw new Error("Grid requires Solution");
+            data = { solution: sol.toLowerCase() };
+          } else if (type === 'map') {
+            const sol = getVal('solution');
+            if (!sol) throw new Error("Map requires Solution");
+            data = { solution: sol, mapType: 'india' };
+          } else if (type === 'select') {
+            const stmt = getVal('statement');
+            const words = getVal('correct words');
+            const mode = getVal('select mode') || 'single';
+            
+            if (!stmt || !words) throw new Error("Select requires Statement and Correct Words");
+            data = {
+              statement: stmt,
+              correctWords: words.split(',').map(w => w.trim()),
+              selectMode: mode
+            };
+          } else if (type === 'match') {
+            const pairsStr = getVal('pairs');
+            if (!pairsStr) throw new Error("Match requires 'Pairs' (format: url|text;url|text)");
+            
+            // Parse pairs: "url|text;url2|text2"
+            const rawPairs = pairsStr.split(';').filter(p => p.trim());
+            const processedPairs = [];
+            
+            for (const p of rawPairs) {
+                const parts = p.split('|');
+                if (parts.length < 2) throw new Error(`Invalid pair format: ${p}. Expected url|text`);
+                
+                const rawUrl = parts[0].trim();
+                const text = parts.slice(1).join('|').trim(); // Join back in case text has pipes?
+                
+                // Process Image
+                const finalUrl = await extractImagesAndUpload(rawUrl, rowNum);
+                processedPairs.push({ imageUrl: finalUrl, text });
+            }
+            
+            if (processedPairs.length < 2) throw new Error("Match requires at least 2 pairs");
+            data = { pairs: processedPairs };
           }
-          const correct = parseInt(correctStr);
-          if (isNaN(correct) || correct < 1 || correct > 4) {
-            errors.push(`Row ${rowNum}: Correct Option must be 1-4`);
-            return;
-          }
-          data = {
-            options: [opt1, opt2, opt3, opt4],
-            correctIndex: correct - 1,
-            explanation: getVal('explanation')
-          };
-        } else if (type === 'grid') {
-          const sol = getVal('solution');
-          if (!sol) {
-            errors.push(`Row ${rowNum}: Grid requires Solution`);
-            return;
-          }
-          data = { solution: sol.toLowerCase() };
-        } else if (type === 'map') {
-          const sol = getVal('solution');
-          if (!sol) {
-            errors.push(`Row ${rowNum}: Map requires Solution`);
-            return;
-          }
-          data = { solution: sol, mapType: 'india' };
-        } else if (type === 'select') {
-          const stmt = getVal('statement');
-          const words = getVal('correct words');
-          const mode = getVal('select mode') || 'single';
-          
-          if (!stmt || !words) {
-            errors.push(`Row ${rowNum}: Select requires Statement and Correct Words`);
-            return;
-          }
-          data = {
-            statement: stmt,
-            correctWords: words.split(',').map(w => w.trim()),
-            selectMode: mode
-          };
-        }
+  
+          parsedQuestions.push({
+            difficultyName: diff,
+            questionType: type,
+            question,
+            data,
+            order
+          });
 
-        parsedQuestions.push({
-          difficultyName: diff,
-          questionType: type,
-          question,
-          data,
-          order
-        });
-      });
+        } catch (e) {
+          errors.push(`Row ${rowNum}: ${(e as Error).message}`);
+        }
+      }
 
       if (errors.length > 0) {
         setUploadStatus({ success: 0, failed: errors.length, errors: errors.slice(0, 10) });
@@ -652,7 +743,7 @@ function LevelAccordion({
     if (!questions) return;
 
     // Flatten logic similar to upload
-    const headers = ['Order','Type','Difficulty','Question','Option 1','Option 2','Option 3','Option 4','Correct Option','Solution','Statement','Correct Words','Select Mode','Explanation'];
+    const headers = ['Order','Type','Difficulty','Question','Option 1','Option 2','Option 3','Option 4','Correct Option','Solution','Statement','Correct Words','Select Mode','Explanation','Pairs'];
     
     // Flatten all questions into a single list
     // We need to establish an order. Ideally we sort by createdAt or similar if order field not guaranteed?
@@ -669,7 +760,7 @@ function LevelAccordion({
       const diff = q.difficultyName;
       const qt = escapeCSV(q.question);
       
-      let opt1 = '', opt2 = '', opt3 = '', opt4 = '', correct = '', solution = '', stmt = '', words = '', mode = '', expl = '';
+      let opt1 = '', opt2 = '', opt3 = '', opt4 = '', correct = '', solution = '', stmt = '', words = '', mode = '', expl = '', pairs = '';
       
       const d = q.data as any;
       if (type === 'mcq') {
@@ -687,6 +778,12 @@ function LevelAccordion({
         stmt = escapeCSV(d.statement);
         words = escapeCSV(d.correctWords?.join(', '));
         mode = escapeCSV(d.selectMode);
+      } else if (type === 'match') {
+        // Pairs: url|text;url|text
+        if (d.pairs && Array.isArray(d.pairs)) {
+           const pairStrings = d.pairs.map((p: any) => `${p.imageUrl}|${p.text}`);
+           pairs = escapeCSV(pairStrings.join(';'));
+        }
       }
 
       return [
@@ -699,7 +796,8 @@ function LevelAccordion({
         stmt,
         words,
         mode,
-        expl
+        expl,
+        pairs
       ].join(',');
     });
 
