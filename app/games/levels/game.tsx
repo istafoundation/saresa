@@ -20,10 +20,11 @@ import MCQRenderer from '../../../components/questions/MCQRenderer';
 import GridRenderer from '../../../components/questions/GridRenderer';
 import MapRenderer from '../../../components/questions/MapRenderer';
 import SelectRenderer from '../../../components/questions/SelectRenderer';
+import MatchRenderer from '../../../components/questions/MatchRenderer';
 
 type Question = {
   _id: Id<"levelQuestions">;
-  questionType: 'mcq' | 'grid' | 'map' | 'select';
+  questionType: 'mcq' | 'grid' | 'map' | 'select' | 'match';
   question: string;
   data: any;
 };
@@ -352,6 +353,14 @@ export default function LevelGameScreen() {
           {currentQuestion.questionType === 'select' && (
             <SelectRenderer
               key={`select-${questionKey}`}
+              question={currentQuestion.question}
+              data={currentQuestion.data}
+              onAnswer={handleAnswer}
+            />
+          )}
+          {currentQuestion.questionType === 'match' && (
+            <MatchRenderer
+              key={`match-${questionKey}`}
               question={currentQuestion.question}
               data={currentQuestion.data}
               onAnswer={handleAnswer}

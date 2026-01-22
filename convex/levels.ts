@@ -547,7 +547,8 @@ export const addQuestion = mutation({
       v.literal("mcq"),
       v.literal("grid"),
       v.literal("map"),
-      v.literal("select")
+      v.literal("select"),
+      v.literal("match")
     ),
     question: v.string(),
     data: v.any(),
@@ -622,7 +623,8 @@ export const bulkReplaceQuestions = mutation({
         v.literal("mcq"),
         v.literal("grid"),
         v.literal("map"),
-        v.literal("select")
+        v.literal("select"),
+        v.literal("match")
       ),
       question: v.string(),
       data: v.any(),

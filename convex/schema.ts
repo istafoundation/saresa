@@ -340,7 +340,8 @@ export default defineSchema({
       v.literal("mcq"),                // English Insane style MCQ
       v.literal("grid"),               // Word Finder style grid
       v.literal("map"),                // Explorer style map selection
-      v.literal("select")              // Grammar Detective style word selection
+      v.literal("select"),             // Grammar Detective style word selection
+      v.literal("match")               // Picture matching - connect images to texts
     ),
     
     question: v.string(),              // The question/prompt text

@@ -24,6 +24,8 @@ import {
   Download,
   Upload,
   FileText,
+  Link as LinkIcon,
+  Image as ImageIcon,
 } from "lucide-react";
 import type { Id, Doc } from "@convex/_generated/dataModel";
 
@@ -34,13 +36,14 @@ type Level = Doc<"levels"> & {
 
 type LevelQuestion = Doc<"levelQuestions">;
 
-type QuestionType = "mcq" | "grid" | "map" | "select";
+type QuestionType = "mcq" | "grid" | "map" | "select" | "match";
 
 const QUESTION_TYPES: { value: QuestionType; label: string; icon: React.ReactNode }[] = [
   { value: "mcq", label: "Multiple Choice", icon: <Zap className="w-4 h-4" /> },
   { value: "select", label: "Word Select", icon: <Type className="w-4 h-4" /> },
   { value: "grid", label: "Word Grid", icon: <Grid3X3 className="w-4 h-4" /> },
   { value: "map", label: "Map Location", icon: <Map className="w-4 h-4" /> },
+  { value: "match", label: "Picture Match", icon: <LinkIcon className="w-4 h-4" /> },
 ];
 
 export default function LevelsContentPage() {
@@ -1132,6 +1135,30 @@ function AddQuestionModal({ levelId, difficultyName, onClose, onCreate }: {
   // Map fields
   const [mapSolution, setMapSolution] = useState("IN-MH");
 
+  // Match fields (picture matching)
+  const [matchPairs, setMatchPairs] = useState<{imageUrl: string; text: string}[]>([
+    { imageUrl: "", text: "" },
+    { imageUrl: "", text: "" },
+  ]);
+
+  const addMatchPair = () => {
+    if (matchPairs.length < 6) {
+      setMatchPairs([...matchPairs, { imageUrl: "", text: "" }]);
+    }
+  };
+
+  const removeMatchPair = (index: number) => {
+    if (matchPairs.length > 2) {
+      setMatchPairs(matchPairs.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateMatchPair = (index: number, field: 'imageUrl' | 'text', value: string) => {
+    const updated = [...matchPairs];
+    updated[index] = { ...updated[index], [field]: value };
+    setMatchPairs(updated);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!questionText.trim()) return;
@@ -1159,6 +1186,9 @@ function AddQuestionModal({ levelId, difficultyName, onClose, onCreate }: {
         break;
       case "map":
         data = { solution: mapSolution, mapType: "india" };
+        break;
+      case "match":
+        data = { pairs: matchPairs.filter(p => p.imageUrl.trim() && p.text.trim()) };
         break;
     }
 
@@ -1201,6 +1231,7 @@ function AddQuestionModal({ levelId, difficultyName, onClose, onCreate }: {
               questionType === 'mcq' ? "What is the capital of India?" :
               questionType === 'grid' ? "Find the word meaning 'happy'" :
               questionType === 'select' ? "Select the noun in this sentence" :
+              questionType === 'match' ? "Match the fruits to their names" :
               "Find Maharashtra on the map"
             }
             rows={2}
@@ -1318,6 +1349,65 @@ function AddQuestionModal({ levelId, difficultyName, onClose, onCreate }: {
             <p className="text-xs text-slate-500 mt-1">
               Use ISO 3166-2:IN codes (e.g., IN-MH, IN-KL, IN-UP)
             </p>
+          </div>
+        )}
+
+        {questionType === "match" && (
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              Image-Text Pairs ({matchPairs.length}/6)
+            </label>
+            <p className="text-xs text-slate-500 mb-3">
+              Upload images to ImageKit first, then paste the URLs here. Images will be cropped to 1:1 ratio.
+            </p>
+            <div className="space-y-3">
+              {matchPairs.map((pair, idx) => (
+                <div key={idx} className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg">
+                  <span className="text-sm font-medium text-slate-500 w-6">{idx + 1}.</span>
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <ImageIcon className="w-4 h-4 text-slate-400" />
+                      <input
+                        type="url"
+                        value={pair.imageUrl}
+                        onChange={(e) => updateMatchPair(idx, 'imageUrl', e.target.value)}
+                        placeholder="https://ik.imagekit.io/..."
+                        className="flex-1 px-3 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Type className="w-4 h-4 text-slate-400" />
+                      <input
+                        type="text"
+                        value={pair.text}
+                        onChange={(e) => updateMatchPair(idx, 'text', e.target.value)}
+                        placeholder="Label text"
+                        className="flex-1 px-3 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                      />
+                    </div>
+                  </div>
+                  {matchPairs.length > 2 && (
+                    <button
+                      type="button"
+                      onClick={() => removeMatchPair(idx)}
+                      className="p-1 text-red-500 hover:bg-red-50 rounded"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            {matchPairs.length < 6 && (
+              <button
+                type="button"
+                onClick={addMatchPair}
+                className="mt-3 flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-700"
+              >
+                <Plus className="w-4 h-4" />
+                Add Pair
+              </button>
+            )}
           </div>
         )}
 

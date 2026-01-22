@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@clerk/nextjs": "^6.36.7",
+    "@imagekit/nodejs": "^7.2.1",
+    "@imagekit/react": "^5.0.1",
     "clsx": "^2.1.1",
     "convex": "^1.31.4",
     "date-fns": "^4.1.0",
