@@ -29,7 +29,6 @@ interface Spice {
   _id: string;
   name: string;
   imageUrl: string;
-  hindiName?: string;
   description?: string;
   isEnabled: boolean;
   createdAt: number;
@@ -63,7 +62,6 @@ export default function SpicesManagementPage() {
   const [formData, setFormData] = useState({
     name: "",
     imageUrl: "",
-    hindiName: "",
     description: "",
     isEnabled: true,
   });
@@ -87,8 +85,7 @@ export default function SpicesManagementPage() {
   // Filter spices
   const filteredSpices = spices?.filter((spice) => {
     const matchesSearch = 
-      spice.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (spice.hindiName?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
+      spice.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = 
       statusFilter === "all" || 
       (statusFilter === "enabled" && spice.isEnabled) ||
@@ -104,7 +101,6 @@ export default function SpicesManagementPage() {
       await addSpice({
         name: formData.name,
         imageUrl: formData.imageUrl,
-        hindiName: formData.hindiName || undefined,
         description: formData.description || undefined,
         isEnabled: formData.isEnabled,
       });
@@ -126,7 +122,6 @@ export default function SpicesManagementPage() {
         id: editingId as any,
         name: formData.name,
         imageUrl: formData.imageUrl,
-        hindiName: formData.hindiName || undefined,
         description: formData.description || undefined,
         isEnabled: formData.isEnabled,
       });
@@ -160,7 +155,6 @@ export default function SpicesManagementPage() {
     setFormData({
       name: spice.name,
       imageUrl: spice.imageUrl,
-      hindiName: spice.hindiName || "",
       description: spice.description || "",
       isEnabled: spice.isEnabled,
     });
@@ -169,7 +163,7 @@ export default function SpicesManagementPage() {
 
   const resetForm = () => {
     setEditingId(null);
-    setFormData({ name: "", imageUrl: "", hindiName: "", description: "", isEnabled: true });
+    setFormData({ name: "", imageUrl: "", description: "", isEnabled: true });
   };
 
   const handleSaveSettings = async () => {
@@ -235,19 +229,18 @@ SPICE LIST CSV FORMAT
 ===========================================
 
 REQUIRED HEADERS:
-Name,Image,Hindi Name,Description
+Name,Image,Description
 
 COLUMN EXPLANATIONS:
 1. Name (Required): The display name of the spice (e.g., "Turmeric")
 2. Image (Required): URL of the spice image. 
    - Can be an direct link (jpg/png)
    - Will be automatically uploaded to ImageKit if not already there
-3. Hindi Name (Optional): The Hindi name (e.g., "Haldi")
-4. Description (Optional): Brief description
+3. Description (Optional): Brief description
 
 EXAMPLE:
-Turmeric,https://example.com/turmeric.jpg,Haldi,Yellow powder
-Cumin,https://example.com/jeera.jpg,Jeera,Small brown seeds
+Turmeric,https://example.com/turmeric.jpg,Yellow powder
+Cumin,https://example.com/jeera.jpg,Small brown seeds
 `;
     
     const blob = new Blob([guide], { type: 'text/plain;charset=utf-8;' });
@@ -264,11 +257,10 @@ Cumin,https://example.com/jeera.jpg,Jeera,Small brown seeds
   const handleDownloadCSV = () => {
     if (!spices) return;
 
-    const headers = ['Name', 'Image', 'Hindi Name', 'Description'];
+    const headers = ['Name', 'Image', 'Description'];
     const rows = spices.map(s => [
       escapeCSV(s.name),
       escapeCSV(s.imageUrl),
-      escapeCSV(s.hindiName),
       escapeCSV(s.description)
     ]);
 
@@ -345,7 +337,7 @@ Cumin,https://example.com/jeera.jpg,Jeera,Small brown seeds
       }
 
       const headers = rows[0].map(h => h.trim().toLowerCase());
-      const expectedHeaders = ['name', 'image', 'hindi name', 'description'];
+      const expectedHeaders = ['name', 'image', 'description'];
       
       const idx = expectedHeaders.reduce((acc, h) => {
         const foundIndex = headers.indexOf(h);
@@ -374,7 +366,6 @@ Cumin,https://example.com/jeera.jpg,Jeera,Small brown seeds
 
         const name = getVal('name');
         const rawUrl = getVal('image');
-        const hindiName = getVal('hindi name');
         const description = getVal('description');
 
         if (!name) {
@@ -392,7 +383,6 @@ Cumin,https://example.com/jeera.jpg,Jeera,Small brown seeds
           parsedSpices.push({
             name,
             imageUrl: finalUrl,
-            hindiName,
             description,
           });
         } catch (e) {
@@ -587,9 +577,6 @@ Cumin,https://example.com/jeera.jpg,Jeera,Small brown seeds
                 Name
               </th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
-                Hindi Name
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
                 Status
               </th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
@@ -617,9 +604,6 @@ Cumin,https://example.com/jeera.jpg,Jeera,Small brown seeds
                 </td>
                 <td className="px-6 py-4">
                   <span className="font-medium text-slate-900">{spice.name}</span>
-                </td>
-                <td className="px-6 py-4 text-slate-600">
-                  {spice.hindiName || '-'}
                 </td>
                 <td className="px-6 py-4">
                   <button
@@ -689,17 +673,6 @@ Cumin,https://example.com/jeera.jpg,Jeera,Small brown seeds
                   placeholder="e.g. Turmeric"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Hindi Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Haldi"
-                  value={formData.hindiName}
-                  onChange={(e) => setFormData({ ...formData, hindiName: e.target.value })}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
               </div>

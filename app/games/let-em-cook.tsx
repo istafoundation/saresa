@@ -24,7 +24,6 @@ interface Spice {
   id: string;
   name: string;
   imageUrl: string;
-  hindiName?: string;
 }
 
 export default function LetEmCookScreen() {

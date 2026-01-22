@@ -43,7 +43,6 @@ export const getEnabledSpices = query({
       id: s._id,
       name: s.name,
       imageUrl: s.imageUrl,
-      hindiName: s.hindiName,
     }));
   },
 });
@@ -73,7 +72,6 @@ export const getRandomSpices = query({
       id: s._id,
       name: s.name,
       imageUrl: s.imageUrl,
-      hindiName: s.hindiName,
     }));
   },
 });
@@ -132,7 +130,6 @@ export const addSpice = mutation({
   args: {
     name: v.string(),
     imageUrl: v.string(),
-    hindiName: v.optional(v.string()),
     description: v.optional(v.string()),
     isEnabled: v.boolean(),
   },
@@ -153,7 +150,6 @@ export const addSpice = mutation({
     const id = await ctx.db.insert("spices", {
       name: args.name,
       imageUrl: args.imageUrl,
-      hindiName: args.hindiName,
       description: args.description,
       isEnabled: args.isEnabled,
       createdBy: parentId,
@@ -171,7 +167,6 @@ export const updateSpice = mutation({
     id: v.id("spices"),
     name: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
-    hindiName: v.optional(v.string()),
     description: v.optional(v.string()),
     isEnabled: v.optional(v.boolean()),
   },
@@ -189,7 +184,6 @@ export const updateSpice = mutation({
 
     if (args.name !== undefined) updates.name = args.name;
     if (args.imageUrl !== undefined) updates.imageUrl = args.imageUrl;
-    if (args.hindiName !== undefined) updates.hindiName = args.hindiName;
     if (args.description !== undefined) updates.description = args.description;
     if (args.isEnabled !== undefined) updates.isEnabled = args.isEnabled;
 
@@ -246,7 +240,6 @@ export const bulkReplaceSpices = mutation({
     spices: v.array(v.object({
       name: v.string(),
       imageUrl: v.string(),
-      hindiName: v.optional(v.string()),
       description: v.optional(v.string()),
     })),
   },
@@ -268,7 +261,6 @@ export const bulkReplaceSpices = mutation({
       await ctx.db.insert("spices", {
         name: spice.name,
         imageUrl: spice.imageUrl,
-        hindiName: spice.hindiName,
         description: spice.description,
         isEnabled: true,
         createdBy: parentId,

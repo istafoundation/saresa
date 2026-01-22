@@ -185,7 +185,6 @@ export default defineSchema({
   spices: defineTable({
     name: v.string(),                    // Display name (e.g., "Turmeric")
     imageUrl: v.string(),                // ImageKit hosted URL
-    hindiName: v.optional(v.string()),   // Hindi name (optional)
     description: v.optional(v.string()), // Brief description
     
     // Status for admin control
