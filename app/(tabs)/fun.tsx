@@ -412,6 +412,42 @@ export default function FunScreen() {
                   <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
                 )}
               </Pressable>
+
+              {/* Let'em Cook - Spice Matching */}
+              <Pressable 
+                style={[
+                  styles.modeButton,
+                  gameLimits.lecCompleted && styles.modeButtonDisabled
+                ]}
+                onPress={() => gameLimits.canPlayLetEmCook && handleGamePress('/games/let-em-cook')}
+                disabled={!gameLimits.canPlayLetEmCook}
+              >
+                <View style={styles.modeButtonContent}>
+                  <Text style={{ fontSize: 24 }}>🌶️</Text>
+                  <View style={styles.modeButtonText}>
+                    <Text style={[
+                      styles.modeButtonTitle,
+                      gameLimits.lecCompleted && styles.modeButtonTitleDisabled
+                    ]}>
+                      Let'em Cook
+                    </Text>
+                    <Text style={styles.modeButtonDesc}>
+                      {gameLimits.lecCompleted 
+                        ? 'Challenge completed!' 
+                        : 'Match 30 spices • One-time only!'}
+                    </Text>
+                  </View>
+                </View>
+                {gameLimits.lecCompleted ? (
+                  <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
+                ) : loadingGame === '/games/let-em-cook' ? (
+                  <ActivityIndicator size="small" color={COLORS.textSecondary} />
+                ) : (
+                  <View style={styles.xpBadge}>
+                    <Text style={styles.xpBadgeText}>+300 XP</Text>
+                  </View>
+                )}
+              </Pressable>
             </View>
           </View>
         </MotiView>

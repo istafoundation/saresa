@@ -33,6 +33,9 @@ export interface ComputedGameLimits {
   explorerGuessedToday: string[];
   explorerRemaining: number;
   explorerIsComplete: boolean;
+  // Let'em Cook (one-time game)
+  canPlayLetEmCook: boolean;
+  lecCompleted: boolean;
 }
 
 // Extended synced data including game stats
@@ -183,6 +186,8 @@ export function useConvexSync() {
       explorerGuessedToday: computed.explorerGuessedToday ?? [],
       explorerRemaining: computed.explorerRemaining ?? 36,
       explorerIsComplete: computed.explorerIsComplete ?? false,
+      canPlayLetEmCook: computed.canPlayLetEmCook ?? !userData.lecAttempted,
+      lecCompleted: computed.lecCompleted ?? (userData.lecAttempted ?? false),
     } : {
       // Fallback: compute locally if server doesn't provide (backward compat)
       canPlayGKCompetitive: userData.gkLastCompetitiveDate !== getISTDate(),
@@ -193,6 +198,8 @@ export function useConvexSync() {
       explorerGuessedToday: userData.expLastPlayedDate === getISTDate() ? (userData.expGuessedToday ?? []) : [],
       explorerRemaining: userData.expLastPlayedDate === getISTDate() ? 36 - (userData.expGuessedToday?.length ?? 0) : 36,
       explorerIsComplete: userData.expLastPlayedDate === getISTDate() ? (userData.expGuessedToday?.length ?? 0) >= 36 : false,
+      canPlayLetEmCook: !userData.lecAttempted,
+      lecCompleted: userData.lecAttempted ?? false,
     };
 
     // Map GAME STATS from Convex

@@ -103,6 +103,12 @@ export default defineSchema({
     expTotalXPEarned: v.optional(v.number()),        // Total XP earned
     expLastPlayedDate: v.optional(v.string()),       // IST date "2026-01-16"
     expGuessedToday: v.optional(v.array(v.string())), // ["IN-MH", "IN-KA", ...] - prevents repeats
+
+    // Let'em Cook Stats (Spice Matching - ONE TIME ONLY)
+    lecAttempted: v.optional(v.boolean()),           // Has user completed the game
+    lecCorrectAnswers: v.optional(v.number()),       // Correct matches
+    lecTotalXPEarned: v.optional(v.number()),        // XP earned
+    lecCompletedAt: v.optional(v.number()),          // Timestamp of completion
   }).index("by_child_id", ["childId"]),
 
   // ============================================
@@ -169,6 +175,27 @@ export default defineSchema({
     .index("by_type_status", ["type", "status"])
     .index("by_pack", ["packId"])
     .index("by_game_set", ["gameId", "questionSet"]),
+
+  // ============================================
+  // SPICES TABLE (Let'em Cook Game)
+  // ============================================
+  
+  // Spice entries for matching game
+  spices: defineTable({
+    name: v.string(),                    // Display name (e.g., "Turmeric")
+    imageUrl: v.string(),                // ImageKit hosted URL
+    hindiName: v.optional(v.string()),   // Hindi name (optional)
+    description: v.optional(v.string()), // Brief description
+    
+    // Status for admin control
+    isEnabled: v.boolean(),              // false = hidden from game
+    
+    // Metadata
+    createdBy: v.optional(v.id("parents")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_enabled", ["isEnabled"]),
 
   // Version tracking per game (for cache invalidation)
   contentVersions: defineTable({

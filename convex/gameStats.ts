@@ -555,3 +555,108 @@ export const updateExplorerStats = mutation({
     };
   },
 });
+
+// ============================================
+// LET'EM COOK (Spice Matching) STATS
+// One-time game - user can only attempt once ever
+// ============================================
+
+const TOTAL_SPICES = 30;
+const LEC_XP_PER_CORRECT = 10;
+
+// Check if user can play Let'em Cook (only once ever)
+export const canPlayLetEmCook = query({
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    const childId = await getChildIdFromSession(ctx, args.token);
+    if (!childId) return { canPlay: false, stats: null };
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_child_id", (q) => q.eq("childId", childId))
+      .first();
+
+    if (!user) return { canPlay: false, stats: null };
+
+    // User can only play if they haven't attempted yet
+    const canPlay = !user.lecAttempted;
+
+    return {
+      canPlay,
+      stats: user.lecAttempted ? {
+        correctAnswers: user.lecCorrectAnswers ?? 0,
+        totalXPEarned: user.lecTotalXPEarned ?? 0,
+        completedAt: user.lecCompletedAt,
+      } : null,
+    };
+  },
+});
+
+// Finish Let'em Cook game - handles XP and marks as completed
+export const finishLetEmCook = mutation({
+  args: {
+    token: v.string(),
+    correctCount: v.number(),
+    totalQuestions: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const childId = await getChildIdFromSession(ctx, args.token);
+    if (!childId) throw new ConvexError("Not authenticated");
+
+    // Validate inputs
+    if (args.correctCount < 0 || args.correctCount > TOTAL_SPICES) {
+      throw new ConvexError("Invalid correct count");
+    }
+    if (args.totalQuestions !== TOTAL_SPICES) {
+      throw new ConvexError("Invalid total questions");
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_child_id", (q) => q.eq("childId", childId))
+      .first();
+
+    if (!user) throw new ConvexError("User not found");
+
+    // Check if already completed
+    if (user.lecAttempted) {
+      throw new ConvexError("Game already completed once");
+    }
+
+    // Calculate XP server-side
+    const xpEarned = args.correctCount * LEC_XP_PER_CORRECT;
+
+    // Check for artifact unlocks with new XP
+    const newXP = user.xp + xpEarned;
+    const unlockedArtifacts = [...user.unlockedArtifacts];
+    let artifactsUpdated = false;
+
+    for (const level of LEVELS) {
+      if (newXP >= level.xpRequired && level.artifactId) {
+        if (!unlockedArtifacts.includes(level.artifactId)) {
+          unlockedArtifacts.push(level.artifactId);
+          artifactsUpdated = true;
+        }
+      }
+    }
+
+    // Update user stats
+    await ctx.db.patch(user._id, {
+      lecAttempted: true,
+      lecCorrectAnswers: args.correctCount,
+      lecTotalXPEarned: xpEarned,
+      lecCompletedAt: Date.now(),
+      xp: newXP,
+      ...(artifactsUpdated ? { unlockedArtifacts } : {}),
+    });
+
+    return {
+      xpEarned,
+      newXP,
+      correctCount: args.correctCount,
+      totalQuestions: args.totalQuestions,
+      artifactsUnlocked: artifactsUpdated ? unlockedArtifacts : null,
+    };
+  },
+});
+
