@@ -4,6 +4,7 @@ import { useState, Suspense, useRef, useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import Link from "next/link";
+import ImageUpload from "@/app/components/ImageUpload";
 import {
   Plus,
   ArrowLeft,
@@ -1358,33 +1359,24 @@ function AddQuestionModal({ levelId, difficultyName, onClose, onCreate }: {
               Image-Text Pairs ({matchPairs.length}/6)
             </label>
             <p className="text-xs text-slate-500 mb-3">
-              Upload images to ImageKit first, then paste the URLs here. Images will be cropped to 1:1 ratio.
+              Click to upload images for each pair. Images will be cropped to 1:1 ratio.
             </p>
             <div className="space-y-3">
               {matchPairs.map((pair, idx) => (
-                <div key={idx} className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg">
-                  <span className="text-sm font-medium text-slate-500 w-6">{idx + 1}.</span>
+                <div key={idx} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg">
+                  <ImageUpload
+                    value={pair.imageUrl}
+                    onChange={(url) => updateMatchPair(idx, 'imageUrl', url)}
+                  />
                   <div className="flex-1 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <ImageIcon className="w-4 h-4 text-slate-400" />
-                      <input
-                        type="url"
-                        value={pair.imageUrl}
-                        onChange={(e) => updateMatchPair(idx, 'imageUrl', e.target.value)}
-                        placeholder="https://ik.imagekit.io/..."
-                        className="flex-1 px-3 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Type className="w-4 h-4 text-slate-400" />
-                      <input
-                        type="text"
-                        value={pair.text}
-                        onChange={(e) => updateMatchPair(idx, 'text', e.target.value)}
-                        placeholder="Label text"
-                        className="flex-1 px-3 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                      />
-                    </div>
+                    <input
+                      type="text"
+                      value={pair.text}
+                      onChange={(e) => updateMatchPair(idx, 'text', e.target.value)}
+                      placeholder="Label text (e.g., Apple)"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                    />
+                    <span className="text-xs text-slate-400">Pair {idx + 1}</span>
                   </div>
                   {matchPairs.length > 2 && (
                     <button
