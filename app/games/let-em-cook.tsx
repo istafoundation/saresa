@@ -199,13 +199,14 @@ export default function LetEmCookScreen() {
         
         <View style={styles.completedContainer}>
           <Mascot mascotType={mascot} size="large" />
-          <Text style={styles.completedTitle}>🔒 Already Completed!</Text>
+          <Text style={styles.completedTitle}>🛑 Daily Challenge Done!</Text>
           <Text style={styles.completedText}>
-            You've already completed this one-time challenge.
+            You've already completed today's spice challenge.
+            Come back tomorrow for a fresh batch!
           </Text>
           {canPlay?.stats && (
             <View style={styles.previousStats}>
-              <Text style={styles.previousStatsTitle}>Your Score:</Text>
+              <Text style={styles.previousStatsTitle}>Today's Score:</Text>
               <Text style={styles.previousStatsValue}>
                 {canPlay.stats.correctAnswers}/{DEFAULT_SPICE_COUNT} correct
               </Text>
@@ -249,20 +250,20 @@ export default function LetEmCookScreen() {
                 style={styles.startCardGradient}
               >
                 <Text style={styles.startEmoji}>🌶️</Text>
-                <Text style={styles.startTitle}>Spice Challenge</Text>
+                <Text style={styles.startTitle}>Daily Spice Challenge</Text>
                 <Text style={styles.startSubtitle}>
-                  Match {DEFAULT_SPICE_COUNT} spice images to their names
+                  Match {DEFAULT_SPICE_COUNT} randomly selected spices
                 </Text>
               </LinearGradient>
               
               <View style={styles.startInfo}>
                 <View style={styles.startInfoItem}>
                   <Ionicons name="grid" size={18} color={COLORS.textSecondary} />
-                  <Text style={styles.startInfoText}>8 rounds</Text>
+                  <Text style={styles.startInfoText}>~8 rounds</Text>
                 </View>
                 <View style={styles.startInfoItem}>
-                  <Ionicons name="warning" size={18} color={COLORS.accentGold} />
-                  <Text style={styles.startInfoText}>One-time only!</Text>
+                  <Ionicons name="time" size={18} color={COLORS.accentGold} />
+                  <Text style={styles.startInfoText}>Once per day</Text>
                 </View>
               </View>
               
@@ -321,10 +322,10 @@ export default function LetEmCookScreen() {
             
             <Text style={styles.resultHint}>
               {correctCount >= totalSpices * 0.8 
-                ? '🏆 Master Chef! Outstanding performance!'
+                ? '🏆 Master Chef! See you tomorrow!'
                 : correctCount >= totalSpices * 0.5
-                ? '👍 Good job! You know your spices!'
-                : '📚 Keep learning about Indian spices!'}
+                ? '👍 Good job! Come back tomorrow!'
+                : '📚 Keep learning! See you tomorrow!'}
             </Text>
             
             <Pressable 

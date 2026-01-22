@@ -17,6 +17,7 @@ import {
   BarChart3,
   Upload,
   Layers,
+  Utensils,
 } from "lucide-react";
 
 export default function ContentManagementPage() {
@@ -26,6 +27,7 @@ export default function ContentManagementPage() {
   const englishInsaneContent = useQuery(api.content.getAllContent, { gameId: "english-insane" });
   const grammarDetectiveContent = useQuery(api.content.getAllContent, { gameId: "grammar-detective" });
   const levelsData = useQuery(api.levels.getLevelsAdmin);
+  const spiceStats = useQuery(api.spices.getSpiceStats);
 
   const games = [
     {
@@ -38,6 +40,16 @@ export default function ContentManagementPage() {
       contentCount: levelsData?.reduce((sum, l) => sum + l.totalQuestions, 0) ?? 0,
       activeCount: levelsData?.length ?? 0,
       isLevels: true,
+    },
+    {
+      id: "spices",
+      name: "Let 'em Cook",
+      description: "Cooking simulation game with spices",
+      icon: Utensils,
+      color: "orange",
+      href: "/dashboard/content/spices",
+      contentCount: spiceStats?.total ?? 0,
+      activeCount: spiceStats?.enabled ?? 0,
     },
     {
       id: "wordle",
@@ -85,13 +97,15 @@ export default function ContentManagementPage() {
     (wordleContent?.length ?? 0) +
     (wordFinderContent?.length ?? 0) +
     (englishInsaneContent?.length ?? 0) +
-    (grammarDetectiveContent?.length ?? 0);
+    (grammarDetectiveContent?.length ?? 0) +
+    (spiceStats?.total ?? 0);
 
   const totalActive =
     (wordleContent?.filter((c) => c.status === "active").length ?? 0) +
     (wordFinderContent?.filter((c) => c.status === "active").length ?? 0) +
     (englishInsaneContent?.filter((c) => c.status === "active").length ?? 0) +
-    (grammarDetectiveContent?.filter((c) => c.status === "active").length ?? 0);
+    (grammarDetectiveContent?.filter((c) => c.status === "active").length ?? 0) +
+    (spiceStats?.enabled ?? 0);
 
   return (
     <div className="space-y-8">
@@ -152,7 +166,7 @@ export default function ContentManagementPage() {
             </div>
             <div>
               <p className="text-sm text-slate-500">Games</p>
-              <p className="text-2xl font-bold text-slate-900">4</p>
+              <p className="text-2xl font-bold text-slate-900">5</p>
             </div>
           </div>
         </div>
@@ -171,6 +185,8 @@ export default function ContentManagementPage() {
               ? "bg-indigo-500"
               : game.color === "amber"
               ? "bg-amber-500"
+              : game.color === "orange"
+              ? "bg-orange-500"
               : "bg-purple-500";
           const lightBg =
             game.color === "emerald"
@@ -181,6 +197,8 @@ export default function ContentManagementPage() {
               ? "bg-indigo-50"
               : game.color === "amber"
               ? "bg-amber-50"
+              : game.color === "orange"
+              ? "bg-orange-50"
               : "bg-purple-50";
           const textColor =
             game.color === "emerald"
@@ -191,6 +209,8 @@ export default function ContentManagementPage() {
               ? "text-indigo-600"
               : game.color === "amber"
               ? "text-amber-600"
+              : game.color === "orange"
+              ? "text-orange-600"
               : "text-purple-600";
 
           return (
@@ -255,6 +275,19 @@ export default function ContentManagementPage() {
           </Link>
 
           <Link
+            href="/dashboard/content/spices"
+            className="flex items-center gap-3 p-4 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors border border-orange-200"
+          >
+            <div className="p-2 bg-orange-100 rounded-lg">
+              <Utensils className="w-4 h-4 text-orange-600" />
+            </div>
+            <div>
+              <p className="font-medium text-slate-900">Manage Spices</p>
+              <p className="text-sm text-slate-500">Bulk upload spices</p>
+            </div>
+          </Link>
+
+          <Link
             href="/dashboard/content/wordle?action=add"
             className="flex items-center gap-3 p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
           >
@@ -290,19 +323,6 @@ export default function ContentManagementPage() {
             <div>
               <p className="font-medium text-slate-900">Add Question</p>
               <p className="text-sm text-slate-500">English Insane</p>
-            </div>
-          </Link>
-
-          <Link
-            href="/dashboard/content/grammar-detective?action=add"
-            className="flex items-center gap-3 p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
-          >
-            <div className="p-2 bg-indigo-100 rounded-lg">
-              <Plus className="w-4 h-4 text-indigo-600" />
-            </div>
-            <div>
-              <p className="font-medium text-slate-900">Grammar Detective</p>
-              <p className="text-sm text-slate-500">Parts of speech</p>
             </div>
           </Link>
         </div>

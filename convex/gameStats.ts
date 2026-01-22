@@ -564,9 +564,12 @@ export const updateExplorerStats = mutation({
 const TOTAL_SPICES = 30;
 const LEC_XP_PER_CORRECT = 10;
 
-// Check if user can play Let'em Cook (only once ever)
+// Check if user can play Let'em Cook (Daily Challenge)
 export const canPlayLetEmCook = query({
-  args: { token: v.string() },
+  args: { 
+    token: v.string(),
+    clientDate: v.optional(v.string()) // Used to force re-query on day change
+  },
   handler: async (ctx, args) => {
     const childId = await getChildIdFromSession(ctx, args.token);
     if (!childId) return { canPlay: false, stats: null };
@@ -578,21 +581,28 @@ export const canPlayLetEmCook = query({
 
     if (!user) return { canPlay: false, stats: null };
 
-    // User can only play if they haven't attempted yet
-    const canPlay = !user.lecAttempted;
+    const today = getISTDate();
+    
+    // Can play if last played date is NOT today
+    const canPlay = user.lecLastPlayedDate !== today;
 
+    // Return today's stats if played, or previous stats? 
+    // Actually, if they can play, stats should be null or 0.
+    // If they cannot play (already played today), show today's stats.
+    
     return {
       canPlay,
-      stats: user.lecAttempted ? {
-        correctAnswers: user.lecCorrectAnswers ?? 0,
-        totalXPEarned: user.lecTotalXPEarned ?? 0,
-        completedAt: user.lecCompletedAt,
+      stats: !canPlay ? {
+        correctAnswers: user.lecDailyScore ?? 0,
+        totalXPEarned: user.lecDailyXP ?? 0,
+        // For daily challenge, we don't really have a "completedAt" but we can infer it
+        completedAt: Date.now(), // Placeholder or use last updated
       } : null,
     };
   },
 });
 
-// Finish Let'em Cook game - handles XP and marks as completed
+// Finish Let'em Cook game - handles XP and marks as completed for today
 export const finishLetEmCook = mutation({
   args: {
     token: v.string(),
@@ -603,14 +613,6 @@ export const finishLetEmCook = mutation({
     const childId = await getChildIdFromSession(ctx, args.token);
     if (!childId) throw new ConvexError("Not authenticated");
 
-    // Validate inputs
-    if (args.correctCount < 0 || args.correctCount > TOTAL_SPICES) {
-      throw new ConvexError("Invalid correct count");
-    }
-    if (args.totalQuestions !== TOTAL_SPICES) {
-      throw new ConvexError("Invalid total questions");
-    }
-
     const user = await ctx.db
       .query("users")
       .withIndex("by_child_id", (q) => q.eq("childId", childId))
@@ -618,9 +620,11 @@ export const finishLetEmCook = mutation({
 
     if (!user) throw new ConvexError("User not found");
 
-    // Check if already completed
-    if (user.lecAttempted) {
-      throw new ConvexError("Game already completed once");
+    const today = getISTDate();
+    
+    // Double check if already played today
+    if (user.lecLastPlayedDate === today) {
+      throw new ConvexError("Daily challenge already completed today");
     }
 
     // Calculate XP server-side
@@ -642,10 +646,11 @@ export const finishLetEmCook = mutation({
 
     // Update user stats
     await ctx.db.patch(user._id, {
-      lecAttempted: true,
-      lecCorrectAnswers: args.correctCount,
-      lecTotalXPEarned: xpEarned,
-      lecCompletedAt: Date.now(),
+      lecLastPlayedDate: today,
+      lecDailyScore: args.correctCount,
+      lecDailyXP: xpEarned,
+      lecTotalCorrect: (user.lecTotalCorrect ?? 0) + args.correctCount,
+      lecTotalGamesPlayed: (user.lecTotalGamesPlayed ?? 0) + 1,
       xp: newXP,
       ...(artifactsUpdated ? { unlockedArtifacts } : {}),
     });

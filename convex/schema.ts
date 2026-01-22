@@ -104,11 +104,12 @@ export default defineSchema({
     expLastPlayedDate: v.optional(v.string()),       // IST date "2026-01-16"
     expGuessedToday: v.optional(v.array(v.string())), // ["IN-MH", "IN-KA", ...] - prevents repeats
 
-    // Let'em Cook Stats (Spice Matching - ONE TIME ONLY)
-    lecAttempted: v.optional(v.boolean()),           // Has user completed the game
-    lecCorrectAnswers: v.optional(v.number()),       // Correct matches
-    lecTotalXPEarned: v.optional(v.number()),        // XP earned
-    lecCompletedAt: v.optional(v.number()),          // Timestamp of completion
+    // Let'em Cook Stats (Spice Matching - DAILY CHALLENGE)
+    lecLastPlayedDate: v.optional(v.string()),       // ISO date "2026-01-23"
+    lecDailyScore: v.optional(v.number()),           // Today's score
+    lecDailyXP: v.optional(v.number()),              // Today's XP earned
+    lecTotalCorrect: v.optional(v.number()),         // Lifetime correct answers
+    lecTotalGamesPlayed: v.optional(v.number()),     // Lifetime games played
   }).index("by_child_id", ["childId"]),
 
   // ============================================
