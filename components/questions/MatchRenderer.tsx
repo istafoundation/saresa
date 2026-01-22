@@ -26,6 +26,7 @@ interface MatchRendererProps {
     }>;
   };
   onAnswer: (isCorrect: boolean) => void;
+  onFeedback?: (isCorrect: boolean) => void;
   disabled?: boolean;
 }
 
@@ -63,6 +64,7 @@ export default function MatchRenderer({
   question,
   data,
   onAnswer,
+  onFeedback,
   disabled = false,
 }: MatchRendererProps) {
   // --- Dynamic Sizing ---
@@ -255,6 +257,9 @@ export default function MatchRenderer({
     
     const allCorrect = correctCount === data.pairs.length;
     setShowResult(true);
+    if (onFeedback) {
+      onFeedback(allCorrect);
+    }
     
     setTimeout(() => {
       onAnswer(allCorrect);

@@ -25,6 +25,7 @@ interface GridRendererProps {
     solution: string;
   };
   onAnswer: (isCorrect: boolean) => void;
+  onFeedback?: (isCorrect: boolean) => void;
   disabled?: boolean;
 }
 
@@ -104,6 +105,7 @@ export default function GridRenderer({
   question,
   data,
   onAnswer,
+  onFeedback,
   disabled = false,
 }: GridRendererProps) {
   // Generate grid once
@@ -169,6 +171,9 @@ export default function GridRenderer({
     const correct = checkAnswer(selection);
     setIsCorrect(correct);
     setShowResult(true);
+    if (onFeedback) {
+      onFeedback(correct);
+    }
     
     setTimeout(() => {
       onAnswer(correct);

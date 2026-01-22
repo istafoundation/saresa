@@ -13,6 +13,7 @@ interface MCQRendererProps {
     explanation?: string;
   };
   onAnswer: (isCorrect: boolean) => void;
+  onFeedback?: (isCorrect: boolean) => void;
   disabled?: boolean;
 }
 
@@ -20,6 +21,7 @@ export default function MCQRenderer({
   question,
   data,
   onAnswer,
+  onFeedback,
   disabled = false,
 }: MCQRendererProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -32,6 +34,9 @@ export default function MCQRenderer({
     setShowResult(true);
     
     const isCorrect = index === data.correctIndex;
+    if (onFeedback) {
+      onFeedback(isCorrect);
+    }
     
     // Delay before calling onAnswer to show feedback
     setTimeout(() => {

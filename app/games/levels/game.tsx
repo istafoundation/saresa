@@ -96,6 +96,19 @@ export default function LevelGameScreen() {
     return () => stopMusic();
   }, []);
   
+  // Handle feedback (sound + haptics) - triggered by renderer immediately on visual feedback
+  const handleFeedback = useCallback((isCorrect: boolean) => {
+    requestAnimationFrame(() => {
+      if (isCorrect) {
+        playCorrect();
+        triggerTap('heavy');
+      } else {
+        playWrong();
+        triggerTap('light');
+      }
+    });
+  }, [playCorrect, playWrong, triggerTap]);
+
   // Handle answer from any renderer
   const handleAnswer = useCallback((isCorrect: boolean) => {
     // Prevent double-processing
@@ -110,15 +123,8 @@ export default function LevelGameScreen() {
     }
     
     // Play sound without blocking
-    requestAnimationFrame(() => {
-      if (isCorrect) {
-        playCorrect();
-        triggerTap('heavy');
-      } else {
-        playWrong();
-        triggerTap('light');
-      }
-    });
+    // Sound is now handled by onFeedback passed to renderers
+
     
     // Move to next question after delay
     setTimeout(() => {
@@ -332,6 +338,7 @@ export default function LevelGameScreen() {
               question={currentQuestion.question}
               data={currentQuestion.data}
               onAnswer={handleAnswer}
+              onFeedback={handleFeedback}
             />
           )}
           {currentQuestion.questionType === 'grid' && (
@@ -340,6 +347,7 @@ export default function LevelGameScreen() {
               question={currentQuestion.question}
               data={currentQuestion.data}
               onAnswer={handleAnswer}
+              onFeedback={handleFeedback}
             />
           )}
           {currentQuestion.questionType === 'map' && (
@@ -348,6 +356,7 @@ export default function LevelGameScreen() {
               question={currentQuestion.question}
               data={currentQuestion.data}
               onAnswer={handleAnswer}
+              onFeedback={handleFeedback}
             />
           )}
           {currentQuestion.questionType === 'select' && (
@@ -356,6 +365,7 @@ export default function LevelGameScreen() {
               question={currentQuestion.question}
               data={currentQuestion.data}
               onAnswer={handleAnswer}
+              onFeedback={handleFeedback}
             />
           )}
           {currentQuestion.questionType === 'match' && (
@@ -364,6 +374,7 @@ export default function LevelGameScreen() {
               question={currentQuestion.question}
               data={currentQuestion.data}
               onAnswer={handleAnswer}
+              onFeedback={handleFeedback}
             />
           )}
         </View>

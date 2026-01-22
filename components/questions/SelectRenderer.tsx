@@ -14,6 +14,7 @@ interface SelectRendererProps {
     selectMode: 'single' | 'multiple';
   };
   onAnswer: (isCorrect: boolean) => void;
+  onFeedback?: (isCorrect: boolean) => void;
   disabled?: boolean;
 }
 
@@ -21,6 +22,7 @@ export default function SelectRenderer({
   question,
   data,
   onAnswer,
+  onFeedback,
   disabled = false,
 }: SelectRendererProps) {
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
@@ -81,7 +83,11 @@ export default function SelectRenderer({
       selectedArray.every(i => correctIndices.includes(i));
     
     setIsCorrect(correct);
+    setIsCorrect(correct);
     setShowResult(true);
+    if (onFeedback) {
+      onFeedback(correct);
+    }
     
     setTimeout(() => {
       onAnswer(correct);

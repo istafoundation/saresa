@@ -14,6 +14,7 @@ interface MapRendererProps {
     mapType?: string;
   };
   onAnswer: (isCorrect: boolean) => void;
+  onFeedback?: (isCorrect: boolean) => void;
   disabled?: boolean;
 }
 
@@ -21,6 +22,7 @@ export default function MapRenderer({
   question,
   data,
   onAnswer,
+  onFeedback,
   disabled = false,
 }: MapRendererProps) {
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
@@ -42,6 +44,9 @@ export default function MapRenderer({
     
     setShowResult(true);
     const isCorrect = selectedRegion === data.solution;
+    if (onFeedback) {
+      onFeedback(isCorrect);
+    }
     
     // Delay before calling onAnswer
     setTimeout(() => {
