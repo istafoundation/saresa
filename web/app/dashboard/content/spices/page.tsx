@@ -19,11 +19,11 @@ import {
   FileText,
   AlertCircle,
   Download,
-  Eye,
-  Maximize2,
-  MoreVertical
+  Search,
+  Settings,
 } from "lucide-react";
 import ImageKit from "imagekit-javascript";
+import ImageUpload from "@/app/components/ImageUpload";
 
 interface Spice {
   _id: string;
@@ -46,16 +46,19 @@ const imagekit = new ImageKit({
 export default function SpicesManagementPage() {
   const spices = useQuery(api.spices.getAllSpices) as Spice[] | undefined;
   const stats = useQuery(api.spices.getSpiceStats);
+  const settings = useQuery(api.spices.getLetEmCookSettingsAdmin);
   
   const addSpice = useMutation(api.spices.addSpice);
   const updateSpice = useMutation(api.spices.updateSpice);
   const deleteSpice = useMutation(api.spices.deleteSpice);
   const toggleSpice = useMutation(api.spices.toggleSpice);
   const bulkReplaceSpices = useMutation(api.spices.bulkReplaceSpices);
+  const updateSettings = useMutation(api.spices.updateLetEmCookSettings);
 
-  const [isAdding, setIsAdding] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [previewSpice, setPreviewSpice] = useState<Spice | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "enabled" | "disabled">("all");
   
   const [formData, setFormData] = useState({
     name: "",
@@ -65,14 +68,38 @@ export default function SpicesManagementPage() {
     isEnabled: true,
   });
   
+  // Settings state
+  const [questionsPerGame, setQuestionsPerGame] = useState<number>(settings?.questionsPerGame ?? 1);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  
   // CSV Import State
   const [uploadStatus, setUploadStatus] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Update questionsPerGame when settings load
+  React.useEffect(() => {
+    if (settings?.questionsPerGame) {
+      setQuestionsPerGame(settings.questionsPerGame);
+    }
+  }, [settings?.questionsPerGame]);
+
+  // Filter spices
+  const filteredSpices = spices?.filter((spice) => {
+    const matchesSearch = 
+      spice.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (spice.hindiName?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
+    const matchesStatus = 
+      statusFilter === "all" || 
+      (statusFilter === "enabled" && spice.isEnabled) ||
+      (statusFilter === "disabled" && !spice.isEnabled);
+    return matchesSearch && matchesStatus;
+  });
+
   const handleAdd = async () => {
     if (!formData.name || !formData.imageUrl) return;
     
+    setIsSubmitting(true);
     try {
       await addSpice({
         name: formData.name,
@@ -81,29 +108,33 @@ export default function SpicesManagementPage() {
         description: formData.description || undefined,
         isEnabled: formData.isEnabled,
       });
-      setFormData({ name: "", imageUrl: "", hindiName: "", description: "", isEnabled: true });
-      setIsAdding(false);
+      resetForm();
+      setIsAddModalOpen(false);
     } catch (error) {
       console.error("Failed to add spice:", error);
       alert("Failed to add spice: " + (error as Error).message);
     }
+    setIsSubmitting(false);
   };
 
-  const handleUpdate = async (id: string) => {
+  const handleUpdate = async () => {
+    if (!editingId) return;
+    
+    setIsSubmitting(true);
     try {
       await updateSpice({
-        id: id as any,
+        id: editingId as any,
         name: formData.name,
         imageUrl: formData.imageUrl,
         hindiName: formData.hindiName || undefined,
         description: formData.description || undefined,
         isEnabled: formData.isEnabled,
       });
-      setEditingId(null);
-      setFormData({ name: "", imageUrl: "", hindiName: "", description: "", isEnabled: true });
+      resetForm();
     } catch (error) {
       console.error("Failed to update spice:", error);
     }
+    setIsSubmitting(false);
   };
 
   const handleDelete = async (id: string) => {
@@ -133,12 +164,22 @@ export default function SpicesManagementPage() {
       description: spice.description || "",
       isEnabled: spice.isEnabled,
     });
-    // Scroll to top or show modal? For now, we reuse the add/edit form or card view editing.
-    // Let's toggle the add view for editing to keep it clean, or inline edit.
-    // The previous design had inline table edit. 
-    // New design: Let's use the main form area for editing if active.
-    setIsAdding(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setIsAddModalOpen(true);
+  };
+
+  const resetForm = () => {
+    setEditingId(null);
+    setFormData({ name: "", imageUrl: "", hindiName: "", description: "", isEnabled: true });
+  };
+
+  const handleSaveSettings = async () => {
+    setIsSavingSettings(true);
+    try {
+      await updateSettings({ questionsPerGame });
+    } catch (error) {
+      console.error("Failed to save settings:", error);
+    }
+    setIsSavingSettings(false);
   };
 
   // CSV Helpers
@@ -375,408 +416,358 @@ Cumin,https://example.com/jeera.jpg,Jeera,Small brown seeds
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const enabledCount = stats?.enabled ?? 0;
+  const disabledCount = stats?.disabled ?? 0;
+
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border shadow-sm">
-        <div className="flex items-center gap-4">
-          <Link 
-            href="/dashboard/content"
-            className="p-2.5 hover:bg-slate-50 rounded-xl transition-all border border-transparent hover:border-slate-200"
-          >
-            <ArrowLeft className="w-5 h-5 text-slate-600" />
-          </Link>
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="bg-orange-100 p-2 rounded-lg">
-                <ChefHat className="w-6 h-6 text-orange-600" />
-              </span>
-              <h1 className="text-2xl font-bold text-slate-900">Spices Library</h1>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-4">
+        <Link
+          href="/dashboard/content"
+          className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5 text-slate-600" />
+        </Link>
+        <div className="flex-1">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-orange-100 rounded-lg">
+              <ChefHat className="w-5 h-5 text-orange-600" />
             </div>
-            <p className="text-slate-500 text-sm">Manage ingredients for Let'em Cook</p>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">Let'em Cook - Spices</h1>
+              <p className="text-slate-600">
+                {enabledCount} enabled · {disabledCount} disabled
+              </p>
+            </div>
           </div>
         </div>
-        
-        <div className="flex flex-wrap items-center gap-2">
-           {/* Quick Stats */}
-          {stats && (
-            <div className="flex items-center gap-3 mr-4 pr-4 border-r border-slate-200">
-              <div className="text-right">
-                <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total</div>
-                <div className="font-bold text-slate-900">{stats.total}</div>
-              </div>
-              <div className="text-right">
-                 <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Active</div>
-                 <div className="font-bold text-green-600">{stats.enabled}</div>
-              </div>
-            </div>
-          )}
+        <button
+          onClick={handleDownloadGuide}
+          className="flex items-center gap-2 border border-slate-200 text-slate-600 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors"
+          title="Download CSV Guide"
+        >
+          <FileText className="w-4 h-4" />
+          Guide
+        </button>
+        <button
+          onClick={handleDownloadCSV}
+          disabled={!spices || spices.length === 0}
+          className="flex items-center gap-2 border border-slate-200 text-slate-600 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
+          title="Download CSV"
+        >
+          <Download className="w-4 h-4" />
+          Export
+        </button>
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleUploadCSV}
+          accept=".csv"
+          className="hidden"
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isSubmitting}
+          className="flex items-center gap-2 border border-slate-200 text-slate-600 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
+          title="Upload CSV"
+        >
+          <Upload className="w-4 h-4" />
+          {isSubmitting ? 'Uploading...' : 'Import'}
+        </button>
+        <button
+          onClick={() => { resetForm(); setIsAddModalOpen(true); }}
+          className="flex items-center gap-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          Add Spice
+        </button>
+      </div>
 
-          <div className="flex items-center bg-slate-50 p-1 rounded-lg border border-slate-200">
-             <button
-              onClick={handleDownloadGuide}
-              className="p-2 text-slate-600 hover:text-slate-900 hover:bg-white rounded-md transition-all tooltip"
-              title="Download CSV Guide"
-            >
-              <FileText className="w-4 h-4" />
-            </button>
+      {/* Game Settings Card */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Settings className="w-5 h-5 text-slate-500" />
+            <div>
+              <h3 className="font-medium text-slate-900">Game Settings</h3>
+              <p className="text-sm text-slate-500">Configure Let'em Cook game parameters</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-slate-600">Questions per game:</label>
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={questionsPerGame}
+                onChange={(e) => setQuestionsPerGame(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))}
+                className="w-16 px-2 py-1 border border-slate-200 rounded text-center"
+              />
+              <span className="text-sm text-slate-500">× 4 spices = {questionsPerGame * 4} total</span>
+            </div>
             <button
-              onClick={handleDownloadCSV}
-              className="p-2 text-slate-600 hover:text-slate-900 hover:bg-white rounded-md transition-all tooltip"
-              title="Export CSV"
-              disabled={!spices || spices.length === 0}
+              onClick={handleSaveSettings}
+              disabled={isSavingSettings || questionsPerGame === settings?.questionsPerGame}
+              className="px-3 py-1.5 bg-slate-900 text-white text-sm rounded-lg hover:bg-slate-800 disabled:opacity-50 transition-colors"
             >
-              <Download className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="p-2 text-slate-600 hover:text-indigo-600 hover:bg-white rounded-md transition-all flex items-center gap-2"
-              disabled={isSubmitting}
-              title="Import CSV"
-            >
-               {isSubmitting ? (
-                 <div className="w-4 h-4 border-2 border-slate-400 border-t-indigo-600 rounded-full animate-spin"></div>
-               ) : (
-                 <Upload className="w-4 h-4" />
-               )}
+              {isSavingSettings ? 'Saving...' : 'Save'}
             </button>
           </div>
-
-          <button
-            onClick={() => {
-              setEditingId(null);
-              setFormData({ name: "", imageUrl: "", hindiName: "", description: "", isEnabled: true });
-              setIsAdding(!isAdding);
-            }}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-white font-medium transition-all shadow-sm
-              ${isAdding ? 'bg-slate-800 hover:bg-slate-900' : 'bg-orange-600 hover:bg-orange-700'}`}
-          >
-            {isAdding ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-            {isAdding ? 'Close' : 'Add Spice'}
-          </button>
         </div>
       </div>
 
-      {/* Hidden File Input */}
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleUploadCSV}
-        accept=".csv"
-        className="hidden"
-      />
-
-      {/* Upload Status Banner */}
+      {/* Upload Status Notification */}
       {uploadStatus && (
-        <div className={`p-4 rounded-xl border flex items-start gap-3 shadow-sm animate-in fade-in slide-in-from-top-4 ${
-          uploadStatus.failed > 0 
-            ? 'bg-red-50 border-red-100 text-red-900' 
-            : 'bg-green-50 border-green-100 text-green-900'
-        }`}>
-          {uploadStatus.failed > 0 ? (
-            <div className="p-1 bg-red-100 rounded-full"><AlertCircle className="w-5 h-5 text-red-600" /></div>
-          ) : (
-            <div className="p-1 bg-green-100 rounded-full"><Save className="w-5 h-5 text-green-600" /></div>
-          )}
-          
-          <div className="space-y-1 flex-1">
-            <h3 className="font-semibold">
-              {uploadStatus.failed > 0 ? 'Upload Completed with Errors' : 'Upload Successful'}
-            </h3>
-            <p className="text-sm opacity-90">
-              Processed {uploadStatus.success + uploadStatus.failed} items. {uploadStatus.success} imported successfully.
-            </p>
-            {uploadStatus.errors.length > 0 && (
-              <div className="mt-2 bg-white/50 p-3 rounded-lg text-sm border border-black/5">
-                <p className="font-semibold mb-1 text-xs uppercase tracking-wider opacity-70">Error Log</p>
-                <ul className="list-disc pl-4 space-y-1 max-h-32 overflow-y-auto">
-                  {uploadStatus.errors.map((err, i) => (
-                    <li key={i}>{err}</li>
-                  ))}
+        <div className={`p-4 rounded-lg ${uploadStatus.failed > 0 ? 'bg-amber-50 border border-amber-200' : 'bg-green-50 border border-green-200'}`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className={`font-medium ${uploadStatus.failed > 0 ? 'text-amber-800' : 'text-green-800'}`}>
+                {uploadStatus.success > 0 && `✓ ${uploadStatus.success} spice${uploadStatus.success !== 1 ? 's' : ''} imported successfully`}
+                {uploadStatus.success > 0 && uploadStatus.failed > 0 && ' • '}
+                {uploadStatus.failed > 0 && `✗ ${uploadStatus.failed} failed`}
+                {uploadStatus.success === 0 && uploadStatus.failed === 0 && 'No spices imported'}
+              </p>
+              {uploadStatus.errors.length > 0 && (
+                <ul className="mt-2 text-sm text-amber-700 list-disc list-inside">
+                  {uploadStatus.errors.map((err, i) => <li key={i}>{err}</li>)}
                 </ul>
-              </div>
-            )}
+              )}
+            </div>
+            <button
+              onClick={() => setUploadStatus(null)}
+              className="p-1 hover:bg-slate-100 rounded"
+            >
+              <X className="w-4 h-4 text-slate-500" />
+            </button>
           </div>
-          <button 
-            onClick={() => setUploadStatus(null)}
-            className="p-1 hover:bg-black/5 rounded-lg transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
         </div>
       )}
 
-      {/* Add/Edit Form Panel */}
-      {isAdding && (
-        <div className="bg-white border rounded-2xl p-6 shadow-lg animate-in fade-in zoom-in-95 ring-1 ring-slate-900/5">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-bold text-slate-900">
-              {editingId ? 'Edit Spice' : 'Add New Spice'}
-            </h3>
+      {/* Filters */}
+      <div className="flex items-center gap-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search spices..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+          />
+        </div>
+
+        <div className="flex gap-2">
+          {(["all", "enabled", "disabled"] as const).map((status) => (
+            <button
+              key={status}
+              onClick={() => setStatusFilter(status)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                statusFilter === status
+                  ? "bg-orange-100 text-orange-700"
+                  : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              {status.charAt(0).toUpperCase() + status.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Content Table */}
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-slate-50 border-b border-slate-200">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
+                Image
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
+                Name
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
+                Hindi Name
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
+                Status
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {filteredSpices?.map((spice) => (
+              <tr key={spice._id} className="hover:bg-slate-50">
+                <td className="px-6 py-4">
+                  <div className="w-12 h-12 rounded-lg overflow-hidden bg-slate-100">
+                    {spice.imageUrl ? (
+                      <img 
+                        src={spice.imageUrl} 
+                        alt={spice.name} 
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-slate-400">
+                        <ImageIcon className="w-5 h-5" />
+                      </div>
+                    )}
+                  </div>
+                </td>
+                <td className="px-6 py-4">
+                  <span className="font-medium text-slate-900">{spice.name}</span>
+                </td>
+                <td className="px-6 py-4 text-slate-600">
+                  {spice.hindiName || '-'}
+                </td>
+                <td className="px-6 py-4">
+                  <button
+                    onClick={() => handleToggle(spice._id)}
+                    className={`px-2 py-1 rounded text-xs font-medium ${
+                      spice.isEnabled
+                        ? "bg-green-100 text-green-700"
+                        : "bg-slate-100 text-slate-600"
+                    }`}
+                  >
+                    {spice.isEnabled ? 'Enabled' : 'Disabled'}
+                  </button>
+                </td>
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => startEdit(spice)}
+                      className="p-1.5 hover:bg-slate-100 rounded text-slate-600 transition-colors"
+                      title="Edit"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(spice._id)}
+                      className="p-1.5 hover:bg-red-100 rounded text-red-600 transition-colors"
+                      title="Delete"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {filteredSpices?.length === 0 && (
+          <div className="text-center py-12 text-slate-500">
+            {searchQuery
+              ? "No spices match your search"
+              : "No spices yet. Add your first spice!"}
           </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
+        )}
+      </div>
+
+      {/* Add/Edit Modal */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b border-slate-200">
+              <h2 className="text-lg font-semibold text-slate-900">
+                {editingId ? 'Edit Spice' : 'Add New Spice'}
+              </h2>
+              <button
+                onClick={() => { resetForm(); setIsAddModalOpen(false); }}
+                className="p-1 hover:bg-slate-100 rounded"
+              >
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Name *</label>
                 <input
                   type="text"
                   placeholder="e.g. Turmeric"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all outline-none"
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
               </div>
-              
-               <div>
+
+              <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Hindi Name</label>
                 <input
                   type="text"
                   placeholder="e.g. Haldi"
                   value={formData.hindiName}
                   onChange={(e) => setFormData({ ...formData, hindiName: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all outline-none"
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
               </div>
 
-               <div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Image *</label>
+                <ImageUpload
+                  value={formData.imageUrl}
+                  onChange={(url) => setFormData({ ...formData, imageUrl: url })}
+                  folder="/spices"
+                  className="w-full"
+                />
+                <input
+                  type="text"
+                  placeholder="Or paste image URL..."
+                  value={formData.imageUrl}
+                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                  className="w-full mt-2 px-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+
+              {formData.imageUrl && (
+                <div className="aspect-video bg-slate-100 rounded-lg overflow-hidden">
+                  <img src={formData.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                </div>
+              )}
+
+              <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
                 <textarea
                   placeholder="Brief description..."
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all outline-none resize-none h-24"
+                  rows={2}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
               </div>
-            </div>
 
-            <div className="space-y-4">
-               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Image URL</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="https://..."
-                    value={formData.imageUrl}
-                    onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                    className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Image Preview */}
-              <div className="aspect-video bg-slate-100 rounded-xl border border-slate-200 overflow-hidden flex items-center justify-center relative group">
-                {formData.imageUrl ? (
-                  <>
-                     <img src={formData.imageUrl} alt="Preview" className="w-full h-full object-cover" />
-                     <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                       <p className="text-white text-xs font-medium truncate">{formData.imageUrl}</p>
-                     </div>
-                  </>
-                ) : (
-                  <div className="text-center p-4">
-                    <ImageIcon className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                    <p className="text-sm text-slate-400">Enter URL to preview</p>
-                  </div>
-                )}
-              </div>
-              
-              <div className="flex items-center gap-2 pt-2">
-                 <button
-                    onClick={() => setFormData({ ...formData, isEnabled: !formData.isEnabled })}
-                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-medium transition-all border
-                      ${formData.isEnabled 
-                        ? 'bg-green-50 text-green-700 border-green-200' 
-                        : 'bg-slate-50 text-slate-600 border-slate-200'}`}
-                  >
-                    {formData.isEnabled ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
-                    {formData.isEnabled ? 'Enabled' : 'Disabled'}
-                  </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end gap-3 mt-8 pt-6 border-t border-slate-100">
-             <button
-              onClick={() => {
-                setIsAdding(false);
-                setEditingId(null);
-                setFormData({ name: "", imageUrl: "", hindiName: "", description: "", isEnabled: true });
-              }}
-              className="px-6 py-2.5 text-slate-600 hover:bg-slate-50 rounded-xl font-medium transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={editingId ? () => handleUpdate(editingId) : handleAdd}
-              className="px-6 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-medium transition-all shadow-md shadow-orange-200 flex items-center gap-2"
-            >
-              <Save className="w-4 h-4" />
-              {editingId ? 'Update Spice' : 'Save Spice'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Grid Layout */}
-      {!spices ? (
-         <div className="py-20 text-center">
-            <div className="w-10 h-10 border-4 border-slate-200 border-t-orange-500 rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-slate-500">Loading spices...</p>
-         </div>
-      ) : spices.length === 0 ? (
-        <div className="text-center py-20 bg-white border border-dashed border-slate-300 rounded-3xl">
-          <div className="bg-orange-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-            <ChefHat className="w-10 h-10 text-orange-400" />
-          </div>
-          <h3 className="text-lg font-bold text-slate-900 mb-2">No spices found</h3>
-          <p className="text-slate-500 max-w-sm mx-auto mb-8">
-            Get started by adding individual spices or importing a CSV list.
-          </p>
-          <button
-             onClick={() => setIsAdding(true)}
-             className="px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-medium transition-all shadow-md shadow-orange-200"
-          >
-             Add First Spice
-          </button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-          {spices.map((spice) => (
-            <div 
-              key={spice._id} 
-              className={`group bg-white rounded-2xl border border-slate-200 overflow-hidden hover:shadow-xl hover:border-orange-200 transition-all duration-300 flex flex-col relative
-                 ${!spice.isEnabled ? 'opacity-60 grayscale-[0.5]' : ''}`}
-            >
-              {/* Image Area */}
-              <div className="aspect-[4/3] bg-slate-100 relative overflow-hidden">
-                {spice.imageUrl ? (
-                   <img 
-                      src={spice.imageUrl} 
-                      alt={spice.name} 
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                   />
-                ) : (
-                   <div className="w-full h-full flex items-center justify-center text-slate-300">
-                     <ImageIcon className="w-10 h-10" />
-                   </div>
-                )}
-                
-                {/* Overlay Actions */}
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-[2px]">
-                   <button 
-                      onClick={() => setPreviewSpice(spice)}
-                      className="p-2 bg-white/90 hover:bg-white text-slate-900 rounded-full shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 delay-75"
-                      title="Preview"
-                   >
-                     <Eye className="w-4 h-4" />
-                   </button>
-                   <button 
-                      onClick={() => startEdit(spice)}
-                      className="p-2 bg-white/90 hover:bg-white text-blue-600 rounded-full shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 delay-100"
-                      title="Edit"
-                   >
-                     <Edit className="w-4 h-4" />
-                   </button>
-                   <button 
-                      onClick={() => handleDelete(spice._id)}
-                      className="p-2 bg-white/90 hover:bg-white text-red-600 rounded-full shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 delay-150"
-                      title="Delete"
-                   >
-                     <Trash2 className="w-4 h-4" />
-                   </button>
-                </div>
-
-                {/* Status Badge */}
-                <div className="absolute top-3 right-3 pointer-events-none">
-                   <div className={`w-2.5 h-2.5 rounded-full ring-4 ring-white ${spice.isEnabled ? 'bg-green-500' : 'bg-slate-400'}`}></div>
-                </div>
-              </div>
-
-              {/* Content */}
-              <div className="p-4 flex flex-col flex-1">
-                <div className="flex items-start justify-between gap-2 mb-1">
-                   <h3 className="font-bold text-slate-900 truncate" title={spice.name}>{spice.name}</h3>
-                </div>
-                {spice.hindiName && (
-                   <p className="text-sm text-orange-600 font-medium mb-2">{spice.hindiName}</p>
-                )}
-                {spice.description && (
-                   <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed mb-3 flex-1">{spice.description}</p>
-                )}
-                
-                <div className="mt-auto pt-3 border-t border-slate-50 flex items-center justify-between">
-                   <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">
-                     {new Date(spice.createdAt).toLocaleDateString()}
-                   </span>
-                   <button
-                    onClick={() => handleToggle(spice._id)}
-                    className={`text-xs font-semibold px-2 py-1 rounded-md transition-colors 
-                      ${spice.isEnabled 
-                        ? 'bg-green-50 text-green-700 hover:bg-green-100' 
-                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
-                   >
-                     {spice.isEnabled ? 'ACTIVE' : 'DISABLED'}
-                   </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Preview Modal */}
-      {previewSpice && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-           <div 
-            className="bg-white rounded-3xl overflow-hidden max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-200 relative"
-            onClick={(e) => e.stopPropagation()}
-           >
-              <button 
-                onClick={() => setPreviewSpice(null)}
-                className="absolute top-4 right-4 p-2 bg-black/50 hover:bg-black/70 text-white rounded-full transition-colors z-10"
+              <button
+                onClick={() => setFormData({ ...formData, isEnabled: !formData.isEnabled })}
+                className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors border ${
+                  formData.isEnabled
+                    ? 'bg-green-50 text-green-700 border-green-200'
+                    : 'bg-slate-50 text-slate-600 border-slate-200'
+                }`}
               >
-                <X className="w-5 h-5" />
+                {formData.isEnabled ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
+                {formData.isEnabled ? 'Enabled' : 'Disabled'}
               </button>
+            </div>
 
-              <div className="relative aspect-[4/3] bg-slate-100">
-                 <img src={previewSpice.imageUrl} alt={previewSpice.name} className="w-full h-full object-cover" />
-                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
-                 <div className="absolute bottom-6 left-6 right-6 text-white">
-                    <h2 className="text-3xl font-bold mb-1">{previewSpice.name}</h2>
-                    {previewSpice.hindiName && <p className="text-xl opacity-90 font-medium text-orange-200">{previewSpice.hindiName}</p>}
-                 </div>
-              </div>
-
-              <div className="p-6">
-                 {previewSpice.description ? (
-                    <p className="text-slate-600 leading-relaxed text-lg">{previewSpice.description}</p>
-                 ) : (
-                    <p className="text-slate-400 italic">No description available.</p>
-                 )}
-                 
-                 <div className="mt-6 flex items-center gap-4 pt-6 border-t border-slate-100">
-                    <button
-                       onClick={() => {
-                         startEdit(previewSpice);
-                         setPreviewSpice(null);
-                       }}
-                       className="flex-1 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-medium transition-colors"
-                    >
-                      Edit Spice
-                    </button>
-                    <button
-                       onClick={() => setPreviewSpice(null)}
-                       className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-medium transition-colors"
-                    >
-                      Close
-                    </button>
-                 </div>
-              </div>
-           </div>
-           
-           {/* Backdrop click to close */}
-           <div className="absolute inset-0 -z-10" onClick={() => setPreviewSpice(null)}></div>
+            <div className="flex gap-3 p-4 border-t border-slate-200">
+              <button
+                onClick={() => { resetForm(); setIsAddModalOpen(false); }}
+                className="flex-1 py-2 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={editingId ? handleUpdate : handleAdd}
+                disabled={isSubmitting || !formData.name || !formData.imageUrl}
+                className="flex-1 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <Save className="w-4 h-4" />
+                {isSubmitting ? 'Saving...' : (editingId ? 'Update' : 'Add Spice')}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

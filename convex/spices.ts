@@ -281,3 +281,82 @@ export const bulkReplaceSpices = mutation({
     return { imported };
   },
 });
+
+// ============================================
+// LET'EM COOK SETTINGS
+// ============================================
+
+const DEFAULT_QUESTIONS_PER_GAME = 1;
+const SPICES_PER_QUESTION = 4;
+
+// Get Let'em Cook game settings
+export const getLetEmCookSettings = query({
+  args: {},
+  handler: async (ctx) => {
+    const settings = await ctx.db
+      .query("gameSettings")
+      .withIndex("by_game", (q) => q.eq("gameId", "let-em-cook"))
+      .first();
+
+    return {
+      questionsPerGame: settings?.lecQuestionsPerGame ?? DEFAULT_QUESTIONS_PER_GAME,
+      spicesPerQuestion: SPICES_PER_QUESTION,
+    };
+  },
+});
+
+// Get settings (admin only - includes more details)
+export const getLetEmCookSettingsAdmin = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+
+    const settings = await ctx.db
+      .query("gameSettings")
+      .withIndex("by_game", (q) => q.eq("gameId", "let-em-cook"))
+      .first();
+
+    return {
+      questionsPerGame: settings?.lecQuestionsPerGame ?? DEFAULT_QUESTIONS_PER_GAME,
+      spicesPerQuestion: SPICES_PER_QUESTION,
+      updatedAt: settings?.updatedAt,
+    };
+  },
+});
+
+// Update Let'em Cook settings (admin only)
+export const updateLetEmCookSettings = mutation({
+  args: {
+    questionsPerGame: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const parentId = await requireAdmin(ctx);
+
+    if (args.questionsPerGame < 1 || args.questionsPerGame > 20) {
+      throw new ConvexError("Questions per game must be between 1 and 20");
+    }
+
+    const existing = await ctx.db
+      .query("gameSettings")
+      .withIndex("by_game", (q) => q.eq("gameId", "let-em-cook"))
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        lecQuestionsPerGame: args.questionsPerGame,
+        updatedBy: parentId,
+        updatedAt: Date.now(),
+      });
+    } else {
+      await ctx.db.insert("gameSettings", {
+        gameId: "let-em-cook",
+        lecQuestionsPerGame: args.questionsPerGame,
+        updatedBy: parentId,
+        updatedAt: Date.now(),
+      });
+    }
+
+    return { success: true, questionsPerGame: args.questionsPerGame };
+  },
+});
+

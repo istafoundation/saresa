@@ -7,9 +7,10 @@ interface ImageUploadProps {
   value: string;
   onChange: (url: string) => void;
   className?: string;
+  folder?: string;
 }
 
-export default function ImageUpload({ value, onChange, className }: ImageUploadProps) {
+export default function ImageUpload({ value, onChange, className, folder }: ImageUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -37,7 +38,7 @@ export default function ImageUpload({ value, onChange, className }: ImageUploadP
       formData.append("signature", authParams.signature);
       formData.append("expire", authParams.expire.toString());
       formData.append("token", authParams.token);
-      formData.append("folder", "/match-questions");
+      formData.append("folder", folder || "/match-questions");
 
       // Upload to ImageKit
       const uploadRes = await fetch("https://upload.imagekit.io/api/v1/files/upload", {

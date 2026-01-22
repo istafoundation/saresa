@@ -1,16 +1,14 @@
 // Let'em Cook - Match spice images to names
-// One-time game: spices from Convex, match 4 at a time
+// Refactored: Level-Progression pattern, no Zustand store
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, InteractionManager } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView } from 'moti';
 import { useSafeNavigation } from '../../utils/useSafeNavigation';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants/theme';
-import { useLetEmCookStore, calculateXP, type Spice } from '../../stores/let-em-cook-store';
 import { useChildAuth } from '../../utils/childAuth';
 import { useTapFeedback } from '../../utils/useTapFeedback';
 import { useGameAudio } from '../../utils/sound-manager';
@@ -18,170 +16,176 @@ import { useUserStore } from '../../stores/user-store';
 import MatchRenderer from '../../components/questions/MatchRenderer';
 import Mascot from '../../components/Mascot';
 
-// Default spice count for display (actual comes from Convex)
-const DEFAULT_SPICE_COUNT = 30;
+// Constants
+const SPICES_PER_QUESTION = 4;
+const XP_PER_CORRECT = 10;
+
+interface Spice {
+  id: string;
+  name: string;
+  imageUrl: string;
+  hindiName?: string;
+}
 
 export default function LetEmCookScreen() {
   const { safeBack } = useSafeNavigation();
   const { token } = useChildAuth();
   const { triggerTap } = useTapFeedback();
-  const { playTap, playCorrect, playWrong, playWin, startMusic, stopMusic } = useGameAudio();
+  const { playCorrect, playWrong, playWin, startMusic, stopMusic } = useGameAudio();
   const { mascot } = useUserStore();
+  
+  // Game state (local, no Zustand)
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [correctCount, setCorrectCount] = useState(0);
+  const [showResult, setShowResult] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [questionKey, setQuestionKey] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
-  const [isStarting, setIsStarting] = useState(false);
   
-  // Store state
-  const {
-    gameState,
-    allSpices,
-    totalSpices,
-    totalRounds,
-    currentRound,
-    currentPairs,
-    correctCount,
-    totalAttempted,
-    roundCorrect,
-    showFeedback,
-    wasCorrect,
-    initGameWithSpices,
-    startRound,
-    submitRoundAnswer,
-    nextRound,
-    closeFeedback,
-    finishGame,
-    resetGame,
-  } = useLetEmCookStore();
+  // Refs
+  const correctCountRef = useRef(0);
+  const isProcessingRef = useRef(false);
   
-  // Convex queries and mutations
+  // Convex queries
   const canPlay = useQuery(api.gameStats.canPlayLetEmCook, 
     token ? { token } : 'skip'
   );
-  // Fetch random spices from Convex (only when starting game)
-  const spicesFromConvex = useQuery(api.spices.getRandomSpices, 
-    // Only fetch if game is starting
-    isStarting ? { count: DEFAULT_SPICE_COUNT } : 'skip'
+  const settings = useQuery(api.spices.getLetEmCookSettings);
+  
+  // Calculate how many spices we need
+  const questionsPerGame = settings?.questionsPerGame ?? 1;
+  const totalSpicesNeeded = questionsPerGame * SPICES_PER_QUESTION;
+  
+  // Fetch spices once we know how many we need
+  const spicesData = useQuery(
+    api.spices.getRandomSpices,
+    settings ? { count: totalSpicesNeeded } : 'skip'
   );
+  
+  // Mutation
   const finishLetEmCookMutation = useMutation(api.gameStats.finishLetEmCook);
   
-  // Handle background music
-  useEffect(() => {
-    const shouldPlay = canPlay?.canPlay && (gameState === 'playing' || gameState === 'round_complete');
+  // Group spices into questions (4 spices each)
+  const questions = useMemo(() => {
+    if (!spicesData) return [];
     
-    if (shouldPlay) {
-      startMusic();
-    } else {
-      stopMusic();
+    const grouped: Spice[][] = [];
+    for (let i = 0; i < spicesData.length; i += SPICES_PER_QUESTION) {
+      const chunk = spicesData.slice(i, i + SPICES_PER_QUESTION);
+      if (chunk.length === SPICES_PER_QUESTION) {
+        grouped.push(chunk);
+      }
     }
-  }, [canPlay, gameState, startMusic, stopMusic]);
-
+    return grouped;
+  }, [spicesData]);
+  
+  const currentQuestion = questions[currentIndex];
+  const totalQuestions = questions.length;
+  const totalSpices = totalQuestions * SPICES_PER_QUESTION;
+  
+  // Convert to MatchRenderer format
+  const matchData = useMemo(() => {
+    if (!currentQuestion) return null;
+    return {
+      pairs: currentQuestion.map(spice => ({
+        imageUrl: spice.imageUrl,
+        text: spice.name,
+      }))
+    };
+  }, [currentQuestion]);
+  
+  // Start music when playing
+  useEffect(() => {
+    if (questions.length > 0 && !showResult && canPlay?.canPlay) {
+      const timer = setTimeout(() => startMusic(), 100);
+      return () => clearTimeout(timer);
+    }
+  }, [questions.length, showResult, canPlay?.canPlay]);
+  
   // Cleanup on unmount
   useEffect(() => {
-    return () => {
-      stopMusic();
-    };
-  }, [stopMusic]);
-  
-  // Effect to initialize game when spices are loaded from Convex
-  useEffect(() => {
-    if (isStarting && spicesFromConvex && spicesFromConvex.length > 0) {
-      // Convert Convex spices to store format
-      const spices: Spice[] = spicesFromConvex.map(s => ({
-        id: s.id,
-        name: s.name,
-        imageUrl: s.imageUrl,
-        hindiName: s.hindiName,
-      }));
-      initGameWithSpices(spices);
-      setIsStarting(false);
-    }
-  }, [isStarting, spicesFromConvex, initGameWithSpices]);
-  
-  // Auto-start game if allowed
-  useEffect(() => {
-    if (canPlay?.canPlay && gameState === 'idle' && !isStarting) {
-      setIsStarting(true);
-    }
-  }, [canPlay, gameState, isStarting]);
-
-  // Start game handler - triggers spice fetch
-  const handleStartGame = useCallback(() => {
-    if (!canPlay?.canPlay) return;
-    
-    triggerTap('medium');
-    setIsStarting(true);
-    // Spices will be fetched via the useQuery and game initialized in the effect above
-  }, [canPlay, triggerTap]);
-  
-  // Handle match answer from MatchRenderer
-  const handleMatchAnswer = useCallback((isCorrect: boolean) => {
-    // MatchRenderer calls this when all pairs are matched
-    // isCorrect is true if ALL pairs were correctly matched
-    
-    // Count correct matches in this round
-    const correctInRound = isCorrect ? currentPairs.length : 0; // Simplified - MatchRenderer handles internal logic
-    
-    submitRoundAnswer(isCorrect, correctInRound);
-    
-    if (isCorrect) {
-      playCorrect();
-    } else {
-      playWrong();
-    }
-  }, [currentPairs.length, submitRoundAnswer, playCorrect, playWrong]);
-
-  // Handle feedback for sound effects
-  const handleMatchFeedback = useCallback((isCorrect: boolean) => {
-    // Sound is already handled in handleMatchAnswer
+    return () => stopMusic();
   }, []);
   
-  // Continue to next round
-  const handleContinue = useCallback(async () => {
-    triggerTap('light');
-    closeFeedback();
+  // Handle feedback (sound + haptics)
+  const handleFeedback = useCallback((isCorrect: boolean) => {
+    requestAnimationFrame(() => {
+      if (isCorrect) {
+        playCorrect();
+        triggerTap('heavy');
+      } else {
+        playWrong();
+        triggerTap('light');
+      }
+    });
+  }, [playCorrect, playWrong, triggerTap]);
+  
+  // Handle answer from MatchRenderer
+  // MatchRenderer returns true if ALL pairs matched correctly
+  const handleAnswer = useCallback((allCorrect: boolean) => {
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
+    setIsTransitioning(true);
     
-    const hasMore = nextRound();
-    if (!hasMore && token) {
-      // Game complete - submit to Convex
-      setIsSaving(true);
+    // Count correct spices (if all correct, add 4; otherwise 0)
+    // NOTE: MatchRenderer only tells us if ALL matches are correct
+    if (allCorrect) {
+      correctCountRef.current += SPICES_PER_QUESTION;
+      setCorrectCount(correctCountRef.current);
+    }
+    
+    // Move to next question after delay
+    setTimeout(() => {
+      if (currentIndex < totalQuestions - 1) {
+        setQuestionKey(prev => prev + 1);
+        setCurrentIndex(prev => prev + 1);
+        
+        InteractionManager.runAfterInteractions(() => {
+          setIsTransitioning(false);
+          isProcessingRef.current = false;
+        });
+      } else {
+        // Game finished
+        finishGame();
+      }
+    }, 1500);
+  }, [currentIndex, totalQuestions]);
+  
+  // Finish game and submit score
+  const finishGame = async () => {
+    stopMusic();
+    setIsSaving(true);
+    
+    const finalCorrect = correctCountRef.current;
+    
+    if (token) {
       try {
         await finishLetEmCookMutation({
           token,
-          correctCount,
+          correctCount: finalCorrect,
           totalQuestions: totalSpices,
         });
         playWin();
       } catch (error) {
         console.error('Failed to save game:', error);
-      } finally {
-        setIsSaving(false);
       }
     }
-  }, [closeFeedback, nextRound, token, correctCount, totalSpices, finishLetEmCookMutation, triggerTap, playWin]);
+    
+    setIsSaving(false);
+    setShowResult(true);
+    setIsTransitioning(false);
+    isProcessingRef.current = false;
+  };
   
-  // Back to games
+  // Back handler
   const handleBack = useCallback(() => {
     triggerTap('medium');
     stopMusic();
-    resetGame();
     safeBack();
-  }, [resetGame, triggerTap, stopMusic, safeBack]);
-  
-  // Calculate session result
-  const sessionResult = useMemo(() => {
-    if (gameState !== 'finished') return null;
-    return { xp: calculateXP(correctCount), correct: correctCount, total: totalAttempted };
-  }, [gameState, correctCount, totalAttempted]);
-  
-  // Convert current pairs to MatchRenderer format
-  const matchData = useMemo(() => ({
-    pairs: currentPairs.map(spice => ({
-      imageUrl: spice.imageUrl,
-      text: spice.name,
-    }))
-  }), [currentPairs]);
+  }, [triggerTap, stopMusic, safeBack]);
   
   // Loading state
-  if (canPlay === undefined) {
+  if (canPlay === undefined || settings === undefined) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
@@ -192,8 +196,8 @@ export default function LetEmCookScreen() {
     );
   }
   
-  // Already completed - can't play again
-  if (!canPlay?.canPlay && gameState === 'idle') {
+  // Already completed today
+  if (!canPlay?.canPlay) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
@@ -215,7 +219,7 @@ export default function LetEmCookScreen() {
             <View style={styles.previousStats}>
               <Text style={styles.previousStatsTitle}>Today's Score:</Text>
               <Text style={styles.previousStatsValue}>
-                {canPlay.stats.correctAnswers}/{DEFAULT_SPICE_COUNT} correct
+                {canPlay.stats.correctAnswers}/{totalSpices || '?'} correct
               </Text>
               <Text style={styles.previousStatsXp}>
                 +{canPlay.stats.totalXPEarned} XP earned
@@ -231,10 +235,8 @@ export default function LetEmCookScreen() {
     );
   }
   
-
-  
-  // Idle state - show loading while starting, or start screen (fallback)
-  if (gameState === 'idle') {
+  // Loading spices
+  if (!spicesData || questions.length === 0) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
@@ -262,8 +264,10 @@ export default function LetEmCookScreen() {
     );
   }
   
-  // Finished state
-  if (gameState === 'finished' && sessionResult) {
+  // Result screen
+  if (showResult) {
+    const xpEarned = correctCountRef.current * XP_PER_CORRECT;
+    
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.resultContainer}>
@@ -277,7 +281,7 @@ export default function LetEmCookScreen() {
             
             <View style={styles.resultStats}>
               <View style={styles.resultStatItem}>
-                <Text style={styles.resultStatValue}>{correctCount}</Text>
+                <Text style={styles.resultStatValue}>{correctCountRef.current}</Text>
                 <Text style={styles.resultStatLabel}>Correct</Text>
               </View>
               <View style={styles.resultStatDivider} />
@@ -288,16 +292,16 @@ export default function LetEmCookScreen() {
               <View style={styles.resultStatDivider} />
               <View style={styles.resultStatItem}>
                 <Text style={[styles.resultStatValue, { color: COLORS.accentGold }]}>
-                  +{sessionResult.xp}
+                  +{xpEarned}
                 </Text>
                 <Text style={styles.resultStatLabel}>XP</Text>
               </View>
             </View>
             
             <Text style={styles.resultHint}>
-              {correctCount >= totalSpices * 0.8 
+              {correctCountRef.current >= totalSpices * 0.8 
                 ? '🏆 Master Chef! See you tomorrow!'
-                : correctCount >= totalSpices * 0.5
+                : correctCountRef.current >= totalSpices * 0.5
                 ? '👍 Good job! Come back tomorrow!'
                 : '📚 Keep learning! See you tomorrow!'}
             </Text>
@@ -319,7 +323,7 @@ export default function LetEmCookScreen() {
     );
   }
   
-  // Playing state
+  // Game screen
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -330,13 +334,13 @@ export default function LetEmCookScreen() {
         
         <View style={styles.progressContainer}>
           <Text style={styles.progressText}>
-            Round {currentRound + 1} / {totalRounds}
+            {currentIndex + 1} / {totalQuestions}
           </Text>
           <View style={styles.progressBar}>
             <View 
               style={[
                 styles.progressFill, 
-                { width: `${((currentRound + 1) / totalRounds) * 100}%` }
+                { width: `${((currentIndex + 1) / totalQuestions) * 100}%` }
               ]} 
             />
           </View>
@@ -344,61 +348,34 @@ export default function LetEmCookScreen() {
         
         <View style={styles.scoreContainer}>
           <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
-          <Text style={styles.scoreText}>{correctCount}</Text>
+          <Text style={styles.scoreText}>{correctCount}/{totalSpices}</Text>
         </View>
       </View>
       
       {/* Match Game */}
-      <View style={styles.matchContainer}>
-        <MatchRenderer
-          question="Match each spice image to its name"
-          data={matchData}
-          onAnswer={handleMatchAnswer}
-          onFeedback={handleMatchFeedback}
-          disabled={showFeedback}
-        />
-      </View>
+      {matchData && !isTransitioning && (
+        <View style={styles.matchContainer}>
+          <MatchRenderer
+            key={`match-${questionKey}`}
+            question="Match each spice to its name"
+            data={matchData}
+            onAnswer={handleAnswer}
+            onFeedback={handleFeedback}
+          />
+        </View>
+      )}
       
-      {/* Round Complete Feedback */}
-      {showFeedback && (
-        <MotiView
-          from={{ opacity: 0, translateY: 100 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'spring' }}
-          style={styles.feedbackContainer}
-        >
-          <LinearGradient
-            colors={wasCorrect ? [COLORS.success, '#15803d'] : [COLORS.error, '#b91c1c']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.feedbackCard}
+      {/* Transition loading */}
+      {isTransitioning && (
+        <View style={styles.transitionContainer}>
+          <MotiView
+            from={{ opacity: 0.5, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: 'timing', duration: 200 }}
           >
-            <View style={styles.feedbackHeader}>
-              <View style={styles.feedbackIconBg}>
-                <Text style={styles.feedbackEmoji}>
-                  {wasCorrect ? '🔥' : '🤔'}
-                </Text>
-              </View>
-              <View style={styles.feedbackTextContainer}>
-                <Text style={styles.feedbackTitle}>
-                  {wasCorrect ? 'Perfect Round!' : 'Keep Trying!'}
-                </Text>
-                <Text style={styles.feedbackSubtitle}>
-                  {wasCorrect 
-                    ? `All ${currentPairs.length} matches correct!` 
-                    : 'Some matches were incorrect'}
-                </Text>
-              </View>
-            </View>
-
-            <Pressable style={styles.feedbackButton} onPress={handleContinue}>
-              <Text style={styles.feedbackButtonText}>
-                {currentRound + 1 >= totalRounds ? 'See Results' : 'Next Round'}
-              </Text>
-              <Ionicons name="arrow-forward-circle" size={24} color={wasCorrect ? COLORS.success : COLORS.error} />
-            </Pressable>
-          </LinearGradient>
-        </MotiView>
+            <Text style={styles.transitionText}>Next question...</Text>
+          </MotiView>
+        </View>
       )}
     </SafeAreaView>
   );
@@ -436,72 +413,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: '700',
-    color: COLORS.text,
-  },
-  
-  // Start screen
-  startContainer: {
-    flex: 1,
-    padding: SPACING.lg,
-    justifyContent: 'center',
-  },
-  startCard: {
-    backgroundColor: COLORS.backgroundCard,
-    borderRadius: BORDER_RADIUS.xl,
-    overflow: 'hidden',
-    ...SHADOWS.md,
-  },
-  startCardGradient: {
-    padding: SPACING.xl,
-    alignItems: 'center',
-  },
-  startEmoji: {
-    fontSize: 64,
-    marginBottom: SPACING.md,
-  },
-  startTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
-  },
-  startSubtitle: {
-    fontSize: 14,
-    color: COLORS.text + 'CC',
-    textAlign: 'center',
-  },
-  startInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    padding: SPACING.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.textMuted,
-  },
-  startInfoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-  },
-  startInfoText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-  },
-  startButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.sm,
-    backgroundColor: COLORS.primary,
-    margin: SPACING.md,
-    padding: SPACING.md,
-    borderRadius: BORDER_RADIUS.lg,
-  },
-  startButtonDisabled: {
-    opacity: 0.7,
-  },
-  startButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
     color: COLORS.text,
   },
   
@@ -607,63 +518,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   
-  // Feedback
-  feedbackContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: SPACING.md,
-    paddingBottom: SPACING.xl,
-  },
-  feedbackCard: {
-    borderRadius: BORDER_RADIUS.xl + 4,
-    padding: SPACING.lg,
-    ...SHADOWS.lg,
-  },
-  feedbackHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-    marginBottom: SPACING.md,
-  },
-  feedbackIconBg: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+  // Transition
+  transitionContainer: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  feedbackEmoji: {
-    fontSize: 28,
-  },
-  feedbackTextContainer: {
-    flex: 1,
-  },
-  feedbackTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginBottom: 2,
-  },
-  feedbackSubtitle: {
-    fontSize: 15,
-    color: 'rgba(255,255,255,0.9)',
-    fontWeight: '500',
-  },
-  feedbackButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
-    padding: SPACING.md,
-    borderRadius: BORDER_RADIUS.lg,
-  },
-  feedbackButtonText: {
+  transitionText: {
     fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.text,
+    color: COLORS.textMuted,
   },
   
   // Result screen

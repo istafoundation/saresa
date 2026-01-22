@@ -198,6 +198,19 @@ export default defineSchema({
   })
     .index("by_enabled", ["isEnabled"]),
 
+  // Game settings (singleton per game)
+  gameSettings: defineTable({
+    gameId: v.string(),                  // "let-em-cook", etc.
+    
+    // Let'em Cook settings
+    lecQuestionsPerGame: v.optional(v.number()),  // Default: 1
+    
+    // Metadata
+    updatedBy: v.optional(v.id("parents")),
+    updatedAt: v.number(),
+  })
+    .index("by_game", ["gameId"]),
+
   // Version tracking per game (for cache invalidation)
   contentVersions: defineTable({
     gameId: v.string(),
