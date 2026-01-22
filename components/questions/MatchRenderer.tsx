@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, LayoutChangeEvent, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Image, LayoutChangeEvent, Dimensions, useWindowDimensions } from 'react-native';
 import { MotiView } from 'moti';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Line, G, Circle } from 'react-native-svg';
@@ -9,18 +9,13 @@ import Animated, {
   useAnimatedStyle, 
   useAnimatedProps, 
   withSpring, 
-  withTiming, 
   runOnJS,
-  interpolate,
-  useDerivedValue,
   SharedValue
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants/theme';
 
-// --- Constants & Types ---
-const IMAGE_SIZE = 80; // Slightly larger for better touch target
-const TOUCH_SLOP = 20; // Extra area for easier grabbing
+const TOUCH_SLOP = 20; 
 
 interface MatchRendererProps {
   question: string;
@@ -47,7 +42,6 @@ interface LayoutItem {
 
 // Create Animated Components
 const AnimatedLine = Animated.createAnimatedComponent(Line);
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 // Helper for shuffling
 function shuffleArray<T>(array: T[], seed: number): T[] {
@@ -71,10 +65,24 @@ export default function MatchRenderer({
   onAnswer,
   disabled = false,
 }: MatchRendererProps) {
+  // --- Dynamic Sizing ---
+  const { width, height } = useWindowDimensions();
+  
+  // Calculate optimal image size to fit screen
+  // Available height roughly: Screen - Header (~100) - Footer (~60) - Padding (~40)
+  const availableHeight = height - 220; 
+  const itemGap = SPACING.md;
+  const numItems = data.pairs.length;
+  
+  // Height per item logic
+  const maxItemHeight = (availableHeight - ((numItems - 1) * itemGap)) / numItems;
+  const maxItemWidth = width * 0.35; // 35% width max
+  
+  // Final size is minimum of constraints, capped at 100 for sanity
+  const IMAGE_SIZE = Math.min(maxItemHeight, maxItemWidth, 100); 
+
   // --- State & Setup ---
   const [containerLayout, setContainerLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
-  
-  // Connections: Map<imageIndex, textIndex>
   const [connections, setConnections] = useState<Map<number, number>>(new Map());
   const [showResult, setShowResult] = useState(false);
   
@@ -88,8 +96,6 @@ export default function MatchRenderer({
     };
   }, [data.pairs]);
 
-  // Layout Store (Mutable ref for performance, read in worklets)
-  // keys: "image-0", "text-1", etc.
   const layoutStore = useRef<Record<string, LayoutItem>>({});
   
   // --- Reanimated Shared Values ---
@@ -98,12 +104,8 @@ export default function MatchRenderer({
   const dragY = useSharedValue(0);
   const startX = useSharedValue(0);
   const startY = useSharedValue(0);
-  
-  // Track which item we started dragging from
   const activeStartIndex = useSharedValue<number>(-1);
   const activeStartType = useSharedValue<'image' | 'text' | null>(null);
-  
-  // Track potential drop target
   const potentialMatchIndex = useSharedValue<number>(-1);
   const potentialMatchType = useSharedValue<'image' | 'text' | null>(null);
 
@@ -117,87 +119,60 @@ export default function MatchRenderer({
   };
 
   const handleConnection = (fromIndex: number, fromType: string, toIndex: number, toType: string) => {
-    // Determine image and text indices
     const imageIdx = fromType === 'image' ? fromIndex : toIndex;
     const textIdx = fromType === 'text' ? fromIndex : toIndex;
     
-    // Play haptic
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    // Update state
     setConnections(prev => {
       const newMap = new Map(prev);
-      // Remove any existing connections for these specific items to prevent duplicates/conflicts
-      // 1. If imageIdx was connected to something else, remove it
       if (newMap.has(imageIdx)) newMap.delete(imageIdx);
-      
-      // 2. If something else was connected to textIdx, remove that connection
       for (const [img, txt] of newMap.entries()) {
         if (txt === textIdx) {
           newMap.delete(img);
           break;
         }
       }
-      
       newMap.set(imageIdx, textIdx);
       return newMap;
     });
   };
 
-  const disconnect = (imageIdx: number) => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    setConnections(prev => {
-      const newMap = new Map(prev);
-      newMap.delete(imageIdx);
-      return newMap;
-    });
+  // --- Gestures ---
+  const checkHit = (x: number, y: number): { index: number, type: 'image' | 'text', cx: number, cy: number } | null => {
+    'worklet';
+    for (const i of shuffledImageIndices) {
+      const key = `image-${i}`;
+      const layout = layoutStore.current[key];
+      if (layout && x >= layout.x - TOUCH_SLOP && x <= layout.x + layout.width + TOUCH_SLOP && y >= layout.y - TOUCH_SLOP && y <= layout.y + layout.height + TOUCH_SLOP) {
+        return { index: i, type: 'image', cx: layout.centerX, cy: layout.centerY };
+      }
+    }
+    for (const i of shuffledTextIndices) {
+      const key = `text-${i}`;
+      const layout = layoutStore.current[key];
+      if (layout && x >= layout.x - TOUCH_SLOP && x <= layout.x + layout.width + TOUCH_SLOP && y >= layout.y - TOUCH_SLOP && y <= layout.y + layout.height + TOUCH_SLOP) {
+        return { index: i, type: 'text', cx: layout.centerX, cy: layout.centerY };
+      }
+    }
+    return null;
   };
 
-  // --- Gestures ---
   const gesture = Gesture.Pan()
+    // Removed manualActivation and onTouchesDown to fix Reanimated warning
     .onStart((e) => {
-      if (disabled || showResult) return;
-      
-      // Hit testing: find which item receives the touch
-      const hitX = e.x;
-      const hitY = e.y;
-      
-      // Check images
-      for (const i of shuffledImageIndices) {
-        const key = `image-${i}`;
-        const layout = layoutStore.current[key];
-        if (layout && 
-            hitX >= layout.x - TOUCH_SLOP && hitX <= layout.x + layout.width + TOUCH_SLOP &&
-            hitY >= layout.y - TOUCH_SLOP && hitY <= layout.y + layout.height + TOUCH_SLOP) {
-              
-          dragActive.value = true;
-          activeStartIndex.value = i;
-          activeStartType.value = 'image';
-          startX.value = layout.centerX;
-          startY.value = layout.centerY;
-          dragX.value = layout.centerX;
-          dragY.value = layout.centerY;
-          return;
-        }
-      }
-
-      // Check texts
-      for (const i of shuffledTextIndices) {
-        const key = `text-${i}`;
-        const layout = layoutStore.current[key];
-        if (layout && 
-            hitX >= layout.x - TOUCH_SLOP && hitX <= layout.x + layout.width + TOUCH_SLOP &&
-            hitY >= layout.y - TOUCH_SLOP && hitY <= layout.y + layout.height + TOUCH_SLOP) {
-              
-          dragActive.value = true;
-          activeStartIndex.value = i;
-          activeStartType.value = 'text';
-          startX.value = layout.centerX;
-          startY.value = layout.centerY;
-          dragX.value = layout.centerX;
-          dragY.value = layout.centerY;
-          return;
-        }
+      const hit = checkHit(e.x, e.y);
+      if (hit && !disabled && !showResult) {
+        dragActive.value = true;
+        activeStartIndex.value = hit.index;
+        activeStartType.value = hit.type;
+        startX.value = hit.cx;
+        startY.value = hit.cy;
+        dragX.value = hit.cx;
+        dragY.value = hit.cy;
+      } else {
+        // If we didn't hit anything, ensure drag is inactive
+        dragActive.value = false;
       }
     })
     .onUpdate((e) => {
@@ -206,25 +181,19 @@ export default function MatchRenderer({
       dragX.value = e.x;
       dragY.value = e.y;
       
-      // Collision Detection for Drop Zone
-      // We look for the "opposing" type
+      // Collision Detection
       const targetType = activeStartType.value === 'image' ? 'text' : 'image';
       const indicesToCheck = targetType === 'image' ? shuffledImageIndices : shuffledTextIndices;
       
       let foundMatch = false;
-      
       for (const i of indicesToCheck) {
         const key = `${targetType}-${i}`;
         const layout = layoutStore.current[key];
-        
         if (layout) {
-          // Simple distance check or bounding box
-          // Using distance here for smoother "magnetic" feel range
           const dx = dragX.value - layout.centerX;
           const dy = dragY.value - layout.centerY;
           const dist = Math.sqrt(dx*dx + dy*dy);
-          
-          if (dist < 60) { // SNAP DISTANCE
+          if (dist < 60) { 
              potentialMatchIndex.value = i;
              potentialMatchType.value = targetType;
              foundMatch = true;
@@ -232,7 +201,6 @@ export default function MatchRenderer({
           }
         }
       }
-      
       if (!foundMatch) {
         potentialMatchIndex.value = -1;
         potentialMatchType.value = null;
@@ -240,59 +208,20 @@ export default function MatchRenderer({
     })
     .onEnd(() => {
       if (!dragActive.value) return;
-      
       if (potentialMatchIndex.value !== -1 && potentialMatchType.value !== null) {
-        // Valid Match Found!
-        runOnJS(handleConnection)(
-          activeStartIndex.value, 
-          activeStartType.value!, 
-          potentialMatchIndex.value, 
-          potentialMatchType.value
-        );
-      } else {
-        // No match, just dropped. 
-        // If we dragged FROM an item that was connected, maybe disconnect?
-        // Let's implement disconnect if you drag away and drop nowhere.
-        /* 
-           Actually, commonly better UX: 
-           - Dragging from an already connected item re-routes that connection.
-           - If connection exists and you drag to empty space, maybe remove it?
-           - Let's keep it simple: Dragging creates/overwrites. Tapping removes (implemented separately).
-        */
+        runOnJS(handleConnection)(activeStartIndex.value, activeStartType.value!, potentialMatchIndex.value, potentialMatchType.value);
       }
-      
       resetDrag();
     })
-    .runOnJS(true); // Needed for haptics triggering mostly, but we used runOnJS explicitly for the state update.
+    .runOnJS(true);
 
   // --- Handlers ---
-  const handleLayout = (index: number, type: 'image' | 'text', event: LayoutChangeEvent) => {
-    // This runs on JS thread, so we can update the ref directly
-    // Ideally we want these to be relative to the matchArea container
-    // But since the items are children of columns, their layout x/y is relative to the column.
-    // We need to adjust 'x' based on which column it is.
-    
-    const { x, y, width, height } = event.nativeEvent.layout;
-    
-    // We need to know column offsets. Hard to get perfectly dynamically without more measurements.
-    // Simplification: We know the columns are row-flexed.
-    // Let's assume the container is roughly split.
-    // BETTER FIX: use measure() if possible, but onLayout is faster.
-    // Workaround: We will use the fact that Images are Left, Text is Right.
-    // We'll add an offset to Text items later, or just trust the visual layout if we structure it flatly?
-    // Let's structure the view so specific offsets aren't needed or are predictable.
-    
-    // Actually, `x` and `y` from onLayout are relative to parent view.
-    // If we have: Row -> [Col1, Col2].
-    // Col1 items x is 0 relative to Col1.
-    // Col2 items x is 0 relative to Col2.
-    // We need Col2's x position relative to Container.
-    
-    // Let's adjust in the store.
-    // We will measure the 'Columns' view to update the offsets.
-  };
-
   const [col2Offset, setCol2Offset] = useState(0);
+
+  const handleItemLayout = useCallback((layout: LayoutItem) => {
+    const key = `${layout.type}-${layout.index}`;
+    layoutStore.current[key] = layout;
+  }, []);
 
   // --- Animated Props for Line ---
   const activeLineProps = useAnimatedProps(() => {
@@ -303,11 +232,7 @@ export default function MatchRenderer({
     let targetY = dragY.value;
     
     if (potentialMatchIndex.value !== -1 && potentialMatchType.value !== null) {
-       // Snap visual feedback
-       // We can't easily read layoutStore here in a purely derived way unless we made it a sharedValue.
-       // But we can just use dragX/Y because onUpdate is fast enough to make it feel fine?
-       // OR: We can store the snapped center in shared values during onUpdate.
-       // Let's stick to finger position for the line tip, but maybe show a highlight on the target.
+       // Optional: Add snap logic here if desired
     }
 
     return {
@@ -318,7 +243,7 @@ export default function MatchRenderer({
       strokeOpacity: 1,
     };
   });
-  
+
   // Submit
   const handleSubmit = useCallback(() => {
     if (connections.size !== data.pairs.length || showResult) return;
@@ -339,7 +264,8 @@ export default function MatchRenderer({
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={styles.container}>
-        {/* Header Question */}
+        {/* Header and MatchArea same ... */}
+        {/* ... */}
         <MotiView 
           from={{ opacity: 0, translateY: -10 }}
           animate={{ opacity: 1, translateY: 0 }}
@@ -360,10 +286,10 @@ export default function MatchRenderer({
           }}
         >
           <GestureDetector gesture={gesture}>
-            <Animated.View style={StyleSheet.absoluteFill}>
-              {/* SVG Layer for Lines */}
+            <Animated.View style={[{ flex: 1 }, connections.size > 0 && { zIndex: 1 }]}>
+
+              {/* SVG Layer */}
               <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
-                {/* Existing Connections */}
                 {Array.from(connections.entries()).map(([imgIdx, txtIdx]) => {
                   const imgKey = `image-${imgIdx}`;
                   const txtKey = `text-${txtIdx}`;
@@ -387,19 +313,17 @@ export default function MatchRenderer({
                         strokeWidth={3}
                         strokeLinecap="round"
                       />
-                      {/* End dots for polish */}
                       <Circle cx={imgLayout.centerX} cy={imgLayout.centerY} r={5} fill={color} />
                       <Circle cx={txtLayout.centerX} cy={txtLayout.centerY} r={5} fill={color} />
                     </G>
                   );
                 })}
 
-                {/* Active Drag Line */}
                 <AnimatedLine
                   animatedProps={activeLineProps}
                   stroke={COLORS.primary}
                   strokeWidth={4}
-                  strokeDasharray="10, 5" // Dashed while dragging
+                  strokeDasharray="10, 5"
                   strokeLinecap="round"
                 />
               </Svg>
@@ -420,9 +344,8 @@ export default function MatchRenderer({
                         content={pair.imageUrl}
                         delay={i * 50}
                         connected={isConnected}
-                        onLayout={(layout) => {
-                          layoutStore.current[`image-${pairIndex}`] = layout;
-                        }}
+                        imageSize={IMAGE_SIZE}
+                        onLayout={handleItemLayout}
                         activeItemIndex={activeStartIndex}
                         activeItemType={activeStartType}
                         potentialMatchIndex={potentialMatchIndex}
@@ -443,7 +366,6 @@ export default function MatchRenderer({
                   {shuffledTextIndices.map((pairIndex, i) => {
                     const pair = data.pairs[pairIndex];
                     const isConnected = Array.from(connections.values()).includes(pairIndex);
-                    // find which image connected to this text
                     const connectedFrom = Array.from(connections.entries()).find(([_, t]) => t === pairIndex)?.[0];
 
                     return (
@@ -454,23 +376,9 @@ export default function MatchRenderer({
                         content={pair.text}
                         delay={i * 50}
                         connected={isConnected}
-                        offsetX={col2Offset || 200 } // Fallback until measured
-                        onLayout={(layout) => {
-                           // Adjust X by the column offset since layout is relative to column
-                           // But wait! MatchItem calculates mostly relative to itself.
-                           // Actually we need global coordinates relative to matchArea.
-                           // Since 'column' is a child of 'matchArea' (via 'columns'), 
-                           // we just need to know the layout relative to 'matchArea'.
-                           // The 'columns' view is flex-row.
-                           // 'onLayout' for items gives x relative to 'column'.
-                           // So we DO need to add col2Offset for the second column.
-                           const absoluteLayout = {
-                             ...layout,
-                             x: layout.x + (col2Offset || 0), // Add column offset
-                             centerX: layout.centerX + (col2Offset || 0)
-                           };
-                           layoutStore.current[`text-${pairIndex}`] = absoluteLayout;
-                        }}
+                        imageSize={IMAGE_SIZE}
+                        offsetX={col2Offset || 200 }
+                        onLayout={handleItemLayout}
                         activeItemIndex={activeStartIndex}
                         activeItemType={activeStartType}
                         potentialMatchIndex={potentialMatchIndex}
@@ -532,6 +440,7 @@ const MatchItem = ({
   delay, 
   connected, 
   onLayout, 
+  imageSize,
   offsetX = 0,
   activeItemIndex,
   activeItemType,
@@ -547,6 +456,7 @@ const MatchItem = ({
   delay: number,
   connected: boolean,
   onLayout: (l: LayoutItem) => void,
+  imageSize: number, 
   offsetX?: number,
   activeItemIndex: SharedValue<number>,
   activeItemType: SharedValue<'image' | 'text' | null>,
@@ -556,7 +466,25 @@ const MatchItem = ({
   isCorrect?: boolean,
   isWrong?: boolean
 }) => {
-  
+  const [localLayout, setLocalLayout] = useState<LayoutItem | null>(null);
+
+  // Update parent store whenever local layout or offset changes
+  useEffect(() => {
+    if (localLayout) {
+      const absoluteLayout = {
+        ...localLayout,
+        x: localLayout.x + offsetX,
+        centerX: localLayout.x + offsetX + localLayout.width / 2,
+        centerY: localLayout.y + localLayout.height / 2, // Y is relative to column top, which matches container top? Yes usually.
+      };
+      
+      // We pass this "absolute" layout up to the store
+      // But wait, the pure onLayout passed from parent was doing the storage.
+      // We should probably just call the passed onLayout prop here.
+      onLayout(absoluteLayout);
+    }
+  }, [localLayout, offsetX, onLayout]);
+
   // Highlighting Animation
   const animatedStyle = useAnimatedStyle(() => {
     // Check if this item is currently being dragged FROM
@@ -584,17 +512,17 @@ const MatchItem = ({
   // Image Display
   if (type === 'image') {
     const imageUrl = content.includes('?') 
-       ? `${content}&tr=w-${IMAGE_SIZE * 2},h-${IMAGE_SIZE * 2},fo-center`
-       : `${content}?tr=w-${IMAGE_SIZE * 2},h-${IMAGE_SIZE * 2},fo-center`;
+       ? `${content}&tr=w-${imageSize * 2},h-${imageSize * 2},fo-center`
+       : `${content}?tr=w-${imageSize * 2},h-${imageSize * 2},fo-center`;
 
     return (
       <View 
         style={styles.itemWrapper}
         onLayout={(e) => {
           const { x, y, width, height } = e.nativeEvent.layout;
-          onLayout({
+          setLocalLayout({
             x, y, width, height,
-            centerX: x + width / 2, // will be adjusted by consumer
+            centerX: x + width / 2, 
             centerY: y + height / 2,
             type: 'image',
             index
@@ -606,7 +534,7 @@ const MatchItem = ({
            animate={{ opacity: 1, scale: 1 }}
            delay={delay}
         >
-          <Animated.View style={[styles.imageBox, borderStyle, animatedStyle]}>
+          <Animated.View style={[styles.imageBox, { width: imageSize, height: imageSize }, borderStyle, animatedStyle]}>
             <Image source={{ uri: imageUrl }} style={styles.image} />
             {connected && !showResult && (
                <View style={styles.badge}><Ionicons name="link" size={12} color="white" /></View>
@@ -626,13 +554,13 @@ const MatchItem = ({
       style={styles.itemWrapper}
       onLayout={(e) => {
         const { x, y, width, height } = e.nativeEvent.layout;
-         onLayout({
+        setLocalLayout({
             x, y, width, height,
             centerX: x + width / 2,
             centerY: y + height / 2,
             type: 'text',
             index
-          });
+        });
       }}
     >
       <MotiView
@@ -640,7 +568,12 @@ const MatchItem = ({
         animate={{ opacity: 1, translateX: 0 }}
         delay={delay}
       >
-        <Animated.View style={[styles.textBox, borderStyle, animatedStyle]}>
+        <Animated.View style={[
+           styles.textBox, 
+           { minHeight: imageSize * 0.6 }, // Match somewhat the height
+           borderStyle, 
+           animatedStyle
+        ]}>
           <Text style={styles.textLabel}>{content}</Text>
           {isCorrect && <Ionicons name="checkmark-circle" size={16} color={COLORS.success} style={{marginLeft: 4}} />}
         </Animated.View>
@@ -694,8 +627,6 @@ const styles = StyleSheet.create({
     zIndex: 10, // Ensure touchable above lines
   },
   imageBox: {
-    width: IMAGE_SIZE,
-    height: IMAGE_SIZE,
     borderRadius: BORDER_RADIUS.lg,
     overflow: 'hidden',
     backgroundColor: COLORS.background,
