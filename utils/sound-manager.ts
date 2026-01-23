@@ -14,7 +14,8 @@ const SOUND_ASSETS = {
   submit: require('../assets/sounds/submit.m4a'),
 } as const;
 
-const MUSIC_ASSET = require('../assets/sounds/questions_music.m4a');
+// Global background music that plays continuously while app is active
+const MUSIC_ASSET = require('../assets/sounds/background_music.m4a');
 
 export type SoundType = keyof typeof SOUND_ASSETS;
 
@@ -213,14 +214,100 @@ export function useBackgroundMusic() {
 }
 
 /**
- * Combined hook for games that need both SFX and music
+ * Combined hook for games that need SFX only (music is now handled globally)
  */
 export function useGameAudio() {
   const sfx = useSoundEffects();
-  const music = useBackgroundMusic();
   
   return {
     ...sfx,
-    ...music,
   };
 }
+
+/**
+ * Hook for global background music that plays continuously while app is active.
+ * This should only be used once at the app root level.
+ */
+export function useGlobalBackgroundMusic() {
+  const { musicEnabled, musicVolume } = useUserStore();
+  const musicPlayerRef = useRef<AudioPlayer | null>(null);
+  const isUnmountedRef = useRef(false);
+  const hasStartedRef = useRef(false);
+  const musicPlayer = useAudioPlayer(MUSIC_ASSET);
+  
+  // Store ref for cleanup and track unmount state
+  useEffect(() => {
+    musicPlayerRef.current = musicPlayer;
+    isUnmountedRef.current = false;
+    
+    return () => {
+      isUnmountedRef.current = true;
+    };
+  }, [musicPlayer]);
+  
+  // Update volume when setting changes
+  useEffect(() => {
+    if (musicPlayer && !isUnmountedRef.current) {
+      try {
+        musicPlayer.volume = musicVolume;
+      } catch (e) {
+        // Player may have been released
+      }
+    }
+  }, [musicVolume, musicPlayer]);
+  
+  // Auto-start music when enabled, auto-stop when disabled
+  useEffect(() => {
+    if (isUnmountedRef.current || !musicPlayer) return;
+    
+    try {
+      if (musicEnabled) {
+        // Start music
+        musicPlayer.loop = true;
+        musicPlayer.volume = musicVolume;
+        musicPlayer.play();
+        hasStartedRef.current = true;
+      } else {
+        // Stop music
+        if (musicPlayer.playing) {
+          musicPlayer.pause();
+          musicPlayer.seekTo(0);
+        }
+        hasStartedRef.current = false;
+      }
+    } catch (e) {
+      // Player may have been released
+    }
+  }, [musicEnabled, musicVolume, musicPlayer]);
+  
+  // Handle app state changes (pause on background, resume on foreground)
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (musicPlayerRef.current && !isUnmountedRef.current) {
+        if (nextAppState === 'background' || nextAppState === 'inactive') {
+          try {
+            musicPlayerRef.current.pause();
+          } catch (e) {
+            // Player may have been released
+          }
+        } else if (nextAppState === 'active' && musicEnabled && hasStartedRef.current) {
+          // Resume music when coming back to foreground
+          try {
+            musicPlayerRef.current.play();
+          } catch (e) {
+            // Player may have been released or failed to resume
+          }
+        }
+      }
+    };
+    
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, [musicEnabled]);
+  
+  return {
+    isPlaying: musicPlayer?.playing ?? false,
+  };
+}
+
+

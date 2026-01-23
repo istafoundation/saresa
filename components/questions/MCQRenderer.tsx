@@ -1,5 +1,5 @@
 // MCQ Renderer - Multiple Choice Question component (English Insane style)
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { MotiView } from 'moti';
 import { Ionicons } from '@expo/vector-icons';
@@ -27,22 +27,26 @@ export default function MCQRenderer({
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [showResult, setShowResult] = useState(false);
   
+  // Selection handler - just selects, does NOT submit
   const handleSelect = (index: number) => {
     if (disabled || showResult) return;
-    
     setSelectedIndex(index);
-    setShowResult(true);
+  };
+  
+  // Submit handler - explicitly submits the selected answer
+  const handleSubmit = useCallback(() => {
+    if (selectedIndex === null || showResult) return;
     
-    const isCorrect = index === data.correctIndex;
+    setShowResult(true);
+    const isCorrect = selectedIndex === data.correctIndex;
+    
     if (onFeedback) {
       onFeedback(isCorrect);
     }
     
-    // Delay before calling onAnswer to show feedback
-    setTimeout(() => {
-      onAnswer(isCorrect);
-    }, 1500);
-  };
+    // Immediately notify parent - parent controls timing now
+    onAnswer(isCorrect);
+  }, [selectedIndex, showResult, data.correctIndex, onFeedback, onAnswer]);
   
   const getOptionStyle = (index: number) => {
     if (!showResult) {
@@ -107,6 +111,26 @@ export default function MCQRenderer({
           </MotiView>
         ))}
       </View>
+      
+      {/* Submit Button - only shown when option selected and not yet submitted */}
+      {selectedIndex !== null && !showResult && (
+        <MotiView
+          from={{ opacity: 0, translateY: 20 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          style={styles.submitContainer}
+        >
+          <Pressable
+            onPress={handleSubmit}
+            style={({ pressed }) => [
+              styles.submitButton,
+              pressed && styles.submitPressed,
+            ]}
+          >
+            <Text style={styles.submitText}>Submit Answer</Text>
+            <Ionicons name="checkmark-circle" size={24} color={COLORS.text} />
+          </Pressable>
+        </MotiView>
+      )}
       
       {/* Explanation on wrong answer */}
       {showResult && selectedIndex !== data.correctIndex && data.explanation && (
@@ -229,5 +253,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.text,
     lineHeight: 20,
+  },
+  submitContainer: {
+    marginTop: SPACING.lg,
+  },
+  submitButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.primary,
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+  },
+  submitPressed: {
+    opacity: 0.9,
+  },
+  submitText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.text,
   },
 });

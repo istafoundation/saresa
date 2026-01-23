@@ -71,8 +71,8 @@ export default function WordleScreen() {
   const { content: wordleContent, refresh } = useWordleContent();
   const todaysData = wordleContent?.[0];
   
-  // Sound effects and music
-  const { playKey, playSubmit, playWin, playWrong, startMusic, stopMusic } = useGameAudio();
+  // Sound effects
+  const { playKey, playSubmit, playWin, playWrong } = useGameAudio();
   
   const [showResult, setShowResult] = useState(false);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
@@ -114,19 +114,7 @@ export default function WordleScreen() {
     }
   }, [canPlayTodayFromLimits]);
 
-  // Handle Background Music
-  useEffect(() => {
-    // Play music only upon active gameplay
-    if (canPlayTodayFromLimits === true && gameState === 'playing' && !showResult) {
-      startMusic();
-    } else {
-      stopMusic();
-    }
-    
-    return () => {
-      stopMusic();
-    };
-  }, [canPlayTodayFromLimits, gameState, showResult]);
+
 
   // Sync hint state from synced limits on load
   useEffect(() => {
@@ -231,7 +219,7 @@ export default function WordleScreen() {
       
       if (result.won) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        stopMusic();
+
         // Calculate rewards based on hint usage
         const xpReward = hintUsed ? XP_WITH_HINT : XP_FULL;
         const shardReward = hintUsed ? SHARDS_WITH_HINT : SHARDS_FULL;
@@ -257,7 +245,6 @@ export default function WordleScreen() {
         }, 500);
       } else if (result.lost) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        stopMusic();
         
         // OPTIMIZATION: Single batched API call (no XP/shards for loss)
         const statsResult = await finishWordleGame({

@@ -12,6 +12,7 @@ import { useConvexSync } from '../utils/useConvexSync';
 import { useChildAuth } from '../utils/childAuth';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { ActivationPopup } from '../components/ActivationPopup';
+import { useGlobalBackgroundMusic } from '../utils/sound-manager';
 
 // Loading screen while checking auth
 function LoadingScreen() {
@@ -31,6 +32,9 @@ function InitialLayout() {
   
   // Sync Convex data to Zustand store
   useConvexSync();
+  
+  // Global background music - plays continuously while app is active
+  useGlobalBackgroundMusic();
   
   // Check if user exists in database (has completed mascot selection)
   const userCheck = useQuery(api.users.checkUserExists, token ? { token } : "skip");

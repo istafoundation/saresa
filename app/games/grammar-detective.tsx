@@ -34,7 +34,7 @@ export default function GrammarDetectiveScreen() {
   const { safeBack } = useSafeNavigation();
   const { token } = useChildAuth();
   const { addXP } = useUserActions();
-  const { playCorrect, playWrong, startMusic, stopMusic } = useGameAudio();
+  const { playCorrect, playWrong } = useGameAudio();
   const { triggerTap, triggerHapticOnly } = useTapFeedback();
 
   // OTA Content
@@ -123,16 +123,7 @@ export default function GrammarDetectiveScreen() {
     }
   }, [contentIds, allQuestions, shuffledQuestionIds, startGame]);
 
-  // Background music effect
-  useEffect(() => {
-    if (allQuestions && allQuestions.length > 0) {
-      startMusic();
-    }
-    
-    return () => {
-      stopMusic();
-    };
-  }, [allQuestions, startMusic, stopMusic]);
+
 
   // OPTIMIZATION: Sync stats to Convex only when exiting or every 1 minute
   // This replaces per-answer syncing, reducing calls from ~800/hr to ~60/hr max
@@ -252,10 +243,9 @@ export default function GrammarDetectiveScreen() {
 
   const handleBack = useCallback(() => {
     triggerTap();
-    stopMusic();
     resetGame();
     safeBack();
-  }, [triggerTap, stopMusic, resetGame, safeBack]);
+  }, [triggerTap, resetGame, safeBack]);
 
   // Loading state - only show if we have no content at all
   if (!allQuestions || allQuestions.length === 0) {

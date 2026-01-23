@@ -35,8 +35,8 @@ export default function PracticeScreen() {
     resetQuiz,
   } = useGKStore();
   
-  // Sound effects and music
-  const { playTap, playCorrect, playWrong, startMusic, stopMusic } = useGameAudio();
+  // Sound effects
+  const { playTap, playCorrect, playWrong } = useGameAudio();
 
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [showResult, setShowResult] = useState(false);
@@ -88,11 +88,9 @@ export default function PracticeScreen() {
   useEffect(() => {
     if (allQuestions && allQuestions.length > 0) {
       startQuiz('practice', allQuestions as Question[]);
-      startMusic(); // Start background music
     }
     return () => {
       resetQuiz();
-      stopMusic(); // Stop music on exit
     };
   }, [allQuestions]);
 
@@ -193,7 +191,6 @@ export default function PracticeScreen() {
 
   const handleEnd = () => {
     triggerTap();
-    stopMusic();
     safeBack();
   };
 

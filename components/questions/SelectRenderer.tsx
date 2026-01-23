@@ -89,10 +89,9 @@ export default function SelectRenderer({
       onFeedback(correct);
     }
     
-    setTimeout(() => {
-      onAnswer(correct);
-    }, 1500);
-  }, [selectedIndices, showResult, correctIndices, onAnswer]);
+    // Immediately notify parent - parent controls timing now
+    onAnswer(correct);
+  }, [selectedIndices, showResult, correctIndices, onAnswer, onFeedback]);
   
   return (
     <ScrollView 

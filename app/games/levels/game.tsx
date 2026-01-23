@@ -37,12 +37,14 @@ export default function LevelGameScreen() {
   }>();
   const { token } = useChildAuth();
   const { triggerTap } = useTapFeedback();
-  const { playCorrect, playWrong, playWin, startMusic, stopMusic } = useGameAudio();
+  const { playCorrect, playWrong, playWin } = useGameAudio();
   
   // State
   const [currentIndex, setCurrentIndex] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
-  const [showResult, setShowResult] = useState(false);
+  const [showResult, setShowResult] = useState(false); // Final game result
+  const [showQuestionResult, setShowQuestionResult] = useState(false); // Per-question result
+  const [lastAnswerCorrect, setLastAnswerCorrect] = useState<boolean | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [questionKey, setQuestionKey] = useState(0); // Force re-render of question component
   const [gameResult, setGameResult] = useState<{
@@ -80,21 +82,7 @@ export default function LevelGameScreen() {
   const currentQuestion = questions?.[currentIndex];
   const totalQuestions = questions?.length ?? 0;
   
-  // Start music when questions are loaded
-  useEffect(() => {
-    if (questions && questions.length > 0 && !showResult) {
-      // Delay music start to avoid blocking render
-      const timer = setTimeout(() => {
-        startMusic();
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [questions?.length, showResult]);
-  
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => stopMusic();
-  }, []);
+
   
   // Handle feedback (sound + haptics) - triggered by renderer immediately on visual feedback
   const handleFeedback = useCallback((isCorrect: boolean) => {
@@ -109,45 +97,56 @@ export default function LevelGameScreen() {
     });
   }, [playCorrect, playWrong, triggerTap]);
 
-  // Handle answer from any renderer
+  // Handle answer from any renderer - now shows question result, waits for Next button
   const handleAnswer = useCallback((isCorrect: boolean) => {
     // Prevent double-processing
     if (isProcessingRef.current) return;
     isProcessingRef.current = true;
-    setIsTransitioning(true);
     
-    // Update count immediately using ref BEFORE anything else
+    // Update count immediately using ref
     if (isCorrect) {
       correctCountRef.current += 1;
       setCorrectCount(correctCountRef.current);
     }
     
-    // Play sound without blocking
-    // Sound is now handled by onFeedback passed to renderers
-
+    // Show per-question result overlay
+    setLastAnswerCorrect(isCorrect);
+    setShowQuestionResult(true);
+  }, []);
+  
+  // Handle Next button - advance to next question
+  const handleNext = useCallback(() => {
+    setShowQuestionResult(false);
+    setLastAnswerCorrect(null);
     
-    // Move to next question after delay
-    setTimeout(() => {
-      if (currentIndex < totalQuestions - 1) {
-        // Update question key to force fresh state
-        setQuestionKey(prev => prev + 1);
-        setCurrentIndex(prev => prev + 1);
-        
-        // Allow interactions after render settles
-        InteractionManager.runAfterInteractions(() => {
-          setIsTransitioning(false);
-          isProcessingRef.current = false;
-        });
-      } else {
-        // Game finished - score already updated in correctCountRef
-        finishGame();
-      }
-    }, 1200);
+    if (currentIndex < totalQuestions - 1) {
+      setQuestionKey(prev => prev + 1);
+      setCurrentIndex(prev => prev + 1);
+      isProcessingRef.current = false;
+    } else {
+      // Game finished
+      finishGame();
+    }
   }, [currentIndex, totalQuestions]);
+  
+  // Handle Skip button - skip current question (counts as wrong)
+  const handleSkip = useCallback(() => {
+    if (isProcessingRef.current || showQuestionResult) return;
+    
+    triggerTap('light');
+    // Just advance without counting as correct
+    if (currentIndex < totalQuestions - 1) {
+      setQuestionKey(prev => prev + 1);
+      setCurrentIndex(prev => prev + 1);
+    } else {
+      // Game finished
+      finishGame();
+    }
+  }, [currentIndex, totalQuestions, showQuestionResult, triggerTap]);
   
   // Finish game and submit score
   const finishGame = async () => {
-    stopMusic();
+
     
     // correctCountRef.current already contains the final correct count
     // (including the last answer which was already counted)
@@ -192,9 +191,8 @@ export default function LevelGameScreen() {
   // Handle back
   const handleBack = useCallback(() => {
     triggerTap('medium');
-    stopMusic();
     safeBack();
-  }, [triggerTap, stopMusic, safeBack]);
+  }, [triggerTap, safeBack]);
   
   // Loading state
   if (!questions) {
@@ -322,11 +320,21 @@ export default function LevelGameScreen() {
           </View>
         </View>
         
-        <View style={styles.difficultyBadge}>
-          <Text style={styles.difficultyText}>
-            {currentDifficulty?.displayName ?? difficulty}
-          </Text>
-        </View>
+        {/* Skip Button - only visible when not showing question result */}
+        {!showQuestionResult && (
+          <Pressable onPress={handleSkip} style={styles.skipButton}>
+            <Text style={styles.skipButtonText}>Skip</Text>
+            <Ionicons name="play-skip-forward" size={16} color={COLORS.textSecondary} />
+          </Pressable>
+        )}
+        
+        {showQuestionResult && (
+          <View style={styles.difficultyBadge}>
+            <Text style={styles.difficultyText}>
+              {currentDifficulty?.displayName ?? difficulty}
+            </Text>
+          </View>
+        )}
       </View>
       
       {/* Question Renderer - key forces fresh state on question change */}
@@ -377,6 +385,53 @@ export default function LevelGameScreen() {
               onFeedback={handleFeedback}
             />
           )}
+        </View>
+      )}
+      
+      {/* Per-question result overlay with Next button */}
+      {showQuestionResult && (
+        <View style={styles.questionResultOverlay}>
+          <MotiView
+            from={{ translateY: 50 }}
+            animate={{ translateY: 0 }}
+            transition={{ type: 'timing', duration: 300 }}
+            style={[
+              styles.questionResultCard,
+              lastAnswerCorrect ? styles.questionResultCorrect : styles.questionResultWrong
+            ]}
+          >
+            <View style={styles.questionResultHeader}>
+              <Ionicons 
+                name={lastAnswerCorrect ? "checkmark-circle" : "close-circle"} 
+                size={48} 
+                color={lastAnswerCorrect ? COLORS.success : COLORS.error} 
+              />
+              <Text style={[
+                styles.questionResultTitle,
+                { color: lastAnswerCorrect ? COLORS.success : COLORS.error }
+              ]}>
+                {lastAnswerCorrect ? "Correct!" : "Not Quite!"}
+              </Text>
+              <Text style={styles.questionResultSubtitle}>
+                {lastAnswerCorrect 
+                  ? "Great job! Keep it up!" 
+                  : "Check the correct answer above"}
+              </Text>
+            </View>
+            
+            <Pressable 
+              onPress={handleNext} 
+              style={({ pressed }) => [
+                styles.nextButton,
+                pressed && styles.nextButtonPressed
+              ]}
+            >
+              <Text style={styles.nextButtonText}>
+                {currentIndex < totalQuestions - 1 ? "Next Question" : "Finish"}
+              </Text>
+              <Ionicons name="arrow-forward" size={24} color={COLORS.text} />
+            </Pressable>
+          </MotiView>
         </View>
       )}
       
@@ -613,6 +668,77 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   doneButtonText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  skipButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.full,
+  },
+  skipButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+  },
+  questionResultOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: SPACING.lg,
+    paddingBottom: SPACING.xl,
+  },
+  questionResultCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.lg,
+    alignItems: 'center',
+    gap: SPACING.md,
+    ...SHADOWS.lg,
+  },
+  questionResultCorrect: {
+    borderWidth: 2,
+    borderColor: COLORS.success + '40',
+  },
+  questionResultWrong: {
+    borderWidth: 2,
+    borderColor: COLORS.error + '40',
+  },
+  questionResultHeader: {
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  questionResultTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+  },
+  questionResultSubtitle: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+  },
+  nextButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    width: '100%',
+    marginTop: SPACING.sm,
+  },
+  nextButtonPressed: {
+    opacity: 0.9,
+  },
+  nextButtonText: {
     fontSize: 18,
     fontWeight: '700',
     color: COLORS.text,

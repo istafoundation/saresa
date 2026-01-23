@@ -48,10 +48,8 @@ export default function MapRenderer({
       onFeedback(isCorrect);
     }
     
-    // Delay before calling onAnswer
-    setTimeout(() => {
-      onAnswer(isCorrect);
-    }, 1500);
+    // Immediately notify parent - parent controls timing now
+    onAnswer(isCorrect);
   };
   
   const isCorrect = selectedRegion === data.solution;

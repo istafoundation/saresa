@@ -30,7 +30,7 @@ export default function LetEmCookScreen() {
   const { safeBack } = useSafeNavigation();
   const { token } = useChildAuth();
   const { triggerTap } = useTapFeedback();
-  const { playCorrect, playWrong, playWin, startMusic, stopMusic } = useGameAudio();
+  const { playCorrect, playWrong, playWin } = useGameAudio();
   const { mascot } = useUserStore();
   
   // Game state (local, no Zustand)
@@ -93,18 +93,7 @@ export default function LetEmCookScreen() {
     };
   }, [currentQuestion]);
   
-  // Start music when playing
-  useEffect(() => {
-    if (questions.length > 0 && !showResult && canPlay?.canPlay) {
-      const timer = setTimeout(() => startMusic(), 100);
-      return () => clearTimeout(timer);
-    }
-  }, [questions.length, showResult, canPlay?.canPlay]);
-  
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => stopMusic();
-  }, []);
+
   
   // Handle feedback (sound + haptics)
   const handleFeedback = useCallback((isCorrect: boolean) => {
@@ -152,7 +141,7 @@ export default function LetEmCookScreen() {
   
   // Finish game and submit score
   const finishGame = async () => {
-    stopMusic();
+
     setIsSaving(true);
     
     const finalCorrect = correctCountRef.current;
@@ -179,9 +168,8 @@ export default function LetEmCookScreen() {
   // Back handler
   const handleBack = useCallback(() => {
     triggerTap('medium');
-    stopMusic();
     safeBack();
-  }, [triggerTap, stopMusic, safeBack]);
+  }, [triggerTap, safeBack]);
   
   // Loading state
   if (canPlay === undefined || settings === undefined) {

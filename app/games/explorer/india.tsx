@@ -30,8 +30,8 @@ export default function IndiaExplorerScreen() {
   const { safeBack } = useSafeNavigation();
   const { token } = useChildAuth();
   const { triggerTap } = useTapFeedback();
-  // Use combined audio hook for music + SFX
-  const { playTap, playCorrect, playWrong, playWin, startMusic, stopMusic } = useGameAudio();
+  // Use combined audio hook for SFX only (music is now global)
+  const { playTap, playCorrect, playWrong, playWin } = useGameAudio();
   const { mascot } = useUserStore();
   const [isStarting, setIsStarting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -97,28 +97,7 @@ export default function IndiaExplorerScreen() {
   const isCompletedToday = progress?.isCompletedToday ?? false;
   const remaining = TOTAL_REGIONS - (progress?.guessedToday?.length ?? 0);
 
-  // Handle background music
-  // Handle background music
-  useEffect(() => {
-    // Only play music if:
-    // 1. Progress is loaded
-    // 2. Not completed today
-    // 3. User is in 'playing' or 'answering' state (keep playing during feedback)
-    const shouldPlay = progress && !isCompletedToday && (gameState === 'playing' || gameState === 'answering');
-    
-    if (shouldPlay) {
-      startMusic();
-    } else {
-      stopMusic();
-    }
-  }, [progress, isCompletedToday, gameState, startMusic, stopMusic]);
 
-  // Separate cleanup effect to stop music ONLY when leaving the screen
-  useEffect(() => {
-    return () => {
-      stopMusic();
-    };
-  }, [stopMusic]);
   
   // Auto-start game if in idle state (MUST be before early returns for hook order)
   useEffect(() => {
@@ -223,18 +202,16 @@ export default function IndiaExplorerScreen() {
       if (correctCount >= guessedToday.length / 2) {
         playWin();
       }
-      stopMusic(); // Stop music when finishing
       finishGame();
     }
-  }, [closeFeedback, nextQuestion, finishGame, triggerTap, playWin, correctCount, guessedToday.length, stopMusic]);
+  }, [closeFeedback, nextQuestion, finishGame, triggerTap, playWin, correctCount, guessedToday.length]);
   
   // Back to games
   const handleBack = useCallback(() => {
     triggerTap('medium');
-    stopMusic(); // Ensure music stops on back
     resetGame();
     safeBack();
-  }, [resetGame, triggerTap, stopMusic, safeBack]);
+  }, [resetGame, triggerTap, safeBack]);
   
   // Loading state
   if (!progress) {

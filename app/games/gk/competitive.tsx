@@ -47,8 +47,8 @@ export default function CompetitiveScreen() {
     resetQuiz,
   } = useGKStore();
   
-  // Sound effects and music
-  const { playTap, playCorrect, playWrong, playWin, startMusic, stopMusic } = useGameAudio();
+  // Sound effects
+  const { playTap, playCorrect, playWrong, playWin } = useGameAudio();
 
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [showResult, setShowResult] = useState(false);
@@ -75,10 +75,8 @@ export default function CompetitiveScreen() {
       safeBack();
       return;
     }
-    startMusic(); // Start background music
     return () => {
       resetQuiz();
-      stopMusic(); // Stop music on exit
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [allQuestions]);
@@ -165,8 +163,7 @@ export default function CompetitiveScreen() {
     timerProgress.value = 1;
     
     if (currentQuestionIndex >= TOTAL_QUESTIONS - 1) {
-      // Quiz finished - stop music and play result sound
-      stopMusic();
+      // Quiz finished - play result sound
       const result = finishQuiz();
       const shardsEarned = result.correct * 5; // 5 shards per correct answer
       setFinalResult({ ...result, shardsEarned });

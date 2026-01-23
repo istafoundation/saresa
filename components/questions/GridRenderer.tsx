@@ -1,7 +1,7 @@
 // Grid Renderer - Word search grid component (Word Finder style)
 // Simplified version for level-based gameplay
 import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions, PanResponder } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, PanResponder, Pressable } from 'react-native';
 import { MotiView } from 'moti';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, BORDER_RADIUS } from '../../constants/theme';
@@ -114,6 +114,7 @@ export default function GridRenderer({
   }, [data.solution]);
   
   const [selectedCells, setSelectedCells] = useState<CellPosition[]>([]);
+  const [pendingSelection, setPendingSelection] = useState<CellPosition[]>([]);
   const [showResult, setShowResult] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   
@@ -165,20 +166,28 @@ export default function GridRenderer({
     return matches || matchesReverse;
   }, [solutionPositions]);
   
+  // When user finishes swiping, store selection as pending (not submitted)
   const handleSelectionEnd = useCallback((selection: CellPosition[]) => {
     if (selection.length === 0 || showResult) return;
+    setPendingSelection(selection);
+  }, [showResult]);
+  
+  // Submit handler - explicitly submits the selected answer
+  const handleSubmit = useCallback(() => {
+    if (pendingSelection.length === 0 || showResult) return;
     
-    const correct = checkAnswer(selection);
+    const correct = checkAnswer(pendingSelection);
     setIsCorrect(correct);
+    setSelectedCells(pendingSelection);
     setShowResult(true);
+    
     if (onFeedback) {
       onFeedback(correct);
     }
     
-    setTimeout(() => {
-      onAnswer(correct);
-    }, 1500);
-  }, [checkAnswer, onAnswer, showResult]);
+    // Immediately notify parent - parent controls timing now
+    onAnswer(correct);
+  }, [pendingSelection, showResult, checkAnswer, onFeedback, onAnswer]);
   
   const selectionRef = useRef<CellPosition[]>([]);
   useEffect(() => {
@@ -251,6 +260,7 @@ export default function GridRenderer({
       }
       
       setSelectedCells(newSelection);
+      setPendingSelection(newSelection);
     },
     
     onPanResponderRelease: () => {
@@ -332,6 +342,26 @@ export default function GridRenderer({
           </View>
         ))}
       </View>
+      
+      {/* Submit Button - appears when selection exists but not yet submitted */}
+      {pendingSelection.length > 0 && !showResult && (
+        <MotiView
+          from={{ opacity: 0, translateY: 20 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          style={styles.submitContainer}
+        >
+          <Pressable
+            onPress={handleSubmit}
+            style={({ pressed }) => [
+              styles.submitButton,
+              pressed && styles.submitPressed,
+            ]}
+          >
+            <Text style={styles.submitText}>Submit Answer</Text>
+            <Ionicons name="checkmark-circle" size={24} color={COLORS.text} />
+          </Pressable>
+        </MotiView>
+      )}
       
       {/* Result */}
       {showResult && (
@@ -475,5 +505,26 @@ const styles = StyleSheet.create({
     color: COLORS.error,
     flex: 1,
     lineHeight: 20,
+  },
+  submitContainer: {
+    marginTop: SPACING.lg,
+    width: '100%',
+  },
+  submitButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.primary,
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+  },
+  submitPressed: {
+    opacity: 0.9,
+  },
+  submitText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.text,
   },
 });

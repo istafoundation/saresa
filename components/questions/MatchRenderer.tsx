@@ -261,10 +261,9 @@ export default function MatchRenderer({
       onFeedback(allCorrect);
     }
     
-    setTimeout(() => {
-      onAnswer(allCorrect);
-    }, 2000);
-  }, [connections, showResult, data, onAnswer]);
+    // Immediately notify parent - parent controls timing now
+    onAnswer(allCorrect);
+  }, [connections, showResult, data, onAnswer, onFeedback]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -295,6 +294,41 @@ export default function MatchRenderer({
 
               {/* SVG Layer */}
               <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+                {/* Show correct answer connections with dotted lines when there are wrong answers */}
+                {showResult && data.pairs.map((_, pairIndex) => {
+                  // Each image should connect to its matching text (same index = correct)
+                  const imgKey = `image-${pairIndex}`;
+                  const txtKey = `text-${pairIndex}`;
+                  const imgLayout = layoutStore.current[imgKey];
+                  const txtLayout = layoutStore.current[txtKey];
+                  
+                  if (!imgLayout || !txtLayout) return null;
+                  
+                  // Check if user got this one wrong (user connected this image to wrong text)
+                  const userConnection = connections.get(pairIndex);
+                  const isWrong = userConnection !== undefined && userConnection !== pairIndex;
+                  
+                  // Only show correct answer line if user got it wrong
+                  if (!isWrong) return null;
+                  
+                  return (
+                    <G key={`correct-${pairIndex}`}>
+                      <Line
+                        x1={imgLayout.centerX}
+                        y1={imgLayout.centerY}
+                        x2={txtLayout.centerX}
+                        y2={txtLayout.centerY}
+                        stroke={COLORS.success}
+                        strokeWidth={2}
+                        strokeDasharray="8, 4"
+                        strokeLinecap="round"
+                        opacity={0.8}
+                      />
+                    </G>
+                  );
+                })}
+                
+                {/* User's connections */}
                 {Array.from(connections.entries()).map(([imgIdx, txtIdx]) => {
                   const imgKey = `image-${imgIdx}`;
                   const txtKey = `text-${txtIdx}`;
