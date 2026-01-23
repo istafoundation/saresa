@@ -18,6 +18,7 @@ import type * as http from "../http.js";
 import type * as levels from "../levels.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_dates from "../lib/dates.js";
+import type * as lib_levels from "../lib/levels.js";
 import type * as lib_rateLimit from "../lib/rateLimit.js";
 import type * as lib_razorpay from "../lib/razorpay.js";
 import type * as migrations from "../migrations.js";
@@ -44,6 +45,7 @@ declare const fullApi: ApiFromModules<{
   levels: typeof levels;
   "lib/auth": typeof lib_auth;
   "lib/dates": typeof lib_dates;
+  "lib/levels": typeof lib_levels;
   "lib/rateLimit": typeof lib_rateLimit;
   "lib/razorpay": typeof lib_razorpay;
   migrations: typeof migrations;

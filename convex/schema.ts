@@ -396,7 +396,7 @@ export default defineSchema({
     question: v.string(),              // The question/prompt text
     data: v.any(),                     // Type-specific data (options, solution, etc.)
     
-    order: v.number(),                 // Sort order within difficulty (1, 2, 3...)
+    order: v.optional(v.number()),     // Sort order within difficulty (1, 2, 3...)
     
     status: v.union(v.literal("active"), v.literal("archived")),
     createdAt: v.number(),

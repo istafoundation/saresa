@@ -188,8 +188,10 @@ export const reorderDifficulties = mutation({
     const targetIndex = args.direction === "up" ? diffIndex - 1 : diffIndex + 1;
     if (targetIndex < 0 || targetIndex >= level.difficulties.length) return;
     
+    // Create mutable copies of difficulties
+    const newDifficulties = level.difficulties.map(d => ({ ...d }));
+    
     // Swap
-    const newDifficulties = [...level.difficulties];
     const temp = newDifficulties[diffIndex];
     newDifficulties[diffIndex] = newDifficulties[targetIndex];
     newDifficulties[targetIndex] = temp;
