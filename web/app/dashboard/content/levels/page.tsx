@@ -27,6 +27,8 @@ import {
   FileText,
   Link as LinkIcon,
   Image as ImageIcon,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import type { Id, Doc } from "@convex/_generated/dataModel";
 import ImageKit from "imagekit-javascript";
@@ -114,6 +116,10 @@ function LevelsContent() {
   const updateQuestion = useMutation(api.levels.updateQuestion);
   const deleteQuestion = useMutation(api.levels.deleteQuestion);
   const bulkReplaceQuestions = useMutation(api.levels.bulkReplaceQuestions);
+  
+  const reorderLevels = useMutation(api.levels.reorderLevels);
+  const reorderDifficulties = useMutation(api.levels.reorderDifficulties);
+  const reorderQuestions = useMutation(api.levels.reorderQuestions);
 
   // UI State
   const [expandedLevels, setExpandedLevels] = useState<Set<string>>(new Set());
@@ -603,7 +609,17 @@ EXAMPLE ROWS
               setUploadLevelId(level._id);
               fileInputRef.current?.click();
             }}
+
             escapeCSV={escapeCSV} // Pass helper down
+            onReorderLevel={async (direction) => {
+              await reorderLevels({ levelId: level._id, direction });
+            }}
+            onReorderDifficulty={async (diffName, direction) => {
+              await reorderDifficulties({ levelId: level._id, difficultyName: diffName, direction });
+            }}
+            onReorderQuestion={async (qId, direction) => {
+              await reorderQuestions({ questionId: qId, direction });
+            }}
           />
         ))}
 
@@ -715,6 +731,9 @@ function LevelAccordion({
   onDeleteQuestion,
   onUploadCSV,
   escapeCSV,
+  onReorderLevel,
+  onReorderDifficulty,
+  onReorderQuestion,
 }: {
   level: Level;
   isExpanded: boolean;
@@ -731,6 +750,9 @@ function LevelAccordion({
   onDeleteQuestion: (id: Id<"levelQuestions">) => void;
   onUploadCSV: () => void;
   escapeCSV: (val: string | undefined | null) => string;
+  onReorderLevel: (direction: "up" | "down") => Promise<void>;
+  onReorderDifficulty: (diffName: string, direction: "up" | "down") => Promise<void>;
+  onReorderQuestion: (qId: Id<"levelQuestions">, direction: "up" | "down") => Promise<void>;
 }) {
   const questions = useQuery(api.levels.getLevelQuestionsAdmin, { levelId: level._id });
   
@@ -829,6 +851,7 @@ function LevelAccordion({
             {level.theme?.emoji && (
               <span className="text-xl">{level.theme.emoji}</span>
             )}
+          
             <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
               level.isEnabled 
                 ? 'bg-green-100 text-green-700' 
@@ -836,6 +859,24 @@ function LevelAccordion({
             }`}>
               {level.isEnabled ? 'Enabled' : 'Coming Soon'}
             </span>
+
+            {/* Level Reordering */}
+            <div className="flex flex-col gap-0.5 ml-2">
+              <button 
+                onClick={(e) => { e.stopPropagation(); onReorderLevel("up"); }}
+                className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600"
+                title="Move Up"
+              >
+                <ArrowUp className="w-3 h-3" />
+              </button>
+              <button 
+                onClick={(e) => { e.stopPropagation(); onReorderLevel("down"); }}
+                className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600"
+                title="Move Down"
+              >
+                <ArrowDown className="w-3 h-3" />
+              </button>
+            </div>
           </div>
           <p className="text-sm text-slate-500 mt-0.5">
             {level.difficulties.length} difficulties • {level.totalQuestions} questions
@@ -911,6 +952,25 @@ function LevelAccordion({
                   </button>
                   <Target className="w-4 h-4 text-indigo-500" />
                   <span className="font-medium text-slate-800">{difficulty.displayName}</span>
+                  
+                  {/* Difficulty Reordering */}
+                  <div className="flex flex-col gap-0.5 mx-1">
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); onReorderDifficulty(difficulty.name, "up"); }}
+                      className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600"
+                      title="Move Up"
+                    >
+                      <ArrowUp className="w-3 h-3" />
+                    </button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); onReorderDifficulty(difficulty.name, "down"); }}
+                      className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600"
+                      title="Move Down"
+                    >
+                      <ArrowDown className="w-3 h-3" />
+                    </button>
+                  </div>
+
                   <span className="text-sm text-slate-500">({difficulty.requiredScore}% to pass)</span>
                   <span className="text-xs text-slate-400 ml-auto mr-4">
                     {diffQuestions.length} questions
@@ -954,6 +1014,25 @@ function LevelAccordion({
                           <span className="flex-1 text-sm text-slate-700 truncate">
                             {q.question}
                           </span>
+
+                          {/* Question Reordering */}
+                          <div className="flex flex-col gap-0.5 px-2">
+                             <button 
+                              onClick={() => onReorderQuestion(q._id, "up")}
+                              className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600"
+                              title="Move Up"
+                            >
+                              <ArrowUp className="w-3 h-3" />
+                            </button>
+                            <button 
+                              onClick={() => onReorderQuestion(q._id, "down")}
+                              className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600"
+                              title="Move Down"
+                            >
+                              <ArrowDown className="w-3 h-3" />
+                            </button>
+                          </div>
+
                           <button
                             onClick={() => onEditQuestion(q)}
                             className="p-1 text-blue-600 opacity-0 group-hover:opacity-100 hover:bg-blue-50 rounded transition-all"
