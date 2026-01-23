@@ -665,3 +665,137 @@ export const finishLetEmCook = mutation({
   },
 });
 
+// ============================================
+// FLAG CHAMPS (Fill-in-Blanks Flag Guessing) STATS
+// Daily challenge with batched syncing (every 5 mins)
+// ============================================
+
+const TOTAL_FLAGS = 195;
+
+// Get Flag Champs progress (called once on mount for resume capability)
+export const getFlagChampsProgress = query({
+  args: { 
+    token: v.string(),
+    clientDate: v.optional(v.string()) // Used to force re-query on day change
+  },
+  handler: async (ctx, args) => {
+    const childId = await getChildIdFromSession(ctx, args.token);
+    if (!childId) return null;
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_child_id", (q) => q.eq("childId", childId))
+      .first();
+
+    if (!user) return null;
+
+    const today = getISTDate();
+    
+    // If last played date is not today, reset daily progress
+    const isNewDay = user.fcLastPlayedDate !== today;
+    const guessedToday = isNewDay ? [] : (user.fcGuessedToday ?? []);
+    const correctToday = isNewDay ? 0 : (user.fcCorrectToday ?? 0);
+    const dailyXP = isNewDay ? 0 : (user.fcDailyXP ?? 0);
+
+    return {
+      guessedToday,
+      correctToday,
+      dailyXP,
+      bestScore: user.fcBestScore ?? 0,
+      totalGamesCompleted: user.fcTotalGamesCompleted ?? 0,
+      isCompletedToday: guessedToday.length >= TOTAL_FLAGS,
+    };
+  },
+});
+
+// Batch sync Flag Champs stats (called every 5 mins, on exit, on background)
+export const syncFlagChampsStats = mutation({
+  args: {
+    token: v.string(),
+    newGuessed: v.array(v.string()),  // IDs answered since last sync
+    newCorrect: v.number(),           // Correct count since last sync
+    newXP: v.number(),                // XP earned since last sync
+    isGameComplete: v.boolean(),      // True if all 195 answered
+  },
+  handler: async (ctx, args) => {
+    const childId = await getChildIdFromSession(ctx, args.token);
+    if (!childId) throw new ConvexError("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_child_id", (q) => q.eq("childId", childId))
+      .first();
+
+    if (!user) throw new ConvexError("User not found");
+
+    const today = getISTDate();
+    
+    // Get current state (reset if new day)
+    const isNewDay = user.fcLastPlayedDate !== today;
+    let guessedToday = isNewDay ? [] : [...(user.fcGuessedToday ?? [])];
+    let correctToday = isNewDay ? 0 : (user.fcCorrectToday ?? 0);
+    let dailyXP = isNewDay ? 0 : (user.fcDailyXP ?? 0);
+
+    // Merge new progress (avoid duplicates)
+    for (const id of args.newGuessed) {
+      if (!guessedToday.includes(id)) {
+        guessedToday.push(id);
+      }
+    }
+    correctToday += args.newCorrect;
+    dailyXP += args.newXP;
+
+    // Calculate new total XP
+    const newXP = user.xp + args.newXP;
+
+    // Check for artifact unlocks
+    const unlockedArtifacts = [...user.unlockedArtifacts];
+    let artifactsUpdated = false;
+
+    for (const level of LEVELS) {
+      if (newXP >= level.xpRequired && level.artifactId) {
+        if (!unlockedArtifacts.includes(level.artifactId)) {
+          unlockedArtifacts.push(level.artifactId);
+          artifactsUpdated = true;
+        }
+      }
+    }
+
+    // Update best score if game is complete and we beat previous best
+    let newBestScore = user.fcBestScore ?? 0;
+    let totalGamesCompleted = user.fcTotalGamesCompleted ?? 0;
+
+    if (args.isGameComplete) {
+      if (correctToday > newBestScore) {
+        newBestScore = correctToday;
+      }
+      // Only increment if this is a new completion (not a repeat sync)
+      if (guessedToday.length === TOTAL_FLAGS && !user.fcGuessedToday?.length) {
+        totalGamesCompleted += 1;
+      } else if (guessedToday.length === TOTAL_FLAGS && user.fcGuessedToday?.length !== TOTAL_FLAGS) {
+        totalGamesCompleted += 1;
+      }
+    }
+
+    // Update user
+    await ctx.db.patch(user._id, {
+      fcLastPlayedDate: today,
+      fcGuessedToday: guessedToday,
+      fcCorrectToday: correctToday,
+      fcDailyXP: dailyXP,
+      fcBestScore: newBestScore,
+      fcTotalGamesCompleted: totalGamesCompleted,
+      xp: newXP,
+      ...(artifactsUpdated ? { unlockedArtifacts } : {}),
+    });
+
+    return {
+      synced: args.newGuessed.length,
+      totalGuessed: guessedToday.length,
+      correctToday,
+      dailyXP,
+      bestScore: newBestScore,
+      isComplete: guessedToday.length >= TOTAL_FLAGS,
+    };
+  },
+});

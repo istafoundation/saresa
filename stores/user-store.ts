@@ -187,6 +187,10 @@ export const useUserStore = create<UserState>()(
         explorerIsComplete: false,
         canPlayLetEmCook: true,
         lecCompleted: false,
+        canPlayFlagChamps: true,
+        fcCompleted: false,
+        fcRemaining: 195,
+        fcGuessedToday: [],
       },
       
       // Synced data actions
@@ -266,6 +270,10 @@ export const useUserStore = create<UserState>()(
             explorerIsComplete: false,
             canPlayLetEmCook: true,
             lecCompleted: false,
+            canPlayFlagChamps: true,
+            fcCompleted: false,
+            fcRemaining: 195,
+            fcGuessedToday: [],
           },
         });
       },

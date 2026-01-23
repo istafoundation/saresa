@@ -448,6 +448,44 @@ export default function FunScreen() {
                   </View>
                 )}
               </Pressable>
+
+              {/* Flag Champs - Fill-in-the-blanks Flag Guessing */}
+              <Pressable 
+                style={[
+                  styles.modeButton,
+                  gameLimits.fcCompleted && styles.modeButtonDisabled
+                ]}
+                onPress={() => gameLimits.canPlayFlagChamps && handleGamePress('/games/flag-champs')}
+                disabled={!gameLimits.canPlayFlagChamps}
+              >
+                <View style={styles.modeButtonContent}>
+                  <Text style={{ fontSize: 24 }}>🏴</Text>
+                  <View style={styles.modeButtonText}>
+                    <Text style={[
+                      styles.modeButtonTitle,
+                      gameLimits.fcCompleted && styles.modeButtonTitleDisabled
+                    ]}>
+                      Flag Champs
+                    </Text>
+                    <Text style={styles.modeButtonDesc}>
+                      {gameLimits.fcCompleted 
+                        ? 'All 195 flags done!' 
+                        : gameLimits.fcRemaining < 195 
+                          ? `${gameLimits.fcRemaining} remaining • Continue`
+                          : 'Guess world flags • Daily'}
+                    </Text>
+                  </View>
+                </View>
+                {gameLimits.fcCompleted ? (
+                  <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
+                ) : loadingGame === '/games/flag-champs' ? (
+                  <ActivityIndicator size="small" color={COLORS.textSecondary} />
+                ) : (
+                  <View style={styles.xpBadge}>
+                    <Text style={styles.xpBadgeText}>+975 XP</Text>
+                  </View>
+                )}
+              </Pressable>
             </View>
           </View>
         </MotiView>

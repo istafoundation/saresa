@@ -36,6 +36,11 @@ export interface ComputedGameLimits {
   // Let'em Cook (one-time game)
   canPlayLetEmCook: boolean;
   lecCompleted: boolean;
+  // Flag Champs (daily challenge with resume)
+  canPlayFlagChamps: boolean;
+  fcCompleted: boolean;
+  fcRemaining: number;
+  fcGuessedToday: string[];
 }
 
 // Extended synced data including game stats
@@ -186,8 +191,13 @@ export function useConvexSync() {
       explorerGuessedToday: computed.explorerGuessedToday ?? [],
       explorerRemaining: computed.explorerRemaining ?? 36,
       explorerIsComplete: computed.explorerIsComplete ?? false,
-      canPlayLetEmCook: computed.canPlayLetEmCook ?? !userData.lecAttempted,
-      lecCompleted: computed.lecCompleted ?? (userData.lecAttempted ?? false),
+      canPlayLetEmCook: computed.canPlayLetEmCook ?? (userData.lecLastPlayedDate !== getISTDate()),
+      lecCompleted: computed.lecCompleted ?? (userData.lecLastPlayedDate === getISTDate()),
+      // Flag Champs (computed from server or locally)
+      canPlayFlagChamps: computed.canPlayFlagChamps ?? (userData.fcLastPlayedDate !== getISTDate() || (userData.fcGuessedToday?.length ?? 0) < 195),
+      fcCompleted: computed.fcCompleted ?? (userData.fcLastPlayedDate === getISTDate() && (userData.fcGuessedToday?.length ?? 0) >= 195),
+      fcRemaining: computed.fcRemaining ?? (userData.fcLastPlayedDate === getISTDate() ? 195 - (userData.fcGuessedToday?.length ?? 0) : 195),
+      fcGuessedToday: computed.fcGuessedToday ?? (userData.fcLastPlayedDate === getISTDate() ? (userData.fcGuessedToday ?? []) : []),
     } : {
       // Fallback: compute locally if server doesn't provide (backward compat)
       canPlayGKCompetitive: userData.gkLastCompetitiveDate !== getISTDate(),
@@ -198,8 +208,13 @@ export function useConvexSync() {
       explorerGuessedToday: userData.expLastPlayedDate === getISTDate() ? (userData.expGuessedToday ?? []) : [],
       explorerRemaining: userData.expLastPlayedDate === getISTDate() ? 36 - (userData.expGuessedToday?.length ?? 0) : 36,
       explorerIsComplete: userData.expLastPlayedDate === getISTDate() ? (userData.expGuessedToday?.length ?? 0) >= 36 : false,
-      canPlayLetEmCook: !userData.lecAttempted,
-      lecCompleted: userData.lecAttempted ?? false,
+      canPlayLetEmCook: userData.lecLastPlayedDate !== getISTDate(),
+      lecCompleted: userData.lecLastPlayedDate === getISTDate(),
+      // Flag Champs fallback
+      canPlayFlagChamps: userData.fcLastPlayedDate !== getISTDate() || (userData.fcGuessedToday?.length ?? 0) < 195,
+      fcCompleted: userData.fcLastPlayedDate === getISTDate() && (userData.fcGuessedToday?.length ?? 0) >= 195,
+      fcRemaining: userData.fcLastPlayedDate === getISTDate() ? 195 - (userData.fcGuessedToday?.length ?? 0) : 195,
+      fcGuessedToday: userData.fcLastPlayedDate === getISTDate() ? (userData.fcGuessedToday ?? []) : [],
     };
 
     // Map GAME STATS from Convex

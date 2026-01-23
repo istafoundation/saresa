@@ -110,6 +110,14 @@ export default defineSchema({
     lecDailyXP: v.optional(v.number()),              // Today's XP earned
     lecTotalCorrect: v.optional(v.number()),         // Lifetime correct answers
     lecTotalGamesPlayed: v.optional(v.number()),     // Lifetime games played
+
+    // Flag Champs Stats (Fill-in-Blanks Flag Guessing - DAILY CHALLENGE)
+    fcLastPlayedDate: v.optional(v.string()),        // IST date "2026-01-23"
+    fcGuessedToday: v.optional(v.array(v.string())), // ["BR", "IN", ...] - answered flag IDs
+    fcCorrectToday: v.optional(v.number()),          // Today's correct count
+    fcDailyXP: v.optional(v.number()),               // Today's XP earned
+    fcBestScore: v.optional(v.number()),             // Best correct count ever (out of 195)
+    fcTotalGamesCompleted: v.optional(v.number()),   // Lifetime completed games
   }).index("by_child_id", ["childId"]),
 
   // ============================================
