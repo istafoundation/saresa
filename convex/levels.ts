@@ -118,8 +118,12 @@ export const getLevelQuestions = query({
       .filter((q) => q.eq(q.field("status"), "active"))
       .collect();
     
-    // Sort by order field
-    return questions.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    // Sort by order field, then creation time for stability
+    return questions.sort((a, b) => {
+      const orderDiff = (a.order ?? 0) - (b.order ?? 0);
+      if (orderDiff !== 0) return orderDiff;
+      return a.createdAt - b.createdAt;
+    });
   },
 });
 
@@ -135,22 +139,33 @@ export const reorderLevels = mutation({
     const level = await ctx.db.get(args.levelId);
     if (!level) throw new ConvexError("Level not found");
     
-    const currentNumber = level.levelNumber;
-    const targetNumber = args.direction === "up" ? currentNumber - 1 : currentNumber + 1;
-    
-    if (targetNumber < 1) return; // Cannot move below 1
-    
-    // Find the swap target
-    const targetLevel = await ctx.db
+    // Sort levels by current levelNumber
+    const levels = await ctx.db
       .query("levels")
-      .withIndex("by_level_number", (q) => q.eq("levelNumber", targetNumber))
-      .first();
+      .withIndex("by_level_number")
+      .collect();
       
-    if (!targetLevel) return; // No adjacent level
+    levels.sort((a, b) => a.levelNumber - b.levelNumber);
     
-    // Swap
-    await ctx.db.patch(level._id, { levelNumber: targetNumber });
-    await ctx.db.patch(targetLevel._id, { levelNumber: currentNumber });
+    const currentIndex = levels.findIndex(l => l._id === args.levelId);
+    if (currentIndex === -1) throw new ConvexError("Level not found in list");
+    
+    // Find target index
+    const targetIndex = args.direction === "up" ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= levels.length) return; // Cannot move
+    
+    // Swap in memory
+    const temp = levels[currentIndex];
+    levels[currentIndex] = levels[targetIndex];
+    levels[targetIndex] = temp;
+    
+    // Re-index ALL levels to ensure sequential integrity
+    for (let i = 0; i < levels.length; i++) {
+        const expectedNum = i + 1;
+        if (levels[i].levelNumber !== expectedNum) {
+            await ctx.db.patch(levels[i]._id, { levelNumber: expectedNum });
+        }
+    }
   },
 });
 
@@ -179,7 +194,7 @@ export const reorderDifficulties = mutation({
     newDifficulties[diffIndex] = newDifficulties[targetIndex];
     newDifficulties[targetIndex] = temp;
     
-    // Update order fields
+    // Update order fields to ensure they are sequential
     newDifficulties.forEach((d, i) => {
       d.order = i + 1;
     });
@@ -209,8 +224,12 @@ export const reorderQuestions = mutation({
       .filter((q) => q.eq(q.field("status"), "active"))
       .collect();
       
-    // Sort logic needs to match read logic
-    siblings.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    // Stable sort
+    siblings.sort((a, b) => {
+        const orderDiff = (a.order ?? 0) - (b.order ?? 0);
+        if (orderDiff !== 0) return orderDiff;
+        return a.createdAt - b.createdAt;
+    });
     
     const currentIndex = siblings.findIndex(q => q._id === question._id);
     if (currentIndex === -1) return;
@@ -218,20 +237,19 @@ export const reorderQuestions = mutation({
     const targetIndex = args.direction === "up" ? currentIndex - 1 : currentIndex + 1;
     if (targetIndex < 0 || targetIndex >= siblings.length) return;
     
-    const targetQuestion = siblings[targetIndex];
+    // Swap in memory
+    const temp = siblings[currentIndex];
+    siblings[currentIndex] = siblings[targetIndex];
+    siblings[targetIndex] = temp;
     
-    // Swap order values
-    // If order values are missing or dupes, this fixes them too
-    const q1Order = targetIndex + 1;
-    const q2Order = currentIndex + 1;
-    
-    // Actually, to be safe, let's normalize ALL orders if we are touching them
-    // But for efficiency just swap the two involved IF they have distinct orders. 
-    // If not, we might need a full re-index.
-    // Let's just swap the specific items' intended positions.
-    
-    await ctx.db.patch(question._id, { order: q1Order }); // Move to target slot
-    await ctx.db.patch(targetQuestion._id, { order: q2Order }); // Move to old slot
+    // Re-index ALL siblings to fix gaps/dupes
+    await Promise.all(siblings.map((q, index) => {
+        const newOrder = index + 1;
+        if (q.order !== newOrder) {
+            return ctx.db.patch(q._id, { order: newOrder });
+        }
+        return Promise.resolve();
+    }));
     
     // If we want to accept that other items might have gaps/dupes, this swap works 
     // IF we assume they were sorted correctly before. 
@@ -429,7 +447,11 @@ export const getLevelQuestionsAdmin = query({
     
     // Sort each group
     Object.keys(grouped).forEach(key => {
-      grouped[key].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      grouped[key].sort((a, b) => {
+        const orderDiff = (a.order ?? 0) - (b.order ?? 0);
+        if (orderDiff !== 0) return orderDiff;
+        return a.createdAt - b.createdAt;
+      });
     });
     
     return grouped;
