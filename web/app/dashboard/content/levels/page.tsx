@@ -55,6 +55,43 @@ const QUESTION_TYPES: { value: QuestionType; label: string; icon: React.ReactNod
   { value: "match", label: "Picture Match", icon: <LinkIcon className="w-4 h-4" /> },
 ];
 
+// Helper to process image URLs (used by CSV and Manual entry)
+const processImageUrl = async (url: string, context: string): Promise<string> => {
+  if (!url) throw new Error(`${context}: Image URL missing`);
+  
+  if (url.includes("imagekit.io")) {
+    return url; 
+  }
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Failed to fetch image: ${url}`);
+    const blob = await response.blob();
+    
+    const file = new File([blob], "match-upload.jpg", { type: blob.type });
+    
+    const authRes = await fetch("/api/imagekit");
+    if (!authRes.ok) throw new Error("Failed to get upload auth");
+    const authParams = await authRes.json();
+
+    const result = await imagekit.upload({
+      file: file,
+      fileName: `match_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+      useUniqueFileName: true,
+      tags: ["match-import"],
+      folder: "/match-questions",
+      token: authParams.token,
+      signature: authParams.signature,
+      expire: authParams.expire
+    });
+    
+    return result.url;
+  } catch (err) {
+    console.error("Image processing error:", err);
+    throw new Error(`${context}: Failed to process image ${url}. Error: ${(err as Error).message}`);
+  }
+};
+
 export default function LevelsContentPage() {
   return (
     <Suspense fallback={<div className="flex items-center justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div></div>}>
@@ -148,47 +185,7 @@ function LevelsContent() {
     return str;
   };
 
-  // Helper to process image URLs in CSV
-  const extractImagesAndUpload = async (url: string, rowNum: number): Promise<string> => {
-    if (!url) throw new Error(`Row ${rowNum}: Image URL missing`);
-    
-    // 1. Check if already ImageKit
-    if (url.includes("imagekit.io")) {
-      // Optional: Verify existence logic here if needed, but for now trust the user
-      return url; 
-    }
 
-    // 2. Upload from external source
-    try {
-      // Fetch the image
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`Failed to fetch image: ${url}`);
-      const blob = await response.blob();
-      
-      // Upload to ImageKit
-      const file = new File([blob], "match-upload.jpg", { type: blob.type });
-      
-      const authRes = await fetch("/api/imagekit");
-      if (!authRes.ok) throw new Error("Failed to get upload auth");
-      const authParams = await authRes.json();
-
-      const result = await imagekit.upload({
-        file: file,
-        fileName: `match_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-        useUniqueFileName: true,
-        tags: ["match-csv-import"],
-        folder: "/match-questions",
-        token: authParams.token,
-        signature: authParams.signature,
-        expire: authParams.expire
-      });
-      
-      return result.url;
-    } catch (err) {
-      console.error("Image processing error:", err);
-      throw new Error(`Row ${rowNum}: Failed to process image ${url}. Error: ${(err as Error).message}`);
-    }
-  };
 
   // Guide Download
   const handleDownloadGuide = () => {
@@ -464,7 +461,7 @@ EXAMPLE ROWS
                 const text = parts.slice(1).join('|').trim(); // Join back in case text has pipes?
                 
                 // Process Image
-                const finalUrl = await extractImagesAndUpload(rawUrl, rowNum);
+                const finalUrl = await processImageUrl(rawUrl, `Row ${rowNum}`);
                 processedPairs.push({ imageUrl: finalUrl, text });
             }
             
@@ -1287,7 +1284,17 @@ function AddQuestionModal({ levelId, difficultyName, onClose, onCreate }: {
         data = { solution: mapSolution, mapType: "india" };
         break;
       case "match":
-        data = { pairs: matchPairs.filter(p => p.imageUrl.trim() && p.text.trim()) };
+        try {
+          const processedPairs = await Promise.all(matchPairs.filter(p => p.imageUrl.trim() && p.text.trim()).map(async (p, idx) => {
+             const finalUrl = await processImageUrl(p.imageUrl, `Pair ${idx + 1}`);
+             return { ...p, imageUrl: finalUrl };
+          }));
+          data = { pairs: processedPairs };
+        } catch (err) {
+          alert((err as Error).message);
+          setIsSubmitting(false);
+          return;
+        }
         break;
     }
 
@@ -1462,11 +1469,20 @@ function AddQuestionModal({ levelId, difficultyName, onClose, onCreate }: {
             <div className="space-y-3">
               {matchPairs.map((pair, idx) => (
                 <div key={idx} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg">
-                  <ImageUpload
-                    value={pair.imageUrl}
-                    onChange={(url) => updateMatchPair(idx, 'imageUrl', url)}
-                  />
+                  <div className="flex flex-col gap-2">
+                    <ImageUpload
+                      value={pair.imageUrl}
+                      onChange={(url) => updateMatchPair(idx, 'imageUrl', url)}
+                    />
+                  </div>
                   <div className="flex-1 space-y-2">
+                     <input
+                      type="text"
+                      value={pair.imageUrl}
+                      onChange={(e) => updateMatchPair(idx, 'imageUrl', e.target.value)}
+                      placeholder="Or paste image URL..."
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs"
+                    />
                     <input
                       type="text"
                       value={pair.text}
@@ -1588,7 +1604,17 @@ function EditQuestionModal({ question, onClose, onSave }: {
         newData = { solution: solution, mapType: "india" };
         break;
       case "match":
-        newData = { pairs: matchPairs.filter(p => p.imageUrl.trim() && p.text.trim()) };
+        try {
+          const processedPairs = await Promise.all(matchPairs.filter(p => p.imageUrl.trim() && p.text.trim()).map(async (p, idx) => {
+             const finalUrl = await processImageUrl(p.imageUrl, `Pair ${idx + 1}`);
+             return { ...p, imageUrl: finalUrl };
+          }));
+          newData = { pairs: processedPairs };
+        } catch (err) {
+          alert((err as Error).message);
+          setIsSubmitting(false);
+          return;
+        }
         break;
     }
 
@@ -1722,11 +1748,20 @@ function EditQuestionModal({ question, onClose, onSave }: {
             <div className="space-y-3">
               {matchPairs.map((pair, idx) => (
                 <div key={idx} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg">
-                  <ImageUpload
-                    value={pair.imageUrl}
-                    onChange={(url) => updateMatchPair(idx, 'imageUrl', url)}
-                  />
+                  <div className="flex flex-col gap-2">
+                    <ImageUpload
+                      value={pair.imageUrl}
+                      onChange={(url) => updateMatchPair(idx, 'imageUrl', url)}
+                    />
+                  </div>
                   <div className="flex-1 space-y-2">
+                     <input
+                      type="text"
+                      value={pair.imageUrl}
+                      onChange={(e) => updateMatchPair(idx, 'imageUrl', e.target.value)}
+                      placeholder="Or paste image URL..."
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs"
+                    />
                     <input
                       type="text"
                       value={pair.text}
