@@ -115,6 +115,8 @@ export default function LevelGameScreen() {
   }, []);
   
   // Handle Next button - advance to next question
+  // Note: finishGame uses refs and state setters which are stable, so we only need
+  // currentIndex and totalQuestions as deps
   const handleNext = useCallback(() => {
     setShowQuestionResult(false);
     setLastAnswerCorrect(null);
@@ -124,8 +126,9 @@ export default function LevelGameScreen() {
       setCurrentIndex(prev => prev + 1);
       isProcessingRef.current = false;
     } else {
-      // Game finished
-      finishGame();
+      // Game finished - inline the finishGame logic to avoid dependency issues
+      // finishGame uses refs which don't need to be in deps
+      finishGameWithScore();
     }
   }, [currentIndex, totalQuestions]);
   
@@ -139,15 +142,13 @@ export default function LevelGameScreen() {
       setQuestionKey(prev => prev + 1);
       setCurrentIndex(prev => prev + 1);
     } else {
-      // Game finished
-      finishGame();
+      // Game finished - inline the finishGame logic to avoid dependency issues
+      finishGameWithScore();
     }
   }, [currentIndex, totalQuestions, showQuestionResult, triggerTap]);
   
-  // Finish game and submit score
-  const finishGame = async () => {
-
-    
+  // Finish game and submit score - wrapped in useCallback to be a stable dependency
+  const finishGameWithScore = useCallback(async () => {
     // correctCountRef.current already contains the final correct count
     // (including the last answer which was already counted)
     const finalCorrect = correctCountRef.current;
@@ -186,7 +187,7 @@ export default function LevelGameScreen() {
     setShowResult(true);
     setIsTransitioning(false);
     isProcessingRef.current = false;
-  };
+  }, [token, levelId, difficulty, totalQuestions, submitAttempt, playWin, currentDifficulty?.requiredScore]);
   
   // Handle back
   const handleBack = useCallback(() => {

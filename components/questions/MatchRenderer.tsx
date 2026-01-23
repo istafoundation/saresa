@@ -140,6 +140,33 @@ export default function MatchRenderer({
     });
   };
 
+  // --- Handlers ---
+  const [col2Offset, setCol2Offset] = useState(0);
+
+  const handleItemLayout = useCallback((layout: LayoutItem) => {
+    const key = `${layout.type}-${layout.index}`;
+    layoutStore.current[key] = layout;
+  }, []);
+
+  // Submit Logic
+  const handleSubmit = useCallback(() => {
+    if (connections.size !== data.pairs.length || showResult) return;
+    
+    let correctCount = 0;
+    connections.forEach((textIndex, imageIndex) => {
+      if (imageIndex === textIndex) correctCount++;
+    });
+    
+    const allCorrect = correctCount === data.pairs.length;
+    setShowResult(true);
+    if (onFeedback) {
+      onFeedback(allCorrect);
+    }
+    
+    // Immediately notify parent
+    onAnswer(allCorrect);
+  }, [connections, showResult, data, onAnswer, onFeedback]);
+
   // --- Gestures ---
   const checkHit = (x: number, y: number): { index: number, type: 'image' | 'text', cx: number, cy: number } | null => {
     'worklet';
@@ -160,8 +187,7 @@ export default function MatchRenderer({
     return null;
   };
 
-  const gesture = Gesture.Pan()
-    // Removed manualActivation and onTouchesDown to fix Reanimated warning
+  const gesture = useMemo(() => Gesture.Pan()
     .onStart((e) => {
       const hit = checkHit(e.x, e.y);
       if (hit && !disabled && !showResult) {
@@ -173,7 +199,6 @@ export default function MatchRenderer({
         dragX.value = hit.cx;
         dragY.value = hit.cy;
       } else {
-        // If we didn't hit anything, ensure drag is inactive
         dragActive.value = false;
       }
     })
@@ -183,7 +208,8 @@ export default function MatchRenderer({
       dragX.value = e.x;
       dragY.value = e.y;
       
-      // Collision Detection
+      // Collision Detection logic...
+      // Since we are running on JS, we can access layoutStore directly
       const targetType = activeStartType.value === 'image' ? 'text' : 'image';
       const indicesToCheck = targetType === 'image' ? shuffledImageIndices : shuffledTextIndices;
       
@@ -211,19 +237,19 @@ export default function MatchRenderer({
     .onEnd(() => {
       if (!dragActive.value) return;
       if (potentialMatchIndex.value !== -1 && potentialMatchType.value !== null) {
-        runOnJS(handleConnection)(activeStartIndex.value, activeStartType.value!, potentialMatchIndex.value, potentialMatchType.value);
+        // Since we are already on JS, we can call handleConnection directly!
+        handleConnection(activeStartIndex.value, activeStartType.value!, potentialMatchIndex.value, potentialMatchType.value);
       }
       resetDrag();
     })
-    .runOnJS(true);
+    .runOnJS(true), [disabled, showResult, shuffledImageIndices, shuffledTextIndices, handleConnection]);
 
-  // --- Handlers ---
-  const [col2Offset, setCol2Offset] = useState(0);
-
-  const handleItemLayout = useCallback((layout: LayoutItem) => {
-    const key = `${layout.type}-${layout.index}`;
-    layoutStore.current[key] = layout;
-  }, []);
+  // Memoized Tap Gesture for Submit
+  const tapGesture = useMemo(() => Gesture.Tap()
+    .onEnd(() => {
+        handleSubmit();
+    })
+    .runOnJS(true), [handleSubmit]);
 
   // --- Animated Props for Line ---
   const activeLineProps = useAnimatedProps(() => {
@@ -246,30 +272,10 @@ export default function MatchRenderer({
     };
   });
 
-  // Submit
-  const handleSubmit = useCallback(() => {
-    if (connections.size !== data.pairs.length || showResult) return;
-    
-    let correctCount = 0;
-    connections.forEach((textIndex, imageIndex) => {
-      if (imageIndex === textIndex) correctCount++;
-    });
-    
-    const allCorrect = correctCount === data.pairs.length;
-    setShowResult(true);
-    if (onFeedback) {
-      onFeedback(allCorrect);
-    }
-    
-    // Immediately notify parent - parent controls timing now
-    onAnswer(allCorrect);
-  }, [connections, showResult, data, onAnswer, onFeedback]);
-
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={styles.container}>
-        {/* Header and MatchArea same ... */}
-        {/* ... */}
+        {/* Header */}
         <MotiView 
           from={{ opacity: 0, translateY: -10 }}
           animate={{ opacity: 1, translateY: 0 }}
@@ -444,7 +450,7 @@ export default function MatchRenderer({
 
            {connections.size === data.pairs.length && !showResult && (
              <MotiView from={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
-               <GestureDetector gesture={Gesture.Tap().onEnd(runOnJS(handleSubmit))}>
+               <GestureDetector gesture={tapGesture}>
                  <View style={styles.submitButton}>
                    <Ionicons name="checkmark-circle" size={24} color={COLORS.text} />
                    <Text style={styles.submitText}>Check Answers</Text>
@@ -452,6 +458,7 @@ export default function MatchRenderer({
                </GestureDetector>
              </MotiView>
            )}
+
 
            {showResult && (
              <MotiView from={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} style={styles.resultBox}>

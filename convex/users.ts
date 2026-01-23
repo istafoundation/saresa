@@ -3,6 +3,7 @@ import { v, ConvexError } from "convex/values";
 import { getISTDate, getYesterdayIST } from "./lib/dates";
 import { getChildIdFromSession, getAuthenticatedUser } from "./lib/auth";
 import { checkRateLimit } from "./lib/rateLimit";
+import { LEVELS, VALID_ARTIFACT_IDS, getUnlockedArtifactsForXP } from "./lib/levels";
 
 // Maximum XP that can be added in a single operation (prevents exploits)
 const MAX_XP_PER_OPERATION = 100;
@@ -219,29 +220,8 @@ export const updateStreak = mutation({
   },
 });
 
-// Level thresholds with artifact unlocks - sync with constants/levels.ts
-const LEVELS = [
-  { level: 1, xpRequired: 0, artifactId: null },
-  { level: 2, xpRequired: 100, artifactId: "ganesha-wisdom" },
-  { level: 3, xpRequired: 250, artifactId: "hanuman-strength" },
-  { level: 4, xpRequired: 450, artifactId: "krishna-flute" },
-  { level: 5, xpRequired: 700, artifactId: "arjuna-bow" },
-  { level: 6, xpRequired: 1000, artifactId: "shiva-trident" },
-  { level: 7, xpRequired: 1400, artifactId: "durga-lion" },
-  { level: 8, xpRequired: 1900, artifactId: "rama-arrow" },
-  { level: 9, xpRequired: 2500, artifactId: "vishnu-chakra" },
-  { level: 10, xpRequired: 3200, artifactId: "lakshmi-lotus" },
-  { level: 11, xpRequired: 4000, artifactId: null },
-  { level: 12, xpRequired: 5000, artifactId: null },
-  { level: 13, xpRequired: 6200, artifactId: null },
-  { level: 14, xpRequired: 7600, artifactId: null },
-  { level: 15, xpRequired: 9200, artifactId: null },
-  { level: 16, xpRequired: 11000, artifactId: null },
-  { level: 17, xpRequired: 13000, artifactId: null },
-  { level: 18, xpRequired: 15500, artifactId: null },
-  { level: 19, xpRequired: 18500, artifactId: null },
-  { level: 20, xpRequired: 22000, artifactId: null },
-];
+// LEVELS imported from ./lib/levels.ts - Single Source of Truth
+// See convex/lib/levels.ts for the configuration
 
 // Add XP and check for level-ups/unlocks
 export const addXP = mutation({
@@ -279,18 +259,12 @@ export const addXP = mutation({
     if (!user) throw new ConvexError("User not found");
 
     const newXP = user.xp + args.amount;
-    const unlockedArtifacts = [...user.unlockedArtifacts];
-    let updated = false;
-
-    // Check for new unlocks based on total XP
-    for (const level of LEVELS) {
-      if (newXP >= level.xpRequired && level.artifactId) {
-        if (!unlockedArtifacts.includes(level.artifactId)) {
-          unlockedArtifacts.push(level.artifactId);
-          updated = true;
-        }
-      }
-    }
+    
+    // Use shared helper function for artifact unlocks
+    const { updated, artifacts: unlockedArtifacts } = getUnlockedArtifactsForXP(
+      newXP, 
+      user.unlockedArtifacts
+    );
 
     await ctx.db.patch(user._id, {
       xp: newXP,
@@ -315,17 +289,11 @@ export const syncProgression = mutation({
 
     if (!user) throw new ConvexError("User not found");
 
-    const unlockedArtifacts = [...user.unlockedArtifacts];
-    let updated = false;
-
-    for (const level of LEVELS) {
-      if (user.xp >= level.xpRequired && level.artifactId) {
-        if (!unlockedArtifacts.includes(level.artifactId)) {
-          unlockedArtifacts.push(level.artifactId);
-          updated = true;
-        }
-      }
-    }
+    // Use shared helper function for artifact unlocks
+    const { updated, artifacts: unlockedArtifacts } = getUnlockedArtifactsForXP(
+      user.xp, 
+      user.unlockedArtifacts
+    );
 
     if (updated) {
       await ctx.db.patch(user._id, {
@@ -338,10 +306,7 @@ export const syncProgression = mutation({
   },
 });
 
-// Valid artifact IDs (extracted from LEVELS array)
-const VALID_ARTIFACT_IDS = LEVELS
-  .map(l => l.artifactId)
-  .filter((id): id is string => id !== null);
+// VALID_ARTIFACT_IDS imported from ./lib/levels.ts
 
 // Unlock artifact - validates against known artifacts
 export const unlockArtifact = mutation({

@@ -37,6 +37,8 @@ export default function LetEmCookScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
   const [showResult, setShowResult] = useState(false);
+  const [showQuestionResult, setShowQuestionResult] = useState(false);
+  const [lastAnswerCorrect, setLastAnswerCorrect] = useState<boolean | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [questionKey, setQuestionKey] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
@@ -110,38 +112,52 @@ export default function LetEmCookScreen() {
   
   // Handle answer from MatchRenderer
   // MatchRenderer returns true if ALL pairs matched correctly
+  // Handle answer from MatchRenderer
+  // MatchRenderer returns true if ALL pairs matched correctly
   const handleAnswer = useCallback((allCorrect: boolean) => {
     if (isProcessingRef.current) return;
     isProcessingRef.current = true;
-    setIsTransitioning(true);
     
     // Count correct spices (if all correct, add 4; otherwise 0)
-    // NOTE: MatchRenderer only tells us if ALL matches are correct
     if (allCorrect) {
       correctCountRef.current += SPICES_PER_QUESTION;
       setCorrectCount(correctCountRef.current);
     }
+
+    setLastAnswerCorrect(allCorrect);
+    setShowQuestionResult(true);
     
-    // Move to next question after delay
-    setTimeout(() => {
+    // We do NOT auto-transition anymore. We wait for handleNext.
+  }, []);
+
+  // Handle Next button - advance to next question
+  const handleNext = useCallback(() => {
+    setShowQuestionResult(false);
+    setLastAnswerCorrect(null);
+    setIsTransitioning(true);
+
+    // InteractionManager ensures we don't stutter the UI while closing the modal
+    InteractionManager.runAfterInteractions(() => {
       if (currentIndex < totalQuestions - 1) {
         setQuestionKey(prev => prev + 1);
         setCurrentIndex(prev => prev + 1);
         
-        InteractionManager.runAfterInteractions(() => {
-          setIsTransitioning(false);
-          isProcessingRef.current = false;
-        });
+        // Small delay to let the transition animation play if we want, 
+        // or just reset immediately. 
+        setTimeout(() => {
+            setIsTransitioning(false);
+            isProcessingRef.current = false;
+        }, 300); // Short delay for visual smoothness
       } else {
         // Game finished
         finishGame();
       }
-    }, 1500);
+    });
+
   }, [currentIndex, totalQuestions]);
   
   // Finish game and submit score
   const finishGame = async () => {
-
     setIsSaving(true);
     
     const finalCorrect = correctCountRef.current;
@@ -154,13 +170,21 @@ export default function LetEmCookScreen() {
           totalQuestions: totalSpices,
         });
         playWin();
+        setShowResult(true);
       } catch (error) {
         console.error('Failed to save game:', error);
+        // Show result anyway but with a warning - user can still see their score
+        // The game is marked as not played so they can try again tomorrow
+        playWin(); // Still celebrate their effort
+        setShowResult(true);
+        // Note: We don't throw here - let user see their result even if save failed
       }
+    } else {
+      // No token - show result anyway (shouldn't happen in production)
+      setShowResult(true);
     }
     
     setIsSaving(false);
-    setShowResult(true);
     setIsTransitioning(false);
     isProcessingRef.current = false;
   };
@@ -222,8 +246,8 @@ export default function LetEmCookScreen() {
     );
   }
   
-  // Loading spices
-  if (!spicesData || questions.length === 0) {
+  // Loading spices - distinguish between loading and empty database
+  if (!spicesData) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
@@ -246,6 +270,32 @@ export default function LetEmCookScreen() {
             Getting ingredients ready...
           </Text>
           <ActivityIndicator size="small" color={COLORS.primary} style={{ marginTop: SPACING.md }} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+  
+  // Empty database - no spices available
+  if (questions.length === 0) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Pressable onPress={handleBack} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+          </Pressable>
+          <Text style={styles.title}>Let'em Cook</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        
+        <View style={styles.completedContainer}>
+          <Ionicons name="restaurant-outline" size={64} color={COLORS.textMuted} />
+          <Text style={styles.completedTitle}>No Spices Available</Text>
+          <Text style={styles.completedText}>
+            The spice collection is empty. Please check back later!
+          </Text>
+          <Pressable style={styles.backToGamesButton} onPress={handleBack}>
+            <Text style={styles.backToGamesText}>Back to Games</Text>
+          </Pressable>
         </View>
       </SafeAreaView>
     );
@@ -352,8 +402,55 @@ export default function LetEmCookScreen() {
         </View>
       )}
       
+      {/* Per-question result overlay with Next button */}
+      {showQuestionResult && (
+        <View style={styles.questionResultOverlay}>
+          <MotiView
+            from={{ translateY: 50, opacity: 0 }}
+            animate={{ translateY: 0, opacity: 1 }}
+            transition={{ type: 'spring', damping: 15 }}
+            style={[
+              styles.questionResultCard,
+              lastAnswerCorrect ? styles.questionResultCorrect : styles.questionResultWrong
+            ]}
+          >
+            <View style={styles.questionResultHeader}>
+              <Ionicons 
+                name={lastAnswerCorrect ? "checkmark-circle" : "close-circle"} 
+                size={48} 
+                color={lastAnswerCorrect ? COLORS.success : COLORS.error} 
+              />
+              <Text style={[
+                styles.questionResultTitle,
+                { color: lastAnswerCorrect ? COLORS.success : COLORS.error }
+              ]}>
+                {lastAnswerCorrect ? "Correct!" : "Not Quite!"}
+              </Text>
+              <Text style={styles.questionResultSubtitle}>
+                {lastAnswerCorrect 
+                  ? "Great match! Keeping it spicy!" 
+                  : "That wasn't the right mix."}
+              </Text>
+            </View>
+            
+            <Pressable 
+              onPress={handleNext} 
+              style={({ pressed }) => [
+                styles.nextButton,
+                pressed && styles.nextButtonPressed
+              ]}
+            >
+              <Text style={styles.nextButtonText}>
+                {currentIndex < totalQuestions - 1 ? "Next Question" : "Finish Challenge"}
+              </Text>
+              <Ionicons name="arrow-forward" size={24} color={COLORS.text} />
+            </Pressable>
+          </MotiView>
+        </View>
+      )}
+
       {/* Transition loading */}
-      {isTransitioning && (
+      {isTransitioning && !showQuestionResult && (
         <View style={styles.transitionContainer}>
           <MotiView
             from={{ opacity: 0.5, scale: 0.9 }}
@@ -576,6 +673,65 @@ const styles = StyleSheet.create({
   resultButtonText: {
     fontSize: 18,
     fontWeight: '600',
+    color: COLORS.text,
+  },
+
+  // Question Result Overlay Styles
+  questionResultOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: SPACING.lg,
+    paddingBottom: SPACING.xl,
+    zIndex: 100, // Ensure it's above everything
+  },
+  questionResultCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.lg,
+    alignItems: 'center',
+    gap: SPACING.md,
+    ...SHADOWS.lg,
+    borderWidth: 2,
+  },
+  questionResultCorrect: {
+    borderColor: COLORS.success + '40',
+  },
+  questionResultWrong: {
+    borderColor: COLORS.error + '40',
+  },
+  questionResultHeader: {
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  questionResultTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+  },
+  questionResultSubtitle: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+  },
+  nextButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    width: '100%',
+    marginTop: SPACING.sm,
+  },
+  nextButtonPressed: {
+    opacity: 0.9,
+  },
+  nextButtonText: {
+    fontSize: 18,
+    fontWeight: '700',
     color: COLORS.text,
   },
 });

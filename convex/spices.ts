@@ -47,7 +47,32 @@ export const getEnabledSpices = query({
   },
 });
 
+// Seeded random number generator for deterministic shuffling
+// Uses Linear Congruential Generator (LCG)
+function seededRandom(seed: number): () => number {
+  let state = seed;
+  return () => {
+    state = (state * 1103515245 + 12345) & 0x7fffffff;
+    return state / 0x7fffffff;
+  };
+}
+
+// Get today's date in IST as a seed number
+function getDateSeed(): number {
+  const now = new Date();
+  // Convert to IST (UTC+5:30)
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  const istDate = new Date(now.getTime() + istOffset);
+  // Create seed from date components (same seed for entire day)
+  const year = istDate.getUTCFullYear();
+  const month = istDate.getUTCMonth();
+  const day = istDate.getUTCDate();
+  return year * 10000 + month * 100 + day;
+}
+
 // Get random spices for a game session
+// OPTIMIZED: Uses seeded random based on IST date for deterministic results
+// This prevents query re-evaluation from returning different spices
 export const getRandomSpices = query({
   args: { 
     count: v.number(),
@@ -58,10 +83,15 @@ export const getRandomSpices = query({
       .withIndex("by_enabled", (q) => q.eq("isEnabled", true))
       .collect();
 
-    // Shuffle using Fisher-Yates
+    // Use seeded random for deterministic shuffling
+    // Same date = same shuffle order = consistent results per day
+    const dateSeed = getDateSeed();
+    const random = seededRandom(dateSeed);
+
+    // Shuffle using Fisher-Yates with seeded random
     const shuffled = [...allSpices];
     for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = Math.floor(random() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
 
@@ -136,10 +166,10 @@ export const addSpice = mutation({
   handler: async (ctx, args) => {
     const parentId = await requireAdmin(ctx);
 
-    // Check for duplicate name
+    // Check for duplicate name using index
     const existing = await ctx.db
       .query("spices")
-      .filter((q) => q.eq(q.field("name"), args.name))
+      .withIndex("by_name", (q) => q.eq("name", args.name))
       .first();
 
     if (existing) {

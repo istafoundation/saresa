@@ -2,6 +2,7 @@ import { mutation, query } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { getISTDate } from "./lib/dates";
 import { getChildIdFromSession, getAuthenticatedUser } from "./lib/auth";
+import { LEVELS, getUnlockedArtifactsForXP } from "./lib/levels";
 
 // Update GK stats
 export const updateGKStats = mutation({
@@ -115,29 +116,8 @@ export const updateWordleStats = mutation({
 // BATCHED MUTATIONS FOR PERFORMANCE
 // ============================================
 
-// Level thresholds with artifact unlocks - sync with constants/levels.ts and users.ts
-const LEVELS = [
-  { level: 1, xpRequired: 0, artifactId: null },
-  { level: 2, xpRequired: 100, artifactId: "ganesha-wisdom" },
-  { level: 3, xpRequired: 250, artifactId: "hanuman-strength" },
-  { level: 4, xpRequired: 450, artifactId: "krishna-flute" },
-  { level: 5, xpRequired: 700, artifactId: "arjuna-bow" },
-  { level: 6, xpRequired: 1000, artifactId: "shiva-trident" },
-  { level: 7, xpRequired: 1400, artifactId: "durga-lion" },
-  { level: 8, xpRequired: 1900, artifactId: "rama-arrow" },
-  { level: 9, xpRequired: 2500, artifactId: "vishnu-chakra" },
-  { level: 10, xpRequired: 3200, artifactId: "lakshmi-lotus" },
-  { level: 11, xpRequired: 4000, artifactId: null },
-  { level: 12, xpRequired: 5000, artifactId: null },
-  { level: 13, xpRequired: 6200, artifactId: null },
-  { level: 14, xpRequired: 7600, artifactId: null },
-  { level: 15, xpRequired: 9200, artifactId: null },
-  { level: 16, xpRequired: 11000, artifactId: null },
-  { level: 17, xpRequired: 13000, artifactId: null },
-  { level: 18, xpRequired: 15500, artifactId: null },
-  { level: 19, xpRequired: 18500, artifactId: null },
-  { level: 20, xpRequired: 22000, artifactId: null },
-];
+// LEVELS imported from ./lib/levels.ts - Single Source of Truth
+// See convex/lib/levels.ts for the configuration
 
 /**
  * Calculate Wordle XP reward server-side
@@ -235,17 +215,12 @@ export const finishWordleGame = mutation({
 
     // ---- Calculate XP and Artifact Unlocks ----
     const newXP = user.xp + xpReward;
-    const unlockedArtifacts = [...user.unlockedArtifacts];
-    let artifactsUpdated = false;
-
-    for (const level of LEVELS) {
-      if (newXP >= level.xpRequired && level.artifactId) {
-        if (!unlockedArtifacts.includes(level.artifactId)) {
-          unlockedArtifacts.push(level.artifactId);
-          artifactsUpdated = true;
-        }
-      }
-    }
+    
+    // Use shared helper function for artifact unlocks
+    const { updated: artifactsUpdated, artifacts: unlockedArtifacts } = getUnlockedArtifactsForXP(
+      newXP, 
+      user.unlockedArtifacts
+    );
 
     // ---- Calculate Shards ----
     const newShards = user.weaponShards + shardReward;
@@ -632,17 +607,12 @@ export const finishLetEmCook = mutation({
 
     // Check for artifact unlocks with new XP
     const newXP = user.xp + xpEarned;
-    const unlockedArtifacts = [...user.unlockedArtifacts];
-    let artifactsUpdated = false;
-
-    for (const level of LEVELS) {
-      if (newXP >= level.xpRequired && level.artifactId) {
-        if (!unlockedArtifacts.includes(level.artifactId)) {
-          unlockedArtifacts.push(level.artifactId);
-          artifactsUpdated = true;
-        }
-      }
-    }
+    
+    // Use shared helper function for artifact unlocks
+    const { updated: artifactsUpdated, artifacts: unlockedArtifacts } = getUnlockedArtifactsForXP(
+      newXP, 
+      user.unlockedArtifacts
+    );
 
     // Update user stats
     await ctx.db.patch(user._id, {
@@ -749,17 +719,11 @@ export const syncFlagChampsStats = mutation({
     const newXP = user.xp + args.newXP;
 
     // Check for artifact unlocks
-    const unlockedArtifacts = [...user.unlockedArtifacts];
-    let artifactsUpdated = false;
-
-    for (const level of LEVELS) {
-      if (newXP >= level.xpRequired && level.artifactId) {
-        if (!unlockedArtifacts.includes(level.artifactId)) {
-          unlockedArtifacts.push(level.artifactId);
-          artifactsUpdated = true;
-        }
-      }
-    }
+    // Use shared helper function for artifact unlocks
+    const { updated: artifactsUpdated, artifacts: unlockedArtifacts } = getUnlockedArtifactsForXP(
+      newXP, 
+      user.unlockedArtifacts
+    );
 
     // Update best score if game is complete and we beat previous best
     let newBestScore = user.fcBestScore ?? 0;

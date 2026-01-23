@@ -203,7 +203,8 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   })
-    .index("by_enabled", ["isEnabled"]),
+    .index("by_enabled", ["isEnabled"])
+    .index("by_name", ["name"]),
 
   // Game settings (singleton per game)
   gameSettings: defineTable({

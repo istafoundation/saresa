@@ -433,22 +433,47 @@ export default function FlagChampsScreen() {
   const uniqueProgress = new Set([...(progress.guessedToday || []), ...sessionGuessed]).size;
   
   // Create the blanks display (all blanks, unless hint reveals some)
+  // Dynamic sizing for long country names
   const createBlanksDisplay = () => {
     if (!currentCountry) return null;
     
     const letters = currentCountry.name.toUpperCase().split('');
+    const letterCount = letters.filter(c => c !== ' ').length;
+    
+    // Dynamic sizing: smaller boxes for longer names
+    // Standard: 24x32, Medium (15-20 letters): 20x28, Small (21+ letters): 16x24
+    const isLong = letterCount > 20;
+    const isMedium = letterCount > 14 && letterCount <= 20;
+    
+    const boxStyle = isLong 
+      ? styles.letterBoxSmall 
+      : isMedium 
+        ? styles.letterBoxMedium 
+        : styles.letterBox;
+    
+    const textStyle = isLong
+      ? styles.letterTextSmall
+      : isMedium
+        ? styles.letterTextMedium
+        : styles.letterText;
+    
+    const spaceStyle = isLong
+      ? styles.spaceBoxSmall
+      : isMedium
+        ? styles.spaceBoxMedium
+        : styles.spaceBox;
     
     return letters.map((char, i) => {
       // Is this letter revealed by hint?
       const isRevealed = showHint && hintReveals.includes(i);
       
       if (char === ' ') {
-        return <View key={i} style={styles.spaceBox} />;
+        return <View key={i} style={spaceStyle} />;
       }
       
       return (
-        <View key={i} style={[styles.letterBox, isRevealed && styles.revealedBox]}>
-          <Text style={styles.letterText}>
+        <View key={i} style={[boxStyle, isRevealed && styles.revealedBox]}>
+          <Text style={textStyle}>
             {isRevealed ? char : '_'}
           </Text>
         </View>
@@ -751,6 +776,30 @@ const styles = StyleSheet.create({
     borderBottomWidth: 2,
     borderBottomColor: COLORS.primary,
   },
+  // Medium size for 15-20 letter names
+  letterBoxMedium: {
+    width: 20,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.sm,
+    margin: 1,
+    borderBottomWidth: 2,
+    borderBottomColor: COLORS.primary,
+  },
+  // Small size for 21+ letter names
+  letterBoxSmall: {
+    width: 16,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.sm,
+    margin: 1,
+    borderBottomWidth: 2,
+    borderBottomColor: COLORS.primary,
+  },
   revealedBox: {
     backgroundColor: COLORS.primary + '30',
     borderBottomColor: COLORS.success,
@@ -759,8 +808,26 @@ const styles = StyleSheet.create({
     width: 12,
     height: 32,
   },
+  spaceBoxMedium: {
+    width: 10,
+    height: 28,
+  },
+  spaceBoxSmall: {
+    width: 8,
+    height: 24,
+  },
   letterText: {
     fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  letterTextMedium: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  letterTextSmall: {
+    fontSize: 10,
     fontWeight: '700',
     color: COLORS.text,
   },
