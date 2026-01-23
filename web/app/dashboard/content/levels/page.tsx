@@ -612,13 +612,28 @@ EXAMPLE ROWS
 
             escapeCSV={escapeCSV} // Pass helper down
             onReorderLevel={async (direction) => {
-              await reorderLevels({ levelId: level._id, direction });
+              try {
+                await reorderLevels({ levelId: level._id, direction });
+              } catch (e) {
+                console.error("Reorder Level Error:", e);
+                alert("Failed to reorder level: " + (e as Error).message);
+              }
             }}
             onReorderDifficulty={async (diffName, direction) => {
-              await reorderDifficulties({ levelId: level._id, difficultyName: diffName, direction });
+              try {
+                await reorderDifficulties({ levelId: level._id, difficultyName: diffName, direction });
+              } catch (e) {
+                console.error("Reorder Difficulty Error:", e);
+                alert("Failed to reorder difficulty: " + (e as Error).message);
+              }
             }}
             onReorderQuestion={async (qId, direction) => {
-              await reorderQuestions({ questionId: qId, direction });
+              try {
+                await reorderQuestions({ questionId: qId, direction });
+              } catch (e) {
+                console.error("Reorder Question Error:", e);
+                alert("Failed to reorder question: " + (e as Error).message);
+              }
             }}
           />
         ))}
@@ -863,15 +878,17 @@ function LevelAccordion({
             {/* Level Reordering */}
             <div className="flex flex-col gap-0.5 ml-2">
               <button 
+                type="button"
                 onClick={(e) => { e.stopPropagation(); onReorderLevel("up"); }}
-                className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600"
+                className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600 active:bg-slate-300"
                 title="Move Up"
               >
                 <ArrowUp className="w-3 h-3" />
               </button>
               <button 
+                type="button"
                 onClick={(e) => { e.stopPropagation(); onReorderLevel("down"); }}
-                className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600"
+                className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600 active:bg-slate-300"
                 title="Move Down"
               >
                 <ArrowDown className="w-3 h-3" />
@@ -956,15 +973,17 @@ function LevelAccordion({
                   {/* Difficulty Reordering */}
                   <div className="flex flex-col gap-0.5 mx-1">
                     <button 
+                      type="button"
                       onClick={(e) => { e.stopPropagation(); onReorderDifficulty(difficulty.name, "up"); }}
-                      className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600"
+                      className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600 active:bg-slate-300"
                       title="Move Up"
                     >
                       <ArrowUp className="w-3 h-3" />
                     </button>
                     <button 
+                      type="button"
                       onClick={(e) => { e.stopPropagation(); onReorderDifficulty(difficulty.name, "down"); }}
-                      className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600"
+                      className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600 active:bg-slate-300"
                       title="Move Down"
                     >
                       <ArrowDown className="w-3 h-3" />
@@ -1018,15 +1037,17 @@ function LevelAccordion({
                           {/* Question Reordering */}
                           <div className="flex flex-col gap-0.5 px-2">
                              <button 
+                              type="button"
                               onClick={() => onReorderQuestion(q._id, "up")}
-                              className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600"
+                              className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600 active:bg-slate-300"
                               title="Move Up"
                             >
                               <ArrowUp className="w-3 h-3" />
                             </button>
                             <button 
+                              type="button"
                               onClick={() => onReorderQuestion(q._id, "down")}
-                              className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600"
+                              className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600 active:bg-slate-300"
                               title="Move Down"
                             >
                               <ArrowDown className="w-3 h-3" />
