@@ -37,8 +37,8 @@ interface Spice {
 
 // Initialize ImageKit for client-side uploads
 const imagekit = new ImageKit({
-  publicKey: "public_S+qCGuJevV08lqWzX9O5Vfbq+OU=", 
-  urlEndpoint: "https://ik.imagekit.io/rx4099", 
+  publicKey: process.env.NEXT_PUBLIC_IMAGEKIT_PUBLIC_KEY!,
+  urlEndpoint: process.env.NEXT_PUBLIC_IMAGEKIT_URL_ENDPOINT!,
   authenticationEndpoint: "/api/imagekit",
 } as any);
 
@@ -98,9 +98,12 @@ export default function SpicesManagementPage() {
     
     setIsSubmitting(true);
     try {
+      // Process image URL (upload if external)
+      const finalImageUrl = await processImageUrl(formData.imageUrl, "Manual Add");
+      
       await addSpice({
         name: formData.name,
-        imageUrl: formData.imageUrl,
+        imageUrl: finalImageUrl,
         description: formData.description || undefined,
         isEnabled: formData.isEnabled,
       });
@@ -118,16 +121,20 @@ export default function SpicesManagementPage() {
     
     setIsSubmitting(true);
     try {
+      // Process image URL (upload if external)
+      const finalImageUrl = await processImageUrl(formData.imageUrl, "Manual Edit");
+
       await updateSpice({
         id: editingId as any,
         name: formData.name,
-        imageUrl: formData.imageUrl,
+        imageUrl: finalImageUrl,
         description: formData.description || undefined,
         isEnabled: formData.isEnabled,
       });
       resetForm();
     } catch (error) {
       console.error("Failed to update spice:", error);
+      alert("Failed to update spice: " + (error as Error).message);
     }
     setIsSubmitting(false);
   };
@@ -186,9 +193,9 @@ export default function SpicesManagementPage() {
     return str;
   };
 
-  // Helper to process image URLs in CSV
-  const extractImagesAndUpload = async (url: string, rowNum: number): Promise<string> => {
-    if (!url) throw new Error(`Row ${rowNum}: Image URL missing`);
+  // Helper to process image URLs (used by both CSV and Manual entry)
+  const processImageUrl = async (url: string, context: string): Promise<string> => {
+    if (!url) throw new Error(`${context}: Image URL missing`);
     
     if (url.includes("imagekit.io")) {
       return url; 
@@ -209,7 +216,7 @@ export default function SpicesManagementPage() {
         file: file,
         fileName: `spice_${Date.now()}_${Math.random().toString(36).substring(7)}`,
         useUniqueFileName: true,
-        tags: ["spice-csv-import"],
+        tags: ["spice-import"],
         folder: "/spices",
         token: authParams.token,
         signature: authParams.signature,
@@ -219,7 +226,7 @@ export default function SpicesManagementPage() {
       return result.url;
     } catch (err) {
       console.error("Image processing error:", err);
-      throw new Error(`Row ${rowNum}: Failed to process image ${url}. Error: ${(err as Error).message}`);
+      throw new Error(`${context}: Failed to process image ${url}. Error: ${(err as Error).message}`);
     }
   };
 
@@ -378,7 +385,7 @@ Cumin,https://example.com/jeera.jpg,Small brown seeds
         }
 
         try {
-          const finalUrl = await extractImagesAndUpload(rawUrl, rowNum);
+          const finalUrl = await processImageUrl(rawUrl, `Row ${rowNum}`);
           
           parsedSpices.push({
             name,

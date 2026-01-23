@@ -434,7 +434,7 @@ export default function FunScreen() {
                     <Text style={styles.modeButtonDesc}>
                       {gameLimits.lecCompleted 
                         ? 'Challenge completed!' 
-                        : 'Match 30 spices • One-time only!'}
+                        : 'Explore Indian Spices • 1x daily'}
                     </Text>
                   </View>
                 </View>

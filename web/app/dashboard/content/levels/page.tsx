@@ -33,8 +33,8 @@ import ImageKit from "imagekit-javascript";
 
 // Initialize ImageKit for client-side uploads
 const imagekit = new ImageKit({
-  publicKey: "public_S+qCGuJevV08lqWzX9O5Vfbq+OU=", 
-  urlEndpoint: "https://ik.imagekit.io/rx4099", 
+  publicKey: process.env.NEXT_PUBLIC_IMAGEKIT_PUBLIC_KEY!,
+  urlEndpoint: process.env.NEXT_PUBLIC_IMAGEKIT_URL_ENDPOINT!,
   authenticationEndpoint: "/api/imagekit",
 } as any);
 
