@@ -23,7 +23,10 @@
         "backgroundColor": "#1A0A2E"
       },
       "package": "in.istafoundation.saresa",
-      "versionCode": 36
+      "versionCode": 36,
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -32,7 +35,13 @@
     "plugins": [
       "expo-router",
       "expo-audio",
-      "./plugins/withAndroidSigning"
+      "./plugins/withAndroidSigning",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow Saresa to access your microphone to recognize your speech."
+        }
+      ]
     ]
   }
 }

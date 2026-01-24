@@ -72,6 +72,7 @@ export default function SpeakingRenderer({
 }: SpeakingRendererProps) {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState("");
+  const transcriptRef = React.useRef("");
   const [permissionGranted, setPermissionGranted] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
@@ -80,7 +81,8 @@ export default function SpeakingRenderer({
   // Normalize text for comparison
   const normalize = (text: string) => {
     return text.toLowerCase()
-      .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "")
+      // Remove all punctuation including ? ! . , and " '
+      .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"'\[\]]/g, "")
       .replace(/\s{2,}/g, " ")
       .trim();
   };
@@ -98,6 +100,7 @@ export default function SpeakingRenderer({
     const result = event.results[0]?.transcript;
     if (result) {
       setTranscript(result);
+      transcriptRef.current = result;
     }
   });
 
@@ -106,6 +109,7 @@ export default function SpeakingRenderer({
     
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setTranscript("");
+    transcriptRef.current = "";
     setIsListening(true);
     try {
       await ExpoSpeechRecognitionModule.start({
@@ -136,12 +140,11 @@ export default function SpeakingRenderer({
   };
 
   const verifySpeech = useCallback(() => {
-    // Use the current transcript state
-    // Note: In a real closure, we might need a ref if transcript isn't updating fast enough, 
-    // but the delay above usually helps.
+    // Use the ref to get the latest transcript even inside the closure
+    const currentTranscript = transcriptRef.current;
     
     const target = normalize(data.sentence);
-    const spoken = normalize(transcript);
+    const spoken = normalize(currentTranscript);
     
     if (!spoken) {
        // If nothing was caught
@@ -156,8 +159,17 @@ export default function SpeakingRenderer({
     const similarity = 1 - (distance / maxLength);
     
     // Dynamic threshold: shorter sentences require higher accuracy
-    const threshold = target.length < 10 ? 0.9 : 0.8;
+    // Relaxed: 0.8 for short, 0.70 for long (allows ~1-2 wrong words)
+    const threshold = target.length < 15 ? 0.9 : 0.8;
     const passed = similarity >= threshold;
+
+    console.log('[SpeakingRenderer] Verification:', { 
+      target, 
+      spoken, 
+      similarity: similarity.toFixed(2), 
+      threshold, 
+      passed 
+    });
 
     if (passed) {
       // Correct!
@@ -172,7 +184,7 @@ export default function SpeakingRenderer({
       // But we can show what they said
       if (onFeedback) onFeedback(false); // Trigger wrong sound
     }
-  }, [transcript, data.sentence, onFeedback, onAnswer]);
+  }, [data.sentence, onFeedback, onAnswer]);
 
 
   return (
