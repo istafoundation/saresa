@@ -41,8 +41,8 @@ export default function SelectRenderer({
       // Strip punctuation for comparison
       const cleanWord = word.replace(/[.,!?;:'"]/g, '');
       if (data.correctWords.some(cw => 
-        cw.toLowerCase() === cleanWord.toLowerCase() ||
-        cw.toLowerCase() === word.toLowerCase()
+        cw === cleanWord ||
+        cw === word
       )) {
         indices.push(index);
       }
