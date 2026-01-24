@@ -59,11 +59,6 @@ function generateGrid(solution: string | string[]): {
     { dr: 0, dc: 1 }, // right
     { dr: 1, dc: 0 }, // down
     { dr: 1, dc: 1 }, // diagonal down-right
-    { dr: 0, dc: -1 }, // left
-    { dr: -1, dc: 0 }, // up
-    { dr: -1, dc: -1 }, // diagonal up-left
-    { dr: 1, dc: -1 }, // diagonal down-left
-    { dr: -1, dc: 1 }, // diagonal up-right
   ];
 
   const placements: {
@@ -482,29 +477,31 @@ export default function GridRenderer({
         ))}
       </View>
 
-      {/* Words List to Find (Visual Aid) */}
-      <View style={styles.wordsListContainer}>
-        {placements.map((p, idx) => (
-          <View
-            key={idx}
-            style={[styles.wordChip, p.found && styles.wordChipFound]}
-          >
-            <Text
-              style={[styles.wordChipText, p.found && styles.wordChipTextFound]}
+      {/* Words List to Find (Visual Aid) - Only show when result is revealed per user request */}
+      {showResult && (
+        <View style={styles.wordsListContainer}>
+          {placements.map((p, idx) => (
+            <View
+              key={idx}
+              style={[styles.wordChip, p.found && styles.wordChipFound]}
             >
-              {p.word}
-            </Text>
-            {p.found && (
-              <Ionicons
-                name="checkmark"
-                size={14}
-                color="white"
-                style={{ marginLeft: 4 }}
-              />
-            )}
-          </View>
-        ))}
-      </View>
+              <Text
+                style={[styles.wordChipText, p.found && styles.wordChipTextFound]}
+              >
+                {p.word}
+              </Text>
+              {p.found && (
+                <Ionicons
+                  name="checkmark"
+                  size={14}
+                  color="white"
+                  style={{ marginLeft: 4 }}
+                />
+              )}
+            </View>
+          ))}
+        </View>
+      )}
 
       {/* Result (Only shown when everything is done) */}
       {showResult && (

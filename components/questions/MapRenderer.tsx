@@ -83,19 +83,7 @@ export default function MapRenderer({
         />
       </View>
       
-      {/* Selected region indicator */}
-      {selectedRegion && !showResult && (
-        <MotiView
-          from={{ opacity: 0, translateY: 10 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          style={styles.selectionInfo}
-        >
-          <Ionicons name="location" size={20} color={COLORS.primary} />
-          <Text style={styles.selectionText}>
-            Selected: {getRegionName(selectedRegion)}
-          </Text>
-        </MotiView>
-      )}
+
       
       {/* Submit button */}
       {selectedRegion && !showResult && (
