@@ -511,10 +511,13 @@ EXAMPLE ROWS
       } else {
         // EXECUTE BULK REPLACE
         if (uploadDifficultyName) {
+             // Strip difficultyName as the mutation doesn't expect it in the question object
+             const questionsForDifficulty = parsedQuestions.map(({ difficultyName, ...rest }) => rest);
+             
              await bulkReplaceDifficultyQuestions({
                 levelId: uploadLevelId,
                 difficultyName: uploadDifficultyName,
-                questions: parsedQuestions
+                questions: questionsForDifficulty
              });
         } else {
             await bulkReplaceQuestions({
