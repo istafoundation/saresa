@@ -11,7 +11,7 @@ interface SelectRendererProps {
   data: {
     statement: string;
     correctWords: string[];
-    selectMode: 'single' | 'multiple';
+    selectMode: 'single' | 'multiple' | 'boxed';
   };
   onAnswer: (isCorrect: boolean) => void;
   onFeedback?: (isCorrect: boolean) => void;
@@ -63,6 +63,7 @@ export default function SelectRenderer({
         newSelected.add(index);
       }
     } else {
+      // Multiple OR Boxed (Boxed defaults to multiple)
       if (newSelected.has(index)) {
         newSelected.delete(index);
       } else {
@@ -83,7 +84,6 @@ export default function SelectRenderer({
       selectedArray.every(i => correctIndices.includes(i));
     
     setIsCorrect(correct);
-    setIsCorrect(correct);
     setShowResult(true);
     if (onFeedback) {
       onFeedback(correct);
@@ -93,6 +93,8 @@ export default function SelectRenderer({
     onAnswer(correct);
   }, [selectedIndices, showResult, correctIndices, onAnswer, onFeedback]);
   
+  const isBoxed = data.selectMode === 'boxed';
+
   return (
     <ScrollView 
       style={styles.container}
@@ -123,56 +125,100 @@ export default function SelectRenderer({
         transition={{ type: 'spring', delay: 100 }}
         style={styles.sentenceCard}
       >
-        <View style={styles.sentenceHeader}>
-          <Ionicons name="document-text-outline" size={18} color={COLORS.textSecondary} />
-          <Text style={styles.sentenceLabel}>Read the sentence:</Text>
-        </View>
+        {/* Only show "Read the sentence" header if NOT boxed (optional choice, keeping it clean for boxed) */}
+        {!isBoxed && (
+          <View style={styles.sentenceHeader}>
+            <Ionicons name="document-text-outline" size={18} color={COLORS.textSecondary} />
+            <Text style={styles.sentenceLabel}>Read the sentence:</Text>
+          </View>
+        )}
         
-        {/* Sentence as inline text with tappable words */}
-        <Text style={styles.sentenceText}>
-          {words.map((word, index) => {
-            const isSelected = selectedIndices.has(index);
-            const isCorrectWord = correctIndices.includes(index);
-            const isWrongSelection = showResult && isSelected && !isCorrectWord;
-            const isMissedCorrect = showResult && isCorrectWord && !isSelected;
-            
-            // Determine background and text color based on state
-            let bgStyle = {};
-            let textColor = COLORS.text;
-            
-            if (showResult) {
-              if (isCorrectWord) {
-                bgStyle = styles.wordCorrectBg;
-                textColor = COLORS.success;
-              } else if (isWrongSelection) {
-                bgStyle = styles.wordWrongBg;
-                textColor = COLORS.error;
+        {/* Sentence Container */}
+        <View style={isBoxed ? styles.boxedContainer : undefined}>
+          {isBoxed ? (
+            // BOXED RENDERING
+            words.map((word, index) => {
+              const isSelected = selectedIndices.has(index);
+              const isCorrectWord = correctIndices.includes(index);
+              
+              // Boxed States
+              let boxStyle: any = styles.boxedWord;
+              let textStyle: any = styles.boxedWordText;
+
+              if (showResult) {
+                if (isCorrectWord) {
+                  boxStyle = [styles.boxedWord, styles.boxedCorrect];
+                  textStyle = styles.boxedTextCorrect;
+                } else if (isSelected && !isCorrectWord) {
+                  boxStyle = [styles.boxedWord, styles.boxedWrong];
+                  textStyle = styles.boxedTextWrong;
+                } else {
+                   // Unselected, non-correct words in result view
+                   boxStyle = [styles.boxedWord, { opacity: 0.5 }];
+                }
+              } else if (isSelected) {
+                boxStyle = [styles.boxedWord, styles.boxedSelected];
+                textStyle = styles.boxedTextSelected;
               }
-            } else if (isSelected) {
-              bgStyle = styles.wordSelectedBg;
-              textColor = COLORS.primary;
-            }
-            
-            const isLastWord = index === words.length - 1;
-            
-            return (
-              <Text key={`word-${index}`}>
-                <Text
+
+              return (
+                <Pressable
+                  key={`boxed-${index}`}
                   onPress={() => handleWordPress(index)}
-                  style={[
-                    styles.inlineWord,
-                    bgStyle,
-                    { color: textColor },
-                    isMissedCorrect && styles.wordMissedText,
-                  ]}
+                  style={boxStyle}
                 >
-                  {word}
-                </Text>
-                {!isLastWord && <Text style={styles.wordSpace}> </Text>}
-              </Text>
-            );
-          })}
-        </Text>
+                  <Text style={textStyle}>{word}</Text>
+                </Pressable>
+              );
+            })
+          ) : (
+            // INLINE TEXT RENDERING (Original)
+            <Text style={styles.sentenceText}>
+              {words.map((word, index) => {
+                const isSelected = selectedIndices.has(index);
+                const isCorrectWord = correctIndices.includes(index);
+                const isWrongSelection = showResult && isSelected && !isCorrectWord;
+                const isMissedCorrect = showResult && isCorrectWord && !isSelected;
+                
+                // Determine background and text color based on state
+                let bgStyle = {};
+                let textColor = COLORS.text;
+                
+                if (showResult) {
+                  if (isCorrectWord) {
+                    bgStyle = styles.wordCorrectBg;
+                    textColor = COLORS.success;
+                  } else if (isWrongSelection) {
+                    bgStyle = styles.wordWrongBg;
+                    textColor = COLORS.error;
+                  }
+                } else if (isSelected) {
+                  bgStyle = styles.wordSelectedBg;
+                  textColor = COLORS.primary;
+                }
+                
+                const isLastWord = index === words.length - 1;
+                
+                return (
+                  <Text key={`word-${index}`}>
+                    <Text
+                      onPress={() => handleWordPress(index)}
+                      style={[
+                        styles.inlineWord,
+                        bgStyle,
+                        { color: textColor },
+                        isMissedCorrect && styles.wordMissedText,
+                      ]}
+                    >
+                      {word}
+                    </Text>
+                    {!isLastWord && <Text style={styles.wordSpace}> </Text>}
+                  </Text>
+                );
+              })}
+            </Text>
+          )}
+        </View>
         
         {/* Selection indicator */}
         {selectedIndices.size > 0 && !showResult && (
@@ -343,6 +389,55 @@ const styles = StyleSheet.create({
     textDecorationStyle: 'dashed',
     color: COLORS.success,
     fontWeight: '700',
+  },
+  // Boxed Styles
+  boxedContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.sm,
+    justifyContent: 'center',
+  },
+  boxedWord: {
+    backgroundColor: COLORS.background,
+    borderWidth: 1.5,
+    borderColor: COLORS.textMuted + '40',
+    borderRadius: BORDER_RADIUS.lg,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    minWidth: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  boxedSelected: {
+    backgroundColor: COLORS.primary + '15',
+    borderColor: COLORS.primary,
+    transform: [{ scale: 1.05 }],
+  },
+  boxedCorrect: {
+    backgroundColor: COLORS.success + '15',
+    borderColor: COLORS.success,
+  },
+  boxedWrong: {
+    backgroundColor: COLORS.error + '15',
+    borderColor: COLORS.error,
+  },
+  boxedWordText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  boxedTextSelected: {
+    color: COLORS.primary,
+    fontWeight: '700',
+  },
+  boxedTextCorrect: {
+    color: COLORS.success,
+    fontWeight: '800',
+  },
+  boxedTextWrong: {
+    color: COLORS.error,
+    fontWeight: '700',
+    textDecorationLine: 'line-through',
   },
   selectionSummary: {
     flexDirection: 'row',

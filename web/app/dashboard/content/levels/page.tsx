@@ -1335,7 +1335,7 @@ function AddQuestionModal({ levelId, difficultyName, onClose, onCreate }: {
   // Select fields
   const [statement, setStatement] = useState("");
   const [correctWords, setCorrectWords] = useState("");
-  const [selectMode, setSelectMode] = useState<"single" | "multiple">("single");
+  const [selectMode, setSelectMode] = useState<"single" | "multiple" | "boxed">("single");
 
   // Map fields
   const [mapSolution, setMapSolution] = useState("IN-MH");
@@ -1550,11 +1550,12 @@ function AddQuestionModal({ levelId, difficultyName, onClose, onCreate }: {
               <label className="block text-sm font-medium text-slate-700 mb-1">Selection Mode</label>
               <select
                 value={selectMode}
-                onChange={(e) => setSelectMode(e.target.value as "single" | "multiple")}
+                onChange={(e) => setSelectMode(e.target.value as "single" | "multiple" | "boxed")}
                 className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="single">Single Word</option>
                 <option value="multiple">Multiple Words</option>
+                <option value="boxed">Boxed (Sequential)</option>
               </select>
             </div>
           </>
@@ -1684,7 +1685,7 @@ function EditQuestionModal({ question, onClose, onSave }: {
   const [solution, setSolution] = useState(data.solution ?? "");
   const [statement, setStatement] = useState(data.statement ?? "");
   const [correctWords, setCorrectWords] = useState((data.correctWords ?? []).join(", "));
-  const [selectMode, setSelectMode] = useState<"single" | "multiple">(data.selectMode ?? "single");
+  const [selectMode, setSelectMode] = useState<"single" | "multiple" | "boxed">(data.selectMode ?? "single");
   
   // Match question fields
   const [matchPairs, setMatchPairs] = useState<{imageUrl: string; text: string}[]>(
@@ -1857,11 +1858,12 @@ function EditQuestionModal({ question, onClose, onSave }: {
               <label className="block text-sm font-medium text-slate-700 mb-1">Selection Mode</label>
               <select
                 value={selectMode}
-                onChange={(e) => setSelectMode(e.target.value as "single" | "multiple")}
+                onChange={(e) => setSelectMode(e.target.value as "single" | "multiple" | "boxed")}
                 className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="single">Single Word</option>
                 <option value="multiple">Multiple Words</option>
+                <option value="boxed">Boxed (Sequential)</option>
               </select>
             </div>
           </>
