@@ -390,7 +390,8 @@ export default defineSchema({
       v.literal("grid"),               // Word Finder style grid
       v.literal("map"),                // Explorer style map selection
       v.literal("select"),             // Grammar Detective style word selection
-      v.literal("match")               // Picture matching - connect images to texts
+      v.literal("match"),              // Picture matching - connect images to texts
+      v.literal("speaking")            // Speaking - pronounce a sentence
     ),
     
     question: v.string(),              // The question/prompt text

@@ -21,10 +21,11 @@ import GridRenderer from '../../../components/questions/GridRenderer';
 import MapRenderer from '../../../components/questions/MapRenderer';
 import SelectRenderer from '../../../components/questions/SelectRenderer';
 import MatchRenderer from '../../../components/questions/MatchRenderer';
+import SpeakingRenderer from '../../../components/questions/SpeakingRenderer';
 
 type Question = {
   _id: Id<"levelQuestions">;
-  questionType: 'mcq' | 'grid' | 'map' | 'select' | 'match';
+  questionType: 'mcq' | 'grid' | 'map' | 'select' | 'match' | 'speaking';
   question: string;
   data: any;
 };
@@ -380,6 +381,15 @@ export default function LevelGameScreen() {
           {currentQuestion.questionType === 'match' && (
             <MatchRenderer
               key={`match-${questionKey}`}
+              question={currentQuestion.question}
+              data={currentQuestion.data}
+              onAnswer={handleAnswer}
+              onFeedback={handleFeedback}
+            />
+          )}
+          {currentQuestion.questionType === 'speaking' && (
+            <SpeakingRenderer
+              key={`speaking-${questionKey}`}
               question={currentQuestion.question}
               data={currentQuestion.data}
               onAnswer={handleAnswer}

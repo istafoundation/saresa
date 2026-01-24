@@ -47,7 +47,7 @@ type Level = Doc<"levels"> & {
 
 type LevelQuestion = Doc<"levelQuestions">;
 
-type QuestionType = "mcq" | "grid" | "map" | "select" | "match";
+type QuestionType = "mcq" | "grid" | "map" | "select" | "match" | "speaking";
 
 const QUESTION_TYPES: { value: QuestionType; label: string; icon: React.ReactNode }[] = [
   { value: "mcq", label: "Multiple Choice", icon: <Zap className="w-4 h-4" /> },
@@ -55,6 +55,7 @@ const QUESTION_TYPES: { value: QuestionType; label: string; icon: React.ReactNod
   { value: "grid", label: "Word Grid", icon: <Grid3X3 className="w-4 h-4" /> },
   { value: "map", label: "Map Location", icon: <Map className="w-4 h-4" /> },
   { value: "match", label: "Picture Match", icon: <LinkIcon className="w-4 h-4" /> },
+  { value: "speaking", label: "Speaking", icon: <Zap className="w-4 h-4" /> },
 ];
 
 // Helper to process image URLs (used by CSV and Manual entry)
@@ -203,7 +204,7 @@ This guide explains how to create levels using the CSV upload feature.
 Each level requires a specific CSV format that can contain MULTIPLE types of questions.
 
 REQUIRED CSV HEADERS (exact spelling):
-Order,Type,Difficulty,Question,Option 1,Option 2,Option 3,Option 4,Correct Option,Solution,Statement,Correct Words,Select Mode,Explanation,Pairs
+Order,Type,Difficulty,Question,Option 1,Option 2,Option 3,Option 4,Correct Option,Solution,Statement,Correct Words,Select Mode,Explanation,Pairs,Sentence
 
 -------------------------------------------
 COLUMN EXPLANATIONS
@@ -215,7 +216,7 @@ COLUMN EXPLANATIONS
    - EXISTING QUESTIONS WILL BE REPLACED by this upload to match this exact order.
 
 2. Type (Required)
-   - Must be one of: mcq, grid, map, select, match
+   - Must be one of: mcq, grid, map, select, match, speaking
 
 3. Difficulty (Required)
    - Must be one of: easy, medium, hard
@@ -252,6 +253,10 @@ E. For Match Questions (Type = match):
      Format: url1|text1;url2|text2;url3|text3
      Example: https://site.com/cat.jpg|Cat;https://site.com/dog.jpg|Dog
      Note: If Image URL is not from ImageKit, it will be automatically uploaded.
+256: 
+257: F. For Speaking Questions (Type = speaking):
+258:    - Sentence: The text the child needs to speak aloud.
+259:    - (Level Option columns empty)
 
 -------------------------------------------
 EXAMPLE ROWS
@@ -346,7 +351,7 @@ EXAMPLE ROWS
 
       // Validate Headers
       const headers = rows[0].map(h => h.trim().toLowerCase());
-      const expectedHeaders = ['order','type','difficulty','question','option 1','option 2','option 3','option 4','correct option','solution','statement','correct words','select mode','explanation','pairs'];
+      const expectedHeaders = ['order','type','difficulty','question','option 1','option 2','option 3','option 4','correct option','solution','statement','correct words','select mode','explanation','pairs','sentence'];
       
       const missingHeaders = expectedHeaders.filter(h => !headers.includes(h) && h !== 'pairs'); // pairs is optional for other types
       // Actually, if we enforce all headers to be present in CSV even if empty, strictly checking might be annoying.
@@ -399,7 +404,7 @@ EXAMPLE ROWS
           errors.push(`Row ${rowNum}: Question is required`);
           continue;
         }
-        if (!['mcq', 'grid', 'map', 'select', 'match'].includes(type)) {
+        if (!['mcq', 'grid', 'map', 'select', 'match', 'speaking'].includes(type)) {
           errors.push(`Row ${rowNum}: Invalid Type "${type}"`);
           continue;
         }
@@ -473,6 +478,10 @@ EXAMPLE ROWS
             
             if (processedPairs.length < 2) throw new Error("Match requires at least 2 pairs");
             data = { pairs: processedPairs };
+          } else if (type === 'speaking') {
+            const sentence = getVal('sentence');
+            if (!sentence) throw new Error("Speaking requires 'Sentence'");
+            data = { sentence };
           }
   
           parsedQuestions.push({
@@ -777,7 +786,7 @@ function LevelAccordion({
     if (!questions) return;
 
     // Flatten logic similar to upload
-    const headers = ['Order','Type','Difficulty','Question','Option 1','Option 2','Option 3','Option 4','Correct Option','Solution','Statement','Correct Words','Select Mode','Explanation','Pairs'];
+    const headers = ['Order','Type','Difficulty','Question','Option 1','Option 2','Option 3','Option 4','Correct Option','Solution','Statement','Correct Words','Select Mode','Explanation','Pairs','Sentence'];
     
     // Flatten all questions into a single list
     // We need to establish an order. Ideally we sort by createdAt or similar if order field not guaranteed?
@@ -1337,6 +1346,11 @@ function AddQuestionModal({ levelId, difficultyName, onClose, onCreate }: {
     { imageUrl: "", text: "" },
   ]);
 
+  // Speaking fields
+  const [speakingSentence, setSpeakingSentence] = useState("");
+
+
+
   const addMatchPair = () => {
     if (matchPairs.length < 6) {
       setMatchPairs([...matchPairs, { imageUrl: "", text: "" }]);
@@ -1438,6 +1452,7 @@ function AddQuestionModal({ levelId, difficultyName, onClose, onCreate }: {
               questionType === 'grid' ? "Find the word meaning 'happy'" :
               questionType === 'select' ? "Select the noun in this sentence" :
               questionType === 'match' ? "Match the fruits to their names" :
+              questionType === 'speaking' ? "Read the sentence aloud" :
               "Find Maharashtra on the map"
             }
             rows={2}
@@ -1614,6 +1629,22 @@ function AddQuestionModal({ levelId, difficultyName, onClose, onCreate }: {
                 Add Pair
               </button>
             )}
+          </div>
+        )}
+
+        {questionType === "speaking" && (
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Sentence to Speak</label>
+            <textarea
+              value={speakingSentence}
+              onChange={(e) => setSpeakingSentence(e.target.value)}
+              placeholder="e.g., The quick brown fox jumps over the lazy dog."
+              rows={3}
+              className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              The child must speak this sentence. Punctuation and case are ignored during validation.
+            </p>
           </div>
         )}
 
