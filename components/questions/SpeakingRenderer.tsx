@@ -139,11 +139,18 @@ export default function SpeakingRenderer({
     }, 500); 
   };
 
+  useEffect(() => {
+    console.log('[SpeakingRenderer] Data:', JSON.stringify(data));
+  }, [data]);
+
   const verifySpeech = useCallback(() => {
     // Use the ref to get the latest transcript even inside the closure
     const currentTranscript = transcriptRef.current;
     
-    const target = normalize(data.sentence);
+    // Fallback if sentence is missing: use the 'question' prop (main question text)
+    // The user might have entered the sentence in the Question field instead of the Sentence field
+    const targetText = data.sentence || question || ""; 
+    const target = normalize(targetText);
     const spoken = normalize(currentTranscript);
     
     if (!spoken) {
@@ -193,7 +200,9 @@ export default function SpeakingRenderer({
             <Text style={styles.instruction}>Read this sentence aloud:</Text>
             
             <View style={styles.sentenceCard}>
-                <Text style={styles.sentenceText}>{data.sentence}</Text>
+                <Text style={styles.sentenceText}>
+                    {data.sentence || question || "Error: Missing sentence data"}
+                </Text>
             </View>
 
             {/* Hint / Feedback Area */}
