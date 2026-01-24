@@ -117,6 +117,7 @@ function LevelsContent() {
   const updateQuestion = useMutation(api.levels.updateQuestion);
   const deleteQuestion = useMutation(api.levels.deleteQuestion);
   const bulkReplaceQuestions = useMutation(api.levels.bulkReplaceQuestions);
+  const bulkReplaceDifficultyQuestions = useMutation(api.levels.bulkReplaceDifficultyQuestions);
   
   const reorderLevels = useMutation(api.levels.reorderLevels);
   const reorderDifficulties = useMutation(api.levels.reorderDifficulties);
@@ -139,6 +140,7 @@ function LevelsContent() {
   const [uploadStatus, setUploadStatus] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadLevelId, setUploadLevelId] = useState<Id<"levels"> | null>(null);
+  const [uploadDifficultyName, setUploadDifficultyName] = useState<string | null>(null);
 
   const toggleLevel = (levelId: string) => {
     const newExpanded = new Set(expandedLevels);
@@ -367,7 +369,12 @@ EXAMPLE ROWS
       }, {} as Record<string, number>);
 
       // Check strictly required headers
-      const requiredCols = ['order','type','difficulty','question'];
+      // If uploading for specific difficulty, 'difficulty' header is optional/ignored but good to have for validation
+      const requiredCols = ['order','type','question']; 
+      if (!uploadDifficultyName) {
+        requiredCols.push('difficulty');
+      }
+      
       const missingRequired = requiredCols.filter(h => !headers.includes(h));
       if (missingRequired.length > 0) {
         throw new Error(`Missing required headers: ${missingRequired.join(', ')}`);
@@ -383,12 +390,6 @@ EXAMPLE ROWS
         rowIndex++;
         const rowNum = rowIndex + 2;
         
-        if (row.length < headers.length) { 
-           // padding handled by logic below via idx check?
-           // Original code padded row. Let's keep it safe.
-           // But headers length might vary if user uploaded partial.
-        }
-
         const getVal = (header: string) => {
             const i = idx[header];
             if (i === undefined || i >= row.length) return '';
@@ -397,8 +398,16 @@ EXAMPLE ROWS
 
         const orderStr = getVal('order');
         const type = getVal('type').toLowerCase();
-        const diff = getVal('difficulty');
+        let diff = getVal('difficulty');
         const question = getVal('question');
+
+        if (uploadDifficultyName) {
+            // Force difficulty if uploading to specific slot
+            diff = uploadDifficultyName;
+        } else if (!diff) {
+             errors.push(`Row ${rowNum}: Difficulty is required`);
+             continue;
+        }
 
         if (!question) {
           errors.push(`Row ${rowNum}: Question is required`);
@@ -501,10 +510,18 @@ EXAMPLE ROWS
         setUploadStatus({ success: 0, failed: errors.length, errors: errors.slice(0, 10) });
       } else {
         // EXECUTE BULK REPLACE
-        await bulkReplaceQuestions({
-          levelId: uploadLevelId,
-          questions: parsedQuestions
-        });
+        if (uploadDifficultyName) {
+             await bulkReplaceDifficultyQuestions({
+                levelId: uploadLevelId,
+                difficultyName: uploadDifficultyName,
+                questions: parsedQuestions
+             });
+        } else {
+            await bulkReplaceQuestions({
+                levelId: uploadLevelId,
+                questions: parsedQuestions
+            });
+        }
         setUploadStatus({ success: parsedQuestions.length, failed: 0, errors: [] });
       }
 
@@ -516,6 +533,7 @@ EXAMPLE ROWS
     setIsSubmitting(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
     setUploadLevelId(null);
+    setUploadDifficultyName(null);
   };
 
   const totalLevels = levels?.length ?? 0;
@@ -616,6 +634,12 @@ EXAMPLE ROWS
             onDeleteQuestion={handleDeleteQuestion}
             onUploadCSV={() => {
               setUploadLevelId(level._id);
+              setUploadDifficultyName(null);
+              fileInputRef.current?.click();
+            }}
+            onUploadDifficultyCSV={(diffName) => {
+              setUploadLevelId(level._id);
+              setUploadDifficultyName(diffName);
               fileInputRef.current?.click();
             }}
 
@@ -754,6 +778,7 @@ function LevelAccordion({
   onEditQuestion,
   onDeleteQuestion,
   onUploadCSV,
+  onUploadDifficultyCSV,
   escapeCSV,
   onReorderLevel,
   onReorderDifficulty,
@@ -773,6 +798,7 @@ function LevelAccordion({
   onEditQuestion: (q: LevelQuestion) => void;
   onDeleteQuestion: (id: Id<"levelQuestions">) => void;
   onUploadCSV: () => void;
+  onUploadDifficultyCSV: (diffName: string) => void;
   escapeCSV: (val: string | undefined | null) => string;
   onReorderLevel: (direction: "up" | "down") => Promise<void>;
   onReorderDifficulty: (diffName: string, direction: "up" | "down") => Promise<void>;
@@ -781,6 +807,80 @@ function LevelAccordion({
   const questions = useQuery(api.levels.getLevelQuestionsAdmin, { levelId: level._id });
   
   const sortedDifficulties = [...level.difficulties].sort((a, b) => a.order - b.order);
+
+  /* Inserted handleDownloadDifficulty */
+  const handleDownloadDifficulty = (diffName: string) => {
+    if (!questions || !questions[diffName]) return;
+    
+    const diffQuestions = questions[diffName];
+    // Sort
+    const sortedQs = [...diffQuestions].sort((a, b) => {
+        const orderDiff = (a.order ?? 0) - (b.order ?? 0);
+        if (orderDiff !== 0) return orderDiff;
+        return a.createdAt - b.createdAt;
+    });
+
+    const headers = ['Order','Type','Difficulty','Question','Option 1','Option 2','Option 3','Option 4','Correct Option','Solution','Statement','Correct Words','Select Mode','Explanation','Pairs','Sentence'];
+    
+    const rows = sortedQs.map((q, index) => {
+      const order = index + 1;
+      const type = q.questionType;
+      const diff = q.difficultyName;
+      const qt = escapeCSV(q.question);
+      
+      let opt1 = '', opt2 = '', opt3 = '', opt4 = '', correct = '', solution = '', stmt = '', words = '', mode = '', expl = '', pairs = '';
+      
+      const d = q.data as any;
+      if (type === 'mcq') {
+        opt1 = escapeCSV(d.options?.[0]);
+        opt2 = escapeCSV(d.options?.[1]);
+        opt3 = escapeCSV(d.options?.[2]);
+        opt4 = escapeCSV(d.options?.[3]);
+        correct = String(d.correctIndex + 1);
+        expl = escapeCSV(d.explanation);
+      } else if (type === 'grid') {
+        solution = escapeCSV(d.solution);
+      } else if (type === 'map') {
+        solution = escapeCSV(d.solution);
+      } else if (type === 'select') {
+        stmt = escapeCSV(d.statement);
+        words = escapeCSV(d.correctWords?.join(', '));
+        mode = escapeCSV(d.selectMode);
+      } else if (type === 'match') {
+        if (d.pairs && Array.isArray(d.pairs)) {
+           const pairStrings = d.pairs.map((p: any) => `${p.imageUrl}|${p.text}`);
+           pairs = escapeCSV(pairStrings.join(';'));
+        }
+      } else if (type === 'speaking') {
+        solution = escapeCSV(d.sentence); 
+      }
+
+      return [
+        order,
+        type,
+        diff,
+        qt,
+        opt1, opt2, opt3, opt4, correct,
+        solution,
+        stmt,
+        words,
+        mode,
+        expl,
+        pairs,
+        (type === 'speaking' ? escapeCSV(d.sentence) : '')
+      ].join(',');
+    });
+
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `Level-${level.levelNumber}-${diffName}-${level.name.replace(/\s+/g, '_')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const handleDownload = () => {
     if (!questions) return;
@@ -996,6 +1096,24 @@ function LevelAccordion({
                       title="Move Down"
                     >
                       <ArrowDown className="w-3 h-3" />
+                    </button>
+                  </div>
+
+                  {/* CSV Actions for Difficulty */}
+                  <div className="flex items-center gap-1 mx-2">
+                    <button
+                        onClick={(e) => { e.stopPropagation(); handleDownloadDifficulty(difficulty.name); }}
+                        className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                        title="Download CSV"
+                    >
+                        <Download className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onUploadDifficultyCSV(difficulty.name); }}
+                        className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                        title="Upload CSV (Replaces specific difficulty)"
+                    >
+                        <Upload className="w-3.5 h-3.5" />
                     </button>
                   </div>
 

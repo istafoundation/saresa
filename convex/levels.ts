@@ -846,6 +846,68 @@ export const bulkReplaceQuestions = mutation({
   },
 });
 
+// Bulk replace questions for a specific difficulty
+export const bulkReplaceDifficultyQuestions = mutation({
+  args: {
+    levelId: v.id("levels"),
+    difficultyName: v.string(),
+    questions: v.array(v.object({
+      questionType: v.union(
+        v.literal("mcq"),
+        v.literal("grid"),
+        v.literal("map"),
+        v.literal("select"),
+        v.literal("match"),
+        v.literal("speaking")
+      ),
+      question: v.string(),
+      data: v.any(),
+      order: v.optional(v.number()),
+    })),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    
+    // Validate level exists
+    const level = await ctx.db.get(args.levelId);
+    if (!level) {
+      throw new ConvexError("Level not found");
+    }
+
+    // Validate difficulty exists
+    if (!level.difficulties.some(d => d.name === args.difficultyName)) {
+      throw new ConvexError("Difficulty not found in this level");
+    }
+    
+    // Delete all existing questions for this level AND difficulty
+    const existingQuestions = await ctx.db
+      .query("levelQuestions")
+      .withIndex("by_level_difficulty", (q) => 
+        q.eq("levelId", args.levelId).eq("difficultyName", args.difficultyName)
+      )
+      .collect();
+      
+    for (const q of existingQuestions) {
+      await ctx.db.delete(q._id);
+    }
+    
+    // Insert new questions
+    for (const q of args.questions) {
+      await ctx.db.insert("levelQuestions", {
+        levelId: args.levelId,
+        difficultyName: args.difficultyName,
+        questionType: q.questionType,
+        question: q.question,
+        data: q.data,
+        status: "active",
+        order: q.order || (Date.now() + (q.order || 0)), 
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    }
+  },
+});
+
 // ============================================
 // SEED DATA - Demo Questions for Level 1 & 2
 // ============================================
