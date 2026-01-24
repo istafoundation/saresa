@@ -2,7 +2,7 @@
   "expo": {
     "name": "Saresa",
     "slug": "saresa",
-    "version": "1.0.36",
+    "version": "1.0.40",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -23,7 +23,7 @@
         "backgroundColor": "#1A0A2E"
       },
       "package": "in.istafoundation.saresa",
-      "versionCode": 37,
+      "versionCode": 41,
       "permissions": [
         "android.permission.RECORD_AUDIO"
       ]
