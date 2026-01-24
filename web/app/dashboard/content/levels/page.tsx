@@ -133,6 +133,7 @@ function LevelsContent() {
   const [showAddQuestionModal, setShowAddQuestionModal] = useState<{ levelId: Id<"levels">; difficultyName: string } | null>(null);
   const [showEditLevelModal, setShowEditLevelModal] = useState<Level | null>(null);
   const [showEditQuestionModal, setShowEditQuestionModal] = useState<LevelQuestion | null>(null);
+  const [showEditDifficultyModal, setShowEditDifficultyModal] = useState<{ levelId: Id<"levels">; difficulty: { name: string; displayName: string; requiredScore: number } } | null>(null);
   
   // Form state
   const [error, setError] = useState("");
@@ -633,6 +634,7 @@ EXAMPLE ROWS
             onAddDifficulty={() => setShowAddDifficultyModal(level._id)}
             onDeleteDifficulty={(diffName) => handleDeleteDifficulty(level._id, diffName)}
             onAddQuestion={(diffName) => setShowAddQuestionModal({ levelId: level._id, difficultyName: diffName })}
+            onEditDifficulty={(diff) => setShowEditDifficultyModal({ levelId: level._id, difficulty: diff })}
             onEditQuestion={(q) => setShowEditQuestionModal(q)}
             onDeleteQuestion={handleDeleteQuestion}
             onUploadCSV={() => {
@@ -711,6 +713,23 @@ EXAMPLE ROWS
         />
       )}
 
+      {/* Edit Difficulty Modal */}
+      {showEditDifficultyModal && (
+        <EditDifficultyModal
+          difficulty={showEditDifficultyModal.difficulty}
+          onClose={() => setShowEditDifficultyModal(null)}
+          onSave={async (displayName, requiredScore) => {
+            await updateDifficulty({
+              levelId: showEditDifficultyModal.levelId,
+              difficultyName: showEditDifficultyModal.difficulty.name,
+              displayName,
+              requiredScore,
+            });
+            setShowEditDifficultyModal(null);
+          }}
+        />
+      )}
+
       {/* Add Difficulty Modal */}
       {showAddDifficultyModal && (
         <AddDifficultyModal
@@ -776,6 +795,7 @@ function LevelAccordion({
   onEdit,
   onDelete,
   onAddDifficulty,
+  onEditDifficulty,
   onDeleteDifficulty,
   onAddQuestion,
   onEditQuestion,
@@ -796,6 +816,7 @@ function LevelAccordion({
   onEdit: () => void;
   onDelete: () => void;
   onAddDifficulty: () => void;
+  onEditDifficulty: (diff: { name: string; displayName: string; requiredScore: number }) => void;
   onDeleteDifficulty: (diffName: string) => void;
   onAddQuestion: (diffName: string) => void;
   onEditQuestion: (q: LevelQuestion) => void;
@@ -1121,6 +1142,13 @@ function LevelAccordion({
                   </div>
 
                   <span className="text-sm text-slate-500">({difficulty.requiredScore}% to pass)</span>
+                  <button
+                    onClick={() => onEditDifficulty(difficulty)}
+                    className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors ml-2"
+                    title="Edit difficulty"
+                  >
+                    <Pencil className="w-3 h-3" />
+                  </button>
                   <span className="text-xs text-slate-400 ml-auto mr-4">
                     {diffQuestions.length} questions
                   </span>
@@ -1357,6 +1385,63 @@ function EditLevelModal({ level, onClose, onSave }: {
           <button
             type="submit"
             disabled={!name.trim() || isSubmitting}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {isSubmitting ? "Saving..." : "Save Changes"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function EditDifficultyModal({ difficulty, onClose, onSave }: {
+  difficulty: { name: string; displayName: string; requiredScore: number };
+  onClose: () => void;
+  onSave: (displayName: string, requiredScore: number) => Promise<void>;
+}) {
+  const [displayName, setDisplayName] = useState(difficulty.displayName);
+  const [requiredScore, setRequiredScore] = useState(difficulty.requiredScore);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!displayName.trim()) return;
+    setIsSubmitting(true);
+    await onSave(displayName.trim(), requiredScore);
+    setIsSubmitting(false);
+  };
+
+  return (
+    <Modal title={`Edit Difficulty: ${difficulty.name}`} onClose={onClose}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Display Name</label>
+          <input
+            type="text"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Required Score (%)</label>
+          <input
+            type="number"
+            value={requiredScore}
+            onChange={(e) => setRequiredScore(Number(e.target.value))}
+            min={1}
+            max={100}
+            className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+        <div className="flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={!displayName.trim() || isSubmitting}
             className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
           >
             {isSubmitting ? "Saving..." : "Save Changes"}
