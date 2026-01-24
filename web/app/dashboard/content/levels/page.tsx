@@ -1591,7 +1591,13 @@ function AddQuestionModal({ levelId, difficultyName, onClose, onCreate }: {
         };
         break;
       case "grid":
-        data = { solution: solution.trim().toLowerCase() };
+        // Handle comma-separated list or single word
+        const solutionVal = solution.trim().toLowerCase();
+        if (solutionVal.includes(',')) {
+          data = { solution: solutionVal.split(',').map(s => s.trim()).filter(s => s.length > 0) };
+        } else {
+          data = { solution: solutionVal };
+        }
         break;
       case "select":
         data = {
@@ -1726,7 +1732,7 @@ function AddQuestionModal({ levelId, difficultyName, onClose, onCreate }: {
               placeholder="e.g., glad"
               className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
-            <p className="text-xs text-slate-500 mt-1">The word that will be hidden in the grid</p>
+            <p className="text-xs text-slate-500 mt-1">Word or comma-separated words (e.g., apple, banana)</p>
           </div>
         )}
 
@@ -1888,7 +1894,9 @@ function EditQuestionModal({ question, onClose, onSave }: {
   const [options, setOptions] = useState(data.options ?? ["", "", "", ""]);
   const [correctIndex, setCorrectIndex] = useState(data.correctIndex ?? 0);
   const [explanation, setExplanation] = useState(data.explanation ?? "");
-  const [solution, setSolution] = useState(data.solution ?? "");
+  const [solution, setSolution] = useState(
+    Array.isArray(data.solution) ? data.solution.join(", ") : data.solution ?? ""
+  );
   const [statement, setStatement] = useState(data.statement ?? "");
   const [correctWords, setCorrectWords] = useState((data.correctWords ?? []).join(", "));
   const [selectMode, setSelectMode] = useState<"single" | "multiple" | "boxed">(data.selectMode ?? "single");
@@ -1937,7 +1945,12 @@ function EditQuestionModal({ question, onClose, onSave }: {
         };
         break;
       case "grid":
-        newData = { solution: solution.trim().toLowerCase() };
+        const solutionVal = solution.trim().toLowerCase();
+        if (solutionVal.includes(',')) {
+          newData = { solution: solutionVal.split(',').map((s: string) => s.trim()).filter((s: string) => s.length > 0) };
+        } else {
+          newData = { solution: solutionVal };
+        }
         break;
       case "select":
         newData = {
@@ -2037,6 +2050,7 @@ function EditQuestionModal({ question, onClose, onSave }: {
               onChange={(e) => setSolution(e.target.value)}
               className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
+            <p className="text-xs text-slate-500 mt-1">Word or comma-separated words (e.g., apple, banana)</p>
           </div>
         )}
 

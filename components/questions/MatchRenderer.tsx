@@ -28,6 +28,7 @@ interface MatchRendererProps {
   onAnswer: (isCorrect: boolean) => void;
   onFeedback?: (isCorrect: boolean) => void;
   disabled?: boolean;
+  showAnswer?: boolean;
 }
 
 interface LayoutItem {
@@ -66,6 +67,7 @@ export default function MatchRenderer({
   onAnswer,
   onFeedback,
   disabled = false,
+  showAnswer = false,
 }: MatchRendererProps) {
   // --- Dynamic Sizing ---
   const { width, height } = useWindowDimensions();
@@ -462,14 +464,23 @@ export default function MatchRenderer({
 
            {showResult && (
              <MotiView from={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} style={styles.resultBox}>
-                <Ionicons 
-                  name={connections.size === data.pairs.length && Array.from(connections.entries()).every(([k,v]) => k===v) ? "trophy" : "alert-circle"} 
-                  size={32} 
-                  color={COLORS.text} 
-                />
-                <Text style={styles.resultText}>
-                  {Array.from(connections.entries()).every(([k,v]) => k===v) ? "Perfect Match!" : "Keep Trying!"}
-                </Text>
+               {showAnswer ? (
+                  <>
+                    <Ionicons name="eye" size={32} color={COLORS.primary} />
+                    <Text style={[styles.resultText, { color: COLORS.primary }]}>Solution Revealed</Text>
+                  </>
+               ) : (
+                  <>
+                    <Ionicons 
+                      name={connections.size === data.pairs.length && Array.from(connections.entries()).every(([k,v]) => k===v) ? "trophy" : "alert-circle"} 
+                      size={32} 
+                      color={COLORS.text} 
+                    />
+                    <Text style={styles.resultText}>
+                      {Array.from(connections.entries()).every(([k,v]) => k===v) ? "Perfect Match!" : "Keep Trying!"}
+                    </Text>
+                  </>
+               )}
              </MotiView>
            )}
         </View>

@@ -61,6 +61,7 @@ interface SpeakingRendererProps {
   onAnswer: (isCorrect: boolean) => void;
   onFeedback?: (isCorrect: boolean) => void;
   disabled?: boolean;
+  showAnswer?: boolean;
 }
 
 export default function SpeakingRenderer({
@@ -69,6 +70,7 @@ export default function SpeakingRenderer({
   onAnswer,
   onFeedback,
   disabled = false,
+  showAnswer = false,
 }: SpeakingRendererProps) {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState("");
@@ -242,8 +244,17 @@ export default function SpeakingRenderer({
                         animate={{ scale: 1 }}
                         style={styles.successIcon}
                     >
-                        <Ionicons name="checkmark-circle" size={80} color={COLORS.success} />
-                        <Text style={styles.successText}>Perfect!</Text>
+                        {showAnswer ? (
+                           <View style={{ alignItems: 'center' }}>
+                             <Ionicons name="help-circle" size={80} color={COLORS.textSecondary} />
+                             <Text style={[styles.successText, { color: COLORS.textSecondary }]}>Skipped</Text>
+                           </View>
+                        ) : (
+                           <>
+                             <Ionicons name="checkmark-circle" size={80} color={COLORS.success} />
+                             <Text style={styles.successText}>Perfect!</Text>
+                           </>
+                        )}
                     </MotiView>
                 )}
             </View>

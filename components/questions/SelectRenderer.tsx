@@ -1,6 +1,6 @@
 // Select Renderer - Word selection from sentence (Grammar Detective style)
 // Uses inline text with tappable words like the Grammar Detective game
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { MotiView } from 'moti';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +16,7 @@ interface SelectRendererProps {
   onAnswer: (isCorrect: boolean) => void;
   onFeedback?: (isCorrect: boolean) => void;
   disabled?: boolean;
+  showAnswer?: boolean;
 }
 
 export default function SelectRenderer({
@@ -24,6 +25,7 @@ export default function SelectRenderer({
   onAnswer,
   onFeedback,
   disabled = false,
+  showAnswer = false,
 }: SelectRendererProps) {
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
   const [showResult, setShowResult] = useState(false);
@@ -50,6 +52,15 @@ export default function SelectRenderer({
     return indices;
   }, [words, data.correctWords]);
   
+  // Handle showAnswer prop
+  useEffect(() => {
+    if (showAnswer) {
+      // Mark all correct indices as selected
+      setSelectedIndices(new Set(correctIndices));
+      setShowResult(true);
+    }
+  }, [showAnswer, correctIndices]);
+
   const handleWordPress = useCallback((index: number) => {
     if (disabled || showResult) return;
     
@@ -262,28 +273,42 @@ export default function SelectRenderer({
           transition={{ type: 'spring', damping: 15 }}
           style={[
             styles.resultCard,
-            isCorrect ? styles.resultCardCorrect : styles.resultCardWrong,
+            showAnswer 
+              ? styles.resultCardSkipped 
+              : (isCorrect ? styles.resultCardCorrect : styles.resultCardWrong),
           ]}
         >
-          <View style={styles.resultHeader}>
-            <View style={[
-              styles.resultIconBg,
-              { backgroundColor: isCorrect ? COLORS.success + '20' : COLORS.error + '20' }
-            ]}>
-              <Ionicons
-                name={isCorrect ? 'checkmark' : 'close'}
-                size={24}
-                color={isCorrect ? COLORS.success : COLORS.error}
-              />
+          {showAnswer ? (
+             <View style={styles.resultHeader}>
+                <View style={[styles.resultIconBg, { backgroundColor: COLORS.primary + '20' }]}>
+                  <Ionicons name="eye" size={24} color={COLORS.primary} />
+                </View>
+                <Text style={[styles.resultTitle, { color: COLORS.primary }]}>
+                  Solution Revealed
+                </Text>
+             </View>
+          ) : (
+            <View style={styles.resultHeader}>
+              <View style={[
+                styles.resultIconBg,
+                { backgroundColor: isCorrect ? COLORS.success + '20' : COLORS.error + '20' }
+              ]}>
+                <Ionicons
+                  name={isCorrect ? 'checkmark' : 'close'}
+                  size={24}
+                  color={isCorrect ? COLORS.success : COLORS.error}
+                />
+              </View>
+              <Text style={[
+                styles.resultTitle,
+                { color: isCorrect ? COLORS.success : COLORS.error }
+              ]}>
+                {isCorrect ? 'Excellent!' : 'Not quite!'}
+              </Text>
             </View>
-            <Text style={[
-              styles.resultTitle,
-              { color: isCorrect ? COLORS.success : COLORS.error }
-            ]}>
-              {isCorrect ? 'Excellent!' : 'Not quite!'}
-            </Text>
-          </View>
-          {!isCorrect && (
+          )}
+          
+          {!isCorrect && !showAnswer && (
             <View style={styles.correctAnswerContainer}>
               <Ionicons name="bulb-outline" size={18} color={COLORS.accentGold} />
               <Text style={styles.correctAnswerText}>
@@ -487,6 +512,11 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.error + '10',
     borderWidth: 1.5,
     borderColor: COLORS.error + '30',
+  },
+  resultCardSkipped: {
+     backgroundColor: COLORS.primary + '10',
+     borderWidth: 1.5,
+     borderColor: COLORS.primary + '30',
   },
   resultHeader: {
     flexDirection: 'row',

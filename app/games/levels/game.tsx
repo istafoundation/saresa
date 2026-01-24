@@ -46,6 +46,7 @@ export default function LevelGameScreen() {
   const [showResult, setShowResult] = useState(false); // Final game result
   const [showQuestionResult, setShowQuestionResult] = useState(false); // Per-question result
   const [lastAnswerCorrect, setLastAnswerCorrect] = useState<boolean | null>(null);
+  const [questionStatus, setQuestionStatus] = useState<'correct' | 'wrong' | 'skipped' | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [questionKey, setQuestionKey] = useState(0); // Force re-render of question component
   const [gameResult, setGameResult] = useState<{
@@ -121,6 +122,7 @@ export default function LevelGameScreen() {
   const handleNext = useCallback(() => {
     setShowQuestionResult(false);
     setLastAnswerCorrect(null);
+    setQuestionStatus(null);
     
     if (currentIndex < totalQuestions - 1) {
       setQuestionKey(prev => prev + 1);
@@ -138,15 +140,12 @@ export default function LevelGameScreen() {
     if (isProcessingRef.current || showQuestionResult) return;
     
     triggerTap('light');
-    // Just advance without counting as correct
-    if (currentIndex < totalQuestions - 1) {
-      setQuestionKey(prev => prev + 1);
-      setCurrentIndex(prev => prev + 1);
-    } else {
-      // Game finished - inline the finishGame logic to avoid dependency issues
-      finishGameWithScore();
-    }
-  }, [currentIndex, totalQuestions, showQuestionResult, triggerTap]);
+    
+    // Show per-question result overlay with "Skipped" state
+    setLastAnswerCorrect(false); // Counts as wrong/skipped
+    setQuestionStatus('skipped'); // New state to track explicit skip
+    setShowQuestionResult(true);
+  }, [showQuestionResult, triggerTap]);
   
   // Finish game and submit score - wrapped in useCallback to be a stable dependency
   const finishGameWithScore = useCallback(async () => {
@@ -349,6 +348,8 @@ export default function LevelGameScreen() {
               data={currentQuestion.data}
               onAnswer={handleAnswer}
               onFeedback={handleFeedback}
+              disabled={showQuestionResult}
+              showAnswer={questionStatus === 'skipped'}
             />
           )}
           {currentQuestion.questionType === 'grid' && (
@@ -358,6 +359,8 @@ export default function LevelGameScreen() {
               data={currentQuestion.data}
               onAnswer={handleAnswer}
               onFeedback={handleFeedback}
+              disabled={showQuestionResult}
+              showAnswer={questionStatus === 'skipped'}
             />
           )}
           {currentQuestion.questionType === 'map' && (
@@ -367,6 +370,8 @@ export default function LevelGameScreen() {
               data={currentQuestion.data}
               onAnswer={handleAnswer}
               onFeedback={handleFeedback}
+              disabled={showQuestionResult}
+              showAnswer={questionStatus === 'skipped'}
             />
           )}
           {currentQuestion.questionType === 'select' && (
@@ -376,6 +381,8 @@ export default function LevelGameScreen() {
               data={currentQuestion.data}
               onAnswer={handleAnswer}
               onFeedback={handleFeedback}
+              disabled={showQuestionResult}
+              showAnswer={questionStatus === 'skipped'}
             />
           )}
           {currentQuestion.questionType === 'match' && (
@@ -385,6 +392,8 @@ export default function LevelGameScreen() {
               data={currentQuestion.data}
               onAnswer={handleAnswer}
               onFeedback={handleFeedback}
+              disabled={showQuestionResult}
+              showAnswer={questionStatus === 'skipped'}
             />
           )}
           {currentQuestion.questionType === 'speaking' && (
@@ -394,6 +403,8 @@ export default function LevelGameScreen() {
               data={currentQuestion.data}
               onAnswer={handleAnswer}
               onFeedback={handleFeedback}
+              disabled={showQuestionResult}
+              showAnswer={questionStatus === 'skipped'}
             />
           )}
         </View>
@@ -413,20 +424,22 @@ export default function LevelGameScreen() {
           >
             <View style={styles.questionResultHeader}>
               <Ionicons 
-                name={lastAnswerCorrect ? "checkmark-circle" : "close-circle"} 
+                name={questionStatus === 'skipped' ? "help-circle" : (lastAnswerCorrect ? "checkmark-circle" : "close-circle")} 
                 size={48} 
-                color={lastAnswerCorrect ? COLORS.success : COLORS.error} 
+                color={questionStatus === 'skipped' ? COLORS.primary : (lastAnswerCorrect ? COLORS.success : COLORS.error)} 
               />
               <Text style={[
                 styles.questionResultTitle,
-                { color: lastAnswerCorrect ? COLORS.success : COLORS.error }
+                { color: questionStatus === 'skipped' ? COLORS.primary : (lastAnswerCorrect ? COLORS.success : COLORS.error) }
               ]}>
-                {lastAnswerCorrect ? "Correct!" : "Not Quite!"}
+                {questionStatus === 'skipped' ? "Skipped" : (lastAnswerCorrect ? "Correct!" : "Not Quite!")}
               </Text>
               <Text style={styles.questionResultSubtitle}>
-                {lastAnswerCorrect 
-                  ? "Great job! Keep it up!" 
-                  : "Check the correct answer above"}
+                {questionStatus === 'skipped'
+                  ? "Here is the correct answer"
+                  : (lastAnswerCorrect 
+                      ? "Great job! Keep it up!" 
+                      : "Check the correct answer above")}
               </Text>
             </View>
             

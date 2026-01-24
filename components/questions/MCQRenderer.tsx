@@ -15,6 +15,7 @@ interface MCQRendererProps {
   onAnswer: (isCorrect: boolean) => void;
   onFeedback?: (isCorrect: boolean) => void;
   disabled?: boolean;
+  showAnswer?: boolean;
 }
 
 export default function MCQRenderer({
@@ -23,6 +24,7 @@ export default function MCQRenderer({
   onAnswer,
   onFeedback,
   disabled = false,
+  showAnswer = false,
 }: MCQRendererProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [showResult, setShowResult] = useState(false);
@@ -48,26 +50,34 @@ export default function MCQRenderer({
     onAnswer(isCorrect);
   }, [selectedIndex, showResult, data.correctIndex, onFeedback, onAnswer]);
   
+  // Handle showAnswer prop
+  if (showAnswer && !showResult) {
+    setShowResult(true);
+  }
+
   const getOptionStyle = (index: number) => {
-    if (!showResult) {
+    if (!showResult && !showAnswer) {
       return index === selectedIndex ? styles.optionSelected : styles.option;
     }
     
     if (index === data.correctIndex) {
       return styles.optionCorrect;
     }
-    if (index === selectedIndex && index !== data.correctIndex) {
+    // If user selected this but it's wrong (not applicable in skipped state)
+    if (index === selectedIndex && index !== data.correctIndex && !showAnswer) {
       return styles.optionWrong;
     }
     return styles.option;
   };
   
   const getOptionTextStyle = (index: number) => {
-    if (!showResult && index === selectedIndex) {
+    if (!showResult && !showAnswer && index === selectedIndex) {
       return styles.optionTextSelected;
     }
-    if (showResult && (index === data.correctIndex || index === selectedIndex)) {
-      return styles.optionTextResult;
+    if ((showResult || showAnswer) && (index === data.correctIndex || index === selectedIndex)) {
+      if (index === data.correctIndex) return styles.optionTextResult;
+      // Only show result text style for selected if it's not skipped
+      if (index === selectedIndex && !showAnswer) return styles.optionTextResult;
     }
     return styles.optionText;
   };
@@ -88,10 +98,10 @@ export default function MCQRenderer({
           >
             <Pressable
               onPress={() => handleSelect(index)}
-              disabled={disabled || showResult}
+              disabled={disabled || showResult || showAnswer}
               style={({ pressed }) => [
                 getOptionStyle(index),
-                pressed && !showResult && styles.optionPressed,
+                pressed && !showResult && !showAnswer && styles.optionPressed,
               ]}
             >
               <View style={styles.optionContent}>
@@ -101,10 +111,10 @@ export default function MCQRenderer({
                 <Text style={getOptionTextStyle(index)}>{option}</Text>
               </View>
               
-              {showResult && index === data.correctIndex && (
+              {(showResult || showAnswer) && index === data.correctIndex && (
                 <Ionicons name="checkmark-circle" size={24} color="#FFFFFF" />
               )}
-              {showResult && index === selectedIndex && index !== data.correctIndex && (
+              {showResult && !showAnswer && index === selectedIndex && index !== data.correctIndex && (
                 <Ionicons name="close-circle" size={24} color="#FFFFFF" />
               )}
             </Pressable>

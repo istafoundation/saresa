@@ -1,5 +1,5 @@
 // Map Renderer - India map selection component (Explorer style)
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { MotiView } from 'moti';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +16,7 @@ interface MapRendererProps {
   onAnswer: (isCorrect: boolean) => void;
   onFeedback?: (isCorrect: boolean) => void;
   disabled?: boolean;
+  showAnswer?: boolean;
 }
 
 export default function MapRenderer({
@@ -24,9 +25,19 @@ export default function MapRenderer({
   onAnswer,
   onFeedback,
   disabled = false,
+  showAnswer = false,
 }: MapRendererProps) {
+
+
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
   const [showResult, setShowResult] = useState(false);
+
+  // Handle showAnswer prop
+  useEffect(() => {
+    if (showAnswer) {
+      setShowResult(true);
+    }
+  }, [showAnswer]);
   
   // Get region name from ID
   const getRegionName = (id: string) => {
@@ -35,7 +46,7 @@ export default function MapRenderer({
   };
   
   const handleRegionPress = (regionId: string) => {
-    if (disabled || showResult) return;
+    if (disabled || showResult || showAnswer) return;
     setSelectedRegion(regionId);
   };
   
@@ -62,13 +73,13 @@ export default function MapRenderer({
       {/* Map */}
       <View style={styles.mapContainer}>
         <IndiaMap
-          targetRegion={showResult ? data.solution : undefined}
+          targetRegion={showResult || showAnswer ? data.solution : undefined}
           selectedRegion={selectedRegion ?? undefined}
           guessedRegions={[]}
-          correctRegion={showResult ? data.solution : undefined}
-          wrongRegion={showResult && !isCorrect ? selectedRegion ?? undefined : undefined}
+          correctRegion={showResult || showAnswer ? data.solution : undefined}
+          wrongRegion={showResult && !isCorrect && !showAnswer ? selectedRegion ?? undefined : undefined}
           onRegionPress={handleRegionPress}
-          disabled={disabled || showResult}
+          disabled={disabled || showResult || showAnswer}
         />
       </View>
       
@@ -113,7 +124,14 @@ export default function MapRenderer({
           animate={{ opacity: 1, translateY: 0 }}
           style={styles.resultContainer}
         >
-          {isCorrect ? (
+          {showAnswer ? (
+             <View style={styles.resultWrong}>
+              <Ionicons name="eye" size={24} color={COLORS.primary} />
+              <Text style={[styles.resultTextWrong, { color: COLORS.primary }]}>
+                Solution Revealed
+              </Text>
+            </View>
+          ) : isCorrect ? (
             <View style={styles.resultCorrect}>
               <Ionicons name="checkmark-circle" size={24} color={COLORS.success} />
               <Text style={styles.resultTextCorrect}>
