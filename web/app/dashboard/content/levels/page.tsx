@@ -1410,6 +1410,9 @@ function AddQuestionModal({ levelId, difficultyName, onClose, onCreate }: {
           return;
         }
         break;
+      case "speaking":
+        data = { sentence: speakingSentence.trim() };
+        break;
     }
 
     await onCreate(questionType, questionText.trim(), data);
@@ -1688,6 +1691,11 @@ function EditQuestionModal({ question, onClose, onSave }: {
     data.pairs ?? [{ imageUrl: "", text: "" }, { imageUrl: "", text: "" }]
   );
 
+  // Speaking fields
+  const [speakingSentence, setSpeakingSentence] = useState(
+    question.questionType === "speaking" ? data.sentence ?? "" : ""
+  );
+
   const addMatchPair = () => {
     if (matchPairs.length < 6) {
       setMatchPairs([...matchPairs, { imageUrl: "", text: "" }]);
@@ -1746,6 +1754,9 @@ function EditQuestionModal({ question, onClose, onSave }: {
           setIsSubmitting(false);
           return;
         }
+        break;
+      case "speaking":
+        newData = { sentence: speakingSentence.trim() };
         break;
     }
 
@@ -1924,6 +1935,19 @@ function EditQuestionModal({ question, onClose, onSave }: {
                 Add Pair
               </button>
             )}
+          </div>
+        )}
+
+        {question.questionType === "speaking" && (
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Sentence to Speak</label>
+            <textarea
+              value={speakingSentence}
+              onChange={(e) => setSpeakingSentence(e.target.value)}
+              placeholder="e.g., The quick brown fox jumps over the lazy dog."
+              rows={3}
+              className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
           </div>
         )}
 
