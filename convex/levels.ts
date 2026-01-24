@@ -489,7 +489,7 @@ export const createLevel = mutation({
     
     // Default difficulties
     const defaultDifficulties = [
-      { name: "easy", displayName: "Easy", requiredScore: 75, order: 1 },
+      { name: "easy", displayName: "Easy", requiredScore: 70, order: 1 },
       { name: "medium", displayName: "Medium", requiredScore: 50, order: 2 },
       { name: "hard", displayName: "Hard", requiredScore: 30, order: 3 },
     ];
@@ -930,9 +930,9 @@ export const seedDemoLevels = mutation({
     
     const now = Date.now();
     const defaultDifficulties = [
-      { name: "easy", displayName: "Easy", requiredScore: 90, order: 1 },
-      { name: "medium", displayName: "Medium", requiredScore: 65, order: 2 },
-      { name: "hard", displayName: "Hard", requiredScore: 33, order: 3 },
+      { name: "easy", displayName: "Easy", requiredScore: 70, order: 1 },
+      { name: "medium", displayName: "Medium", requiredScore: 50, order: 2 },
+      { name: "hard", displayName: "Hard", requiredScore: 30, order: 3 },
     ];
     
     // ==================== LEVEL 1 ====================
