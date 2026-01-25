@@ -250,6 +250,7 @@ D. For Select Questions (Type = select):
    - Statement: The full sentence/text to display.
    - Correct Words: Comma-separated list of words to select (e.g. "cat, mat").
    - Select Mode: "single" or "multiple".
+   - Explanation: (Optional) Text explaining why.
    - (Leave Option columns empty)
 
 E. For Match Questions (Type = match):
@@ -1608,6 +1609,7 @@ function AddQuestionModal({ levelId, difficultyName, onClose, onCreate }: {
           statement: statement.trim(),
           correctWords: correctWords.split(",").map(w => w.trim()),
           selectMode,
+          explanation: explanation.trim(),
         };
         break;
       case "map":
@@ -1777,6 +1779,16 @@ function AddQuestionModal({ levelId, difficultyName, onClose, onCreate }: {
                 <option value="multiple">Multiple Words</option>
                 <option value="boxed">Boxed (Sequential)</option>
               </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Explanation</label>
+              <input
+                type="text"
+                value={explanation}
+                onChange={(e) => setExplanation(e.target.value)}
+                placeholder="Why is this the correct answer?"
+                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
             </div>
           </>
         )}
@@ -1986,6 +1998,7 @@ function EditQuestionModal({ question, onClose, onSave }: {
           statement: statement.trim(),
           correctWords: correctWords.split(",").map((w: string) => w.trim()),
           selectMode,
+          explanation: explanation.trim(),
         };
         break;
       case "map":
@@ -2117,6 +2130,15 @@ function EditQuestionModal({ question, onClose, onSave }: {
                 <option value="multiple">Multiple Words</option>
                 <option value="boxed">Boxed (Sequential)</option>
               </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Explanation</label>
+              <input
+                type="text"
+                value={explanation}
+                onChange={(e) => setExplanation(e.target.value)}
+                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
             </div>
           </>
         )}

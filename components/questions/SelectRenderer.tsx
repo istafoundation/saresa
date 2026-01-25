@@ -12,6 +12,7 @@ interface SelectRendererProps {
     statement: string;
     correctWords: string[];
     selectMode: 'single' | 'multiple' | 'boxed';
+    explanation?: string;
   };
   onAnswer: (isCorrect: boolean) => void;
   onFeedback?: (isCorrect: boolean) => void;
@@ -316,6 +317,16 @@ export default function SelectRenderer({
               </Text>
             </View>
           )}
+
+          {/* Explanation for wrong answer */}
+          {!isCorrect && data.explanation && (
+            <View style={styles.explanationContainer}>
+              <Ionicons name="information-circle" size={18} color={COLORS.primary} />
+              <Text style={styles.explanationText}>
+                {data.explanation}
+              </Text>
+            </View>
+          )}
         </MotiView>
       )}
     </ScrollView>
@@ -546,6 +557,22 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: COLORS.textSecondary,
     lineHeight: 22,
+    flex: 1,
+  },
+  explanationContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.primary + '10',
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.primary + '20',
+  },
+  explanationText: {
+    fontSize: 14,
+    color: COLORS.text,
+    lineHeight: 20,
     flex: 1,
   },
 });

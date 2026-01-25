@@ -123,7 +123,7 @@ export const useUserStore = create<UserState>()(
       soundEnabled: true,
       musicEnabled: true,
       sfxVolume: 0.9,
-      musicVolume: 0.9,
+      musicVolume: 0.25,
       
       // Initial values for flattened props
       name: '',
