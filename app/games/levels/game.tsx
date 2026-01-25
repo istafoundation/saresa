@@ -22,10 +22,11 @@ import MapRenderer from '../../../components/questions/MapRenderer';
 import SelectRenderer from '../../../components/questions/SelectRenderer';
 import MatchRenderer from '../../../components/questions/MatchRenderer';
 import SpeakingRenderer from '../../../components/questions/SpeakingRenderer';
+import MakeSentenceRenderer from '../../../components/questions/MakeSentenceRenderer';
 
 type Question = {
   _id: Id<"levelQuestions">;
-  questionType: 'mcq' | 'grid' | 'map' | 'select' | 'match' | 'speaking';
+  questionType: 'mcq' | 'grid' | 'map' | 'select' | 'match' | 'speaking' | 'make_sentence';
   question: string;
   data: any;
 };
@@ -405,6 +406,16 @@ export default function LevelGameScreen() {
               onFeedback={handleFeedback}
               disabled={showQuestionResult}
               showAnswer={questionStatus === 'skipped'}
+            />
+          )}
+          {currentQuestion.questionType === 'make_sentence' && (
+            <MakeSentenceRenderer
+              key={`make-sentence-${questionKey}`}
+              question={currentQuestion.question}
+              data={currentQuestion.data}
+              onAnswer={handleAnswer}
+              onFeedback={handleFeedback}
+              disabled={showQuestionResult}
             />
           )}
         </View>

@@ -47,7 +47,7 @@ type Level = Doc<"levels"> & {
 
 type LevelQuestion = Doc<"levelQuestions">;
 
-type QuestionType = "mcq" | "grid" | "map" | "select" | "match" | "speaking";
+type QuestionType = "mcq" | "grid" | "map" | "select" | "match" | "speaking" | "make_sentence";
 
 const QUESTION_TYPES: { value: QuestionType; label: string; icon: React.ReactNode }[] = [
   { value: "mcq", label: "Multiple Choice", icon: <Zap className="w-4 h-4" /> },
@@ -56,6 +56,7 @@ const QUESTION_TYPES: { value: QuestionType; label: string; icon: React.ReactNod
   { value: "map", label: "Map Location", icon: <Map className="w-4 h-4" /> },
   { value: "match", label: "Picture Match", icon: <LinkIcon className="w-4 h-4" /> },
   { value: "speaking", label: "Speaking", icon: <Zap className="w-4 h-4" /> },
+  { value: "make_sentence", label: "Make Sentence", icon: <Pencil className="w-4 h-4" /> },
 ];
 
 // Helper to process image URLs (used by CSV and Manual entry)
@@ -1554,6 +1555,9 @@ function AddQuestionModal({ levelId, difficultyName, onClose, onCreate }: {
 
   // Speaking fields
   const [speakingSentence, setSpeakingSentence] = useState("");
+  
+  // Make Sentence fields
+  const [makeSentenceWord, setMakeSentenceWord] = useState("");
 
 
 
@@ -1625,6 +1629,9 @@ function AddQuestionModal({ levelId, difficultyName, onClose, onCreate }: {
       case "speaking":
         data = { sentence: speakingSentence.trim() };
         break;
+      case "make_sentence":
+        data = { word: makeSentenceWord.trim() };
+        break;
     }
 
     await onCreate(questionType, questionText.trim(), data);
@@ -1668,6 +1675,7 @@ function AddQuestionModal({ levelId, difficultyName, onClose, onCreate }: {
               questionType === 'select' ? "Select the noun in this sentence" :
               questionType === 'match' ? "Match the fruits to their names" :
               questionType === 'speaking' ? "Read the sentence aloud" :
+              questionType === 'make_sentence' ? "Make a sentence with the word..." :
               "Find Maharashtra on the map"
             }
             rows={2}
@@ -1864,6 +1872,22 @@ function AddQuestionModal({ levelId, difficultyName, onClose, onCreate }: {
           </div>
         )}
 
+        {questionType === "make_sentence" && (
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Target Word</label>
+            <input
+              type="text"
+              value={makeSentenceWord}
+              onChange={(e) => setMakeSentenceWord(e.target.value)}
+              placeholder="e.g., Apple"
+              className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              The word (or form of the word) that must be included in the sentence.
+            </p>
+          </div>
+        )}
+
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">
             Cancel
@@ -1909,6 +1933,11 @@ function EditQuestionModal({ question, onClose, onSave }: {
   // Speaking fields
   const [speakingSentence, setSpeakingSentence] = useState(
     question.questionType === "speaking" ? data.sentence ?? "" : ""
+  );
+
+  // Make Sentence fields
+  const [makeSentenceWord, setMakeSentenceWord] = useState(
+    question.questionType === "make_sentence" ? data.word ?? "" : ""
   );
 
   const addMatchPair = () => {
@@ -1977,6 +2006,9 @@ function EditQuestionModal({ question, onClose, onSave }: {
         break;
       case "speaking":
         newData = { sentence: speakingSentence.trim() };
+        break;
+      case "make_sentence":
+        newData = { word: makeSentenceWord.trim() };
         break;
     }
 
@@ -2168,6 +2200,18 @@ function EditQuestionModal({ question, onClose, onSave }: {
               onChange={(e) => setSpeakingSentence(e.target.value)}
               placeholder="e.g., The quick brown fox jumps over the lazy dog."
               rows={3}
+              className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+        )}
+
+        {question.questionType === "make_sentence" && (
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Target Word</label>
+            <input
+              type="text"
+              value={makeSentenceWord}
+              onChange={(e) => setMakeSentenceWord(e.target.value)}
               className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
