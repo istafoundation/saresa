@@ -26,29 +26,38 @@ export default function MakeSentenceRenderer({
   const [sentence, setSentence] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
 
-  const handleForge = () => {
+  const handleForge = async () => {
     Keyboard.dismiss();
     setError(null);
+    setIsValidating(true);
 
-    // Validation
-    const result = validateSentence(sentence, data.word);
+    try {
+      // Validation
+      const result = await validateSentence(sentence, data.word);
 
-    if (result.isValid) {
-      // Success!
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setIsSuccess(true);
-      if (onFeedback) onFeedback(true);
-      
-      // Delay to show success animation before moving on
-      setTimeout(() => {
-        onAnswer(true);
-      }, 1500);
-    } else {
-      // Failure
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setError(result.error || "Something is wrong.");
-      if (onFeedback) onFeedback(false);
+      if (result.isValid) {
+        // Success!
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setIsSuccess(true);
+        if (onFeedback) onFeedback(true);
+        
+        // Delay to show success animation before moving on
+        setTimeout(() => {
+          onAnswer(true);
+        }, 1500);
+      } else {
+        // Failure
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        setError(result.error || "Something is wrong.");
+        if (onFeedback) onFeedback(false);
+      }
+    } catch (err) {
+      console.error("Validation error:", err);
+      setError("An unexpected error occurred during validation.");
+    } finally {
+      setIsValidating(false);
     }
   };
 
@@ -114,15 +123,22 @@ export default function MakeSentenceRenderer({
         {/* Action Button (The "Hammer") */}
         <Pressable
           onPress={handleForge}
-          disabled={disabled || isSuccess || sentence.length === 0}
+          disabled={disabled || isSuccess || sentence.length === 0 || isValidating}
           style={({ pressed }) => [
             styles.forgeButton,
             pressed && styles.forgeButtonPressed,
-            (disabled || isSuccess || sentence.length === 0) && styles.forgeButtonDisabled
+            (disabled || isSuccess || sentence.length === 0 || isValidating) && styles.forgeButtonDisabled
           ]}
         >
-          <Ionicons name="hammer" size={24} color="#FFF" style={{ marginRight: 8 }} />
-          <Text style={styles.forgeButtonText}>Forge</Text>
+          <Ionicons 
+            name={isValidating ? "hourglass-outline" : "hammer"} 
+            size={24} 
+            color="#FFF" 
+            style={{ marginRight: 8 }} 
+          />
+          <Text style={styles.forgeButtonText}>
+            {isValidating ? "Testing..." : "Forge"}
+          </Text>
         </Pressable>
 
       </View>

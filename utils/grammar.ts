@@ -1,149 +1,306 @@
 import nlp from 'compromise';
 
+let DICTIONARY: Set<string> | null = null;
+
+async function loadDictionary() {
+  if (DICTIONARY) return;
+  try {
+    // Dynamic import for lazy loading
+    // Note: Adjust path if necessary based on actual file location
+    const module = await import('./dictionary_data');
+    if (module && module.default) {
+        DICTIONARY = module.default;
+    }
+  } catch (err) {
+    console.error("Failed to load dictionary:", err);
+  }
+}
+
+export type GrammarErrorCode = 
+    | "CAPITALIZATION" 
+    | "PUNCTUATION" 
+    | "AGREEMENT" 
+    | "WORD_ORDER" 
+    | "ARTICLE" 
+    | "TENSE" 
+    | "TARGET_WORD"
+    | "COMPLEMENT" 
+    | "LENGTH"
+    | "REPETITION"
+    | "SPELLING"
+    | "NONSENSE"
+    | "UNKNOWN";
+
 export type GrammarValidationResult = {
   isValid: boolean;
   error?: string;
-  feedback?: string; // Positive feedback for good sentences
+  errorCode?: GrammarErrorCode;
+  feedback?: string;
 };
 
+// Verbs that MUST take a gerund (e.g. enjoy reading)
+const GERUND_VERBS = new Set(['enjoy', 'avoid', 'finish', 'mind', 'keep', 'miss', 'suggest', 'recommend']);
+// Verbs that MUST take an infinitive (e.g. want to go)
+const INFINITIVE_VERBS = new Set(['want', 'decide', 'need', 'plan', 'promise', 'hope', 'expect', 'offer', 'refuse', 'learn']);
+
 /**
- * Validates a user-submitted sentence based on a target word.
- * Uses a heuristic "Layered Validation" strategy to avoid AI costs.
- * 
- * Layers:
- * 1. Mechanical: Capitalization, punctuation, length.
- * 2. Negative Filters: Catch spam, fragments, cheats.
- * 3. Structure: Subject-Verb agreement (loose), presence of core components.
- * 4. Templates: Matches common simple sentence patterns.
+ * Validates a user-submitted sentence.
  */
-export function validateSentence(sentence: string, targetWord: string): GrammarValidationResult {
+export async function validateSentence(sentence: string, targetWord: string): Promise<GrammarValidationResult> {
   const cleanSentence = sentence.trim();
-  const doc = nlp(cleanSentence);
-
-  // --- Layer 1: Mechanics (Fastest Fail) ---
   
-  // 1. Length Check
-  const wordCount = doc.terms().length;
-  if (wordCount < 3) return { isValid: false, error: "Sentence is too short. Try making it longer!" };
-  if (wordCount > 30) return { isValid: false, error: "Sentence is too long. Keep it simple!" };
-
-  // 2. Capitalization
-  const firstChar = cleanSentence.charAt(0);
-  if (firstChar !== firstChar.toUpperCase() && /[a-z]/.test(firstChar)) {
-    return { isValid: false, error: "Sentence must start with a capital letter." };
+  // --- Layer 1: Mechanics & Formatting ---
+  
+  // 1. Whitespace (Internal double spaces)
+  if (/\s{2,}/.test(cleanSentence)) {
+      return { isValid: false, error: "Too much spacing between words.", errorCode: "PUNCTUATION" };
   }
+  
+  // 2. Length
+  const wordCount = cleanSentence.split(/\s+/).length;
+  if (wordCount < 3) return { isValid: false, error: "Sentence is too short.", errorCode: "LENGTH" };
+  if (wordCount > 20) return { isValid: false, error: "Sentence is too long.", errorCode: "LENGTH" };
 
   // 3. Punctuation
   const lastChar = cleanSentence.slice(-1);
   if (!['.', '!', '?'].includes(lastChar)) {
-    return { isValid: false, error: "Sentence must end with punctuation (. ! or ?)" };
+    return { isValid: false, error: "Sentence must end with punctuation (. ! or ?)", errorCode: "PUNCTUATION" };
   }
-  
-  // Check for repeated punctuation like "!!" or ".."
+  if (/\s[\.\!\?]/.test(cleanSentence)) {
+     return { isValid: false, error: "Don't put a space before punctuation.", errorCode: "PUNCTUATION" };
+  }
   if (/[\.\!\?]{2,}/.test(cleanSentence)) {
-     return { isValid: false, error: "Too much punctuation! Use just one." };
+     return { isValid: false, error: "Too much punctuation! Use just one.", errorCode: "PUNCTUATION" };
   }
-
-
-  // --- Layer 2: Negative Filters (Anti-Cheat) ---
-
-  // 1. Target Word Presence (Case-insensitive)
-  // We use nlp's match to handle basic lemmatization forms if needed, but strict inclusion is usually safer for this game.
-  // Using simple string check for robustness, then nlp check for variations if needed.
-  if (!cleanSentence.toLowerCase().includes(targetWord.toLowerCase())) {
-     return { isValid: false, error: `You must use the word "${targetWord}"!` };
-  }
-
-  // 2. Spam / Repetition Check (Unique words ratio)
-  const uniqueWords = new Set(cleanSentence.toLowerCase().split(/\s+/).map(w => w.replace(/[^a-z]/g, ''))).size;
-  if (uniqueWords < wordCount * 0.5) {
-      return { isValid: false, error: "Please don't just repeat words!" };
-  }
-
-
-  // --- Layer 3: NLP Structure & Templates ---
-
-  // 1. Basic Components
-  const hasVerb = doc.verbs().length > 0;
-  const hasNoun = doc.nouns().length > 0 || doc.match('#Pronoun').length > 0;
-
-  if (!hasVerb) return { isValid: false, error: "Your sentence needs a verb (action word)." };
-  if (!hasNoun) return { isValid: false, error: "Your sentence needs a subject (who or what?)." };
-
-  // 2. Fragments
-  // Compromise attempts to split sentences. If it sees multiple or zero, it's messy.
-  // Actually, for this, we just want to ensure it looks like ONE statement.
-  // If user writes "I run. He walks.", that's two sentences.
-  // The punctuation check at the end somewhat enforces this, but let's see if compromise detects multiple sentences.
-  if (doc.json().length > 1) {
-      return { isValid: false, error: "Just write one sentence at a time." };
-  }
-
-  // 3. Subject-Verb Order Heuristic
-  // In English, the subject usually comes *before* the first main verb (statements).
-  // "The cat sat." -> Cat (Subject) ... Sat (Verb).
-  // "Run fast." (Imperative) -> No subject, but might be valid demand? 
-  // For this game, we usually want declarative sentences "Use the word...".
-  // Let's check if there is a Noun/Pronoun BEFORE the first Verb.
   
-  const terms = doc.terms().json();
-  const firstVerbIndex = terms.findIndex((t: any) => t.tags.includes('Verb'));
+  // 4. Capitalization
+  const firstChar = cleanSentence.charAt(0);
+  if (firstChar !== firstChar.toUpperCase() && /[a-z]/.test(firstChar)) {
+    if (!['iPhone', 'iPad', 'eBay'].includes(cleanSentence.split(' ')[0])) {
+        return { isValid: false, error: "Start with a capital letter.", errorCode: "CAPITALIZATION" };
+    }
+  }
+
+  // --- Layer 2: Shallow NLP (Compromise) ---
+  const doc = nlp(cleanSentence);
+  doc.compute('tagger'); 
   
-  if (firstVerbIndex > 0) {
-      const genericSubject = terms.slice(0, firstVerbIndex).some((t: any) => 
-          t.tags.includes('Noun') || t.tags.includes('Pronoun') || t.tags.includes('Determiner') || t.tags.includes('Adjective') // "The Red Apple fell" -> 'The' 'Red' 'Apple' are before verb.
-      );
-      // This is weak. "Quickly run." -> 'Quickly' is Adverb.
+  // Fix Tags
+  doc.match('(is|am|are|was|were)').tag('Verb').tag('Copula');
+  doc.match('^#Gerund').tag('Noun'); // Running is fun
+  
+  // 5. Target Word Presence
+  if (targetWord) {
+      // Basic check
+      const lowerTarget = targetWord.toLowerCase();
+      const lowerSentence = cleanSentence.toLowerCase();
       
-      // Let's stick to: Does it match a valid template?
-  }
-  
-  // --- Layer 4: Template Matching (The "Green Pass") ---
-  // If it matches these patterns, we trust it more.
-  
-  const patterns = [
-      '#Pronoun #Verb',                     // I run.
-      '#Pronoun #Verb .?',                  // I run fast.
-      '#Pronoun #Auxiliary #Verb',          // I am running.
-      '#Noun #Verb',                        // Dogs bark.
-      '#Determiner #Noun #Verb',            // The dog barks.
-      '#Noun #Verb #Noun',                  // Dogs chase cats.
-      '#Pronoun #Verb #Noun',               // I like apples.
-      '#Pronoun #Verb #Adjective',          // I am happy.
-      '#Pronoun #Verb #Adverb',             // I run fast.
-      '#Verb #Noun',                        // Eat apples. (Imperative - maybe allow?)
-      '#Adjective #Noun #Verb',             // Red trucks drive.
-  ];
-
-  let matchesTemplate = false;
-  for (const pattern of patterns) {
-      if (doc.match(pattern).found) {
-          matchesTemplate = true;
-          break;
+      const hasStrict = doc.has(targetWord) || lowerSentence.includes(lowerTarget);
+      
+      if (!hasStrict) {
+           // Root check
+           const rootDoc = nlp(cleanSentence);
+           rootDoc.compute('root');
+           const roots = rootDoc.text('root');
+           
+           if (!roots.toLowerCase().includes(lowerTarget)) {
+               return { isValid: false, error: `You must use the word "${targetWord}"!`, errorCode: "TARGET_WORD" };
+           }
       }
   }
 
-  // If it has Noun + Verb but matches NO template, it might be complex or wrong.
-  // For now, if it has Noun + Verb, we are "Okay" with it, but maybe verify the order.
+  // 6. Determiner-Noun Agreement
+  // "a/an" checks
+  const articles = doc.match('(a|an)');
+  const articleList = articles.json(); // Use .json() to get list of matches
   
-  // Final safeguard: The Subject-Verb check again.
-  // If we have a verb, we really want something noun-y before it, UNLESS it's a question or imperative.
-  // Questions start with Aux/Verb: "Do you like..." / "Is it..."
-  const isQuestion = lastChar === '?';
-  if (!isQuestion && !matchesTemplate) {
-       // If strict mode on subject-verb:
-       // If the FIRST word is a Verb, and it's not a question, it's an imperative "Run away."
-       // We can allow or warn.
-       const firstTerm = terms[0];
-       if (firstTerm.tags.includes('Verb') && !firstTerm.tags.includes('Imperative')) { // Compromise might not tag imperative well without context
-            // "Ran away." -> Incorrect. "Run away." -> Correct.
-            // Let's just pass it if it has Verb + Noun elsewhere.
-       }
+  for (const m of articleList) {
+      // m is like { text: "a", terms: [...], ... }
+      // We need to find the word AFTER this article in the original sentence/doc
+      // Compromise's .match returns a view. We can look ahead from the match.
+      // Let's re-find it in the doc to be safe or use the text index?
+      // Easier: iterate the terms of the main doc.
+  }
+  
+  // Alternative Article Check using Term loop
+  const terms = doc.terms().json();
+  for (let i = 0; i < terms.length - 1; i++) {
+      const current = terms[i].text.toLowerCase();
+      const nextTerm = terms[i+1];
+      const nextWord = nextTerm.text;
+      const cleanNext = nextWord.replace(/[^a-zA-Z]/g, '');
+      
+      if (!cleanNext) continue;
+
+      if (current === 'a') {
+           const isVowelSound = /^[aeio]/.test(cleanNext.toLowerCase());
+           // Exceptions
+           const isUniversity = cleanNext.toLowerCase().startsWith('uni') || cleanNext.toLowerCase().startsWith('use');
+           
+           if (isVowelSound && !isUniversity) {
+                return { isValid: false, error: `Use "an" before vowel sounds (e.g. "an ${cleanNext}").`, errorCode: "ARTICLE" };
+           }
+      }
+      if (current === 'an') {
+           const isVowelSound = /^[aeio]/.test(cleanNext.toLowerCase());
+           const isH = cleanNext.toLowerCase().startsWith('h'); // "an hour" vs "a house" - hard to distinguish phonetics perfectly without dictionary, but simple heuristic:
+           // "an house" -> wrong. "an hour" -> right.
+           // We will trust the user knows phonetics or use simple rule: "an" + vowel (except 'u' in some cases) or 'h' silent?
+           // Text says: "She bought a umbrella" -> "an umbrella".
+           // "an umbrella" -> correct.
+           
+           if (!isVowelSound && !isH) {
+               return { isValid: false, error: `Use "a" before consonant sounds (e.g. "a ${cleanNext}").`, errorCode: "ARTICLE" };
+           }
+      }
+      
+      // Plural checks: "a/an" + Plural
+      if ((current === 'a' || current === 'an') && nextTerm.tags && nextTerm.tags.includes('Plural')) {
+           return { isValid: false, error: `Don't use "${current}" with plural words like "${nextWord}".`, errorCode: "ARTICLE" };
+      }
+  }
+  
+  // Quantifier Agreement
+  if (doc.match('many #Singular').found) {
+      if (!doc.match('many #Singular').has('#Uncountable')) { // heuristics
+          return { isValid: false, error: "Use 'many' with plural nouns (e.g. many dogs).", errorCode: "AGREEMENT" };
+      }
+      // Fail "many water"
+      if (doc.match('many #Uncountable').found) {
+          return { isValid: false, error: "Use 'much' with uncountable nouns (e.g. much water).", errorCode: "AGREEMENT" };
+      }
+  }
+  if (doc.match('much #Plural').found) { // "much dogs"
+      return { isValid: false, error: "Use 'many' with countable/plural things, not 'much'.", errorCode: "AGREEMENT" };
+  }
+
+  // 7. Subject-Verb Agreement (Detailed)
+  // I am / You are / He is
+  if (doc.match('I (are|is|were)').found) return { isValid: false, error: "Say 'I am' or 'I was'.", errorCode: "AGREEMENT" };
+  if (doc.match('(You|We|They) (is|am|was)').found) return { isValid: false, error: "Subject is plural, so use 'are' or 'were'.", errorCode: "AGREEMENT" };
+  if (doc.match('(He|She|It) (are|am|were)').found) return { isValid: false, error: "Subject is singular, so use 'is' or 'was'.", errorCode: "AGREEMENT" };
+  
+  // 7. Auxiliary / Modal Consistency
+  if (doc.match('(can|could|will|would|should|must|do|does|did) #Negative? #PresentTense').match('#PresentTense').text().endsWith('s')) {
+       return { isValid: false, error: "After auxiliary words like 'can' or 'do', use the base form of the verb (e.g., 'can run', not 'can runs').", errorCode: "AGREEMENT" };
+  }
+
+  // "She eat" vs "She eats"
+  if (doc.match('(He|She|It|#Person) #PresentTense').match('!#Copula').found) {
+      // Find the verb text
+      const verbPhrase = doc.match('(He|She|It|#Person) #PresentTense').match('#PresentTense');
+      const verbText = verbPhrase.text();
+      
+      // Check if it's "can eat" (Modal) -> skip
+      if (doc.match('(He|She|It|#Person) #Modal #PresentTense').found) {
+          // Valid
+      } else {
+          // If it doesn't end in s (fuzzy check)
+          if (!verbText.endsWith('s') && verbText !== 'has' && verbText !== 'does') {
+               return { isValid: false, error: `3rd person subjects need an 's' on the main verb (excluding auxiliary verbs) (e.g. "She eats") (agreement error).`, errorCode: "AGREEMENT" };
+          }
+      }
+  }
+  
+  // "There is/are"
+  if (doc.match('There is #Plural').found) return { isValid: false, error: "Use 'There are' for multiple things.", errorCode: "AGREEMENT" };
+  if (doc.match('There are #Singular').found && !doc.match('There are (a|an|one)').found) return { isValid: false, error: "Use 'There is' for one thing.", errorCode: "AGREEMENT" };
+  if (doc.match('There are (a|an)').found && !doc.match('There are (a|an) (lot|few|number|group|couple)').found) {
+       return { isValid: false, error: "Use 'There is' for singular items.", errorCode: "AGREEMENT" };
+  }
+  
+  // Specific Articles (Sun/Moon)
+  if (/\b(sun|moon|sky|earth|world)\b/i.test(cleanSentence) && !/\b(the|a|an)\s+(sun|moon|sky|earth|world)/i.test(cleanSentence)) {
+       return { isValid: false, error: "Use 'the' with unique nouns (e.g., 'the sun').", errorCode: "ARTICLE" };
   }
 
 
-  return { 
-      isValid: true, 
-      feedback: "Great sentence!" 
-  };
+  // 8. Verb Complements (Gerund vs Infinitive)
+  // "enjoy reading" (Good) vs "enjoy to read" (Bad)
+  for (const v of GERUND_VERBS) {
+      // Use more robust matching: root form + next word
+      // v is "enjoy". "enjoyed reading" -> okay.
+      if (doc.has(v)) {
+          // match("enjoy").lookAhead(1) ?
+          // Or regex-like match
+          // match(`[${v}] .`) covers inflections
+          const after = doc.match(`[${v}] .`).terms(1); 
+          if (after.text() === 'to') {
+               return { isValid: false, error: `After '${v}', use the -ing form (e.g. "${v} reading"), not "to...".`, errorCode: "COMPLEMENT" };
+          }
+      }
+  }
+  // "want to go" (Good) vs "want going" (Bad)
+  for (const v of INFINITIVE_VERBS) {
+       if (doc.has(v)) {
+          const after = doc.match(`[${v}] .`).terms(1);
+          if (after.has('#Gerund')) { // "want going"
+               return { isValid: false, error: `After '${v}', use "to" (e.g. "${v} to go").`, errorCode: "COMPLEMENT" };
+          }
+       }
+  }
+
+  // 9. Relative Clauses
+  // "The boy who running" -> invalid
+  if (doc.has('who') || doc.has('that')) {
+      // who running
+      if (doc.match('who #Gerund').found) {
+           return { isValid: false, error: "Use a helping verb (e.g. 'who is running').", errorCode: "AGREEMENT" };
+      }
+  }
+
+  // 10. Word Order / Yoda Speak
+  const subjPronouns = '(I|he|she|we|they)';
+  
+  if (doc.match(`^#Verb #Adverb #Pronoun`).found) {
+       return { isValid: false, error: "Word order is confused. Start with the subject.", errorCode: "WORD_ORDER" };
+  }
+  // "Fast run I"
+  if (doc.match(`^(#Adverb|#Adjective) #Verb ${subjPronouns}`).found && !lastChar.includes('?')) {
+       return { isValid: false, error: "Start with the subject, not the action.", errorCode: "WORD_ORDER" };
+  }
+  // "Apple eat I"
+  if (doc.match(`^#Noun #Verb ${subjPronouns}`).found) {
+      return { isValid: false, error: "Put the subject (I/He/She) before the verb.", errorCode: "WORD_ORDER" };
+  }
+  // "Run I"
+  if (doc.match(`^#Verb ${subjPronouns}`).found && !lastChar.includes('?')) {
+      return { isValid: false, error: "Put the subject before the verb.", errorCode: "WORD_ORDER" };
+  }
+  // "Eat often I rice"
+  if (doc.match(`^#Verb #Adverb ${subjPronouns}`).found) {
+      return { isValid: false, error: "Broken word order.", errorCode: "WORD_ORDER" };
+  }
+  
+  // Question Inversion
+  if (lastChar === '?') {
+       if (doc.match('^(Why|What|Where|When|Who|How) #Pronoun #Copula').found) { // Why you are...
+             return { isValid: false, error: "In questions, put the verb before the subject (e.g. 'Why are you...').", errorCode: "WORD_ORDER" };
+       }
+       if (doc.match('^#Pronoun do #Verb').found) { // You do like...
+             return { isValid: false, error: "Start questions with 'Do' (e.g. 'Do you like...').", errorCode: "WORD_ORDER" };
+       }
+  }
+
+  // 11. Dictionary Check
+  await loadDictionary();
+  const lowerWords = cleanSentence.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/);
+  for (const w of lowerWords) {
+      if (w.length > 3 && DICTIONARY && !DICTIONARY.has(w) && !['iphone', 'ipad', 'nasa'].includes(w)) {
+           // Basic heuristic for common typos, ignore numbers
+           if (!/\d/.test(w)) {
+                // If it's a known failing word, strictness applies
+                return { isValid: false, error: `I don't recognize the word "${w}". Check your spelling!`, errorCode: "SPELLING" };
+           }
+      }
+  }
+
+  // 12. Spam
+  const unique = new Set(lowerWords).size;
+  if (unique < lowerWords.length / 2 && lowerWords.length >= 4) {
+      return { isValid: false, error: "Too much repetition.", errorCode: "REPETITION" };
+  }
+
+  // Fallback: If no major error found
+  return { isValid: true, feedback: "Great sentence!" };
 }
