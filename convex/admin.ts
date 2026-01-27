@@ -208,3 +208,39 @@ export const getSecurityOverview = query({
     };
   },
 });
+
+/**
+ * Clear specific tables for data sync
+ * WARNING: Destructive operation.
+ */
+export const clearTables = mutation({
+  args: {
+    tableNames: v.array(v.string()),
+    secret: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Check for Admin Auth OR Secret Bypass
+    try {
+        await requireAdmin(ctx);
+    } catch (e) {
+        if (args.secret !== "sk_sync_content_secret_12345") {
+            throw new ConvexError("Unauthorized: Admin access or correct secret required.");
+        }
+    }
+
+    const deletedCounts: Record<string, number> = {};
+
+    for (const tableName of args.tableNames) {
+      // @ts-ignore - dynamic table access
+      const documents = await ctx.db.query(tableName).collect();
+      
+      deletedCounts[tableName] = documents.length;
+      
+      for (const doc of documents) {
+        await ctx.db.delete(doc._id);
+      }
+    }
+
+    return { success: true, deleted: deletedCounts };
+  },
+});

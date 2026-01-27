@@ -3,16 +3,20 @@
   "version": "1.0.56",
   "main": "expo-router/entry",
   "scripts": {
-    "start": "expo start",
-    "android": "expo run:android",
-    "ios": "expo run:ios",
-    "web": "expo start --web",
+    "start": "env-cmd -f .env.development expo start",
+    "android": "cross-env APP_VARIANT=dev env-cmd -f .env.development expo run:android",
+    "android:prod": "env-cmd -f .env.production expo run:android",
+    "ios": "cross-env APP_VARIANT=dev env-cmd -f .env.development expo run:ios",
+    "ios:prod": "env-cmd -f .env.production expo run:ios",
+    "web": "env-cmd -f .env.development expo start --web",
     "version:patch": "npm version patch --no-git-tag-version && node ./scripts/sync-version.js",
     "version:minor": "npm version minor --no-git-tag-version && node ./scripts/sync-version.js",
     "version:major": "npm version major --no-git-tag-version && node ./scripts/sync-version.js",
-    "build:release": "npm run version:patch && node ./scripts/build-release.js",
-    "build:release:minor": "npm run version:minor && node ./scripts/build-release.js",
-    "build:release:major": "npm run version:major && node ./scripts/build-release.js"
+    "build:release": "env-cmd -f .env.production npm run version:patch && node ./scripts/build-release.js",
+    "build:release:minor": "env-cmd -f .env.production npm run version:minor && node ./scripts/build-release.js",
+    "build:release:major": "env-cmd -f .env.production npm run version:major && node ./scripts/build-release.js",
+    "sync:content": "node ./scripts/sync-content.js",
+    "sync:full": "node ./scripts/sync-full.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -54,6 +58,10 @@
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
+    "adm-zip": "^0.5.16",
+    "cross-env": "^10.1.0",
+    "env-cmd": "^11.0.0",
+    "jszip": "^3.10.1",
     "typescript": "~5.9.2"
   },
   "private": true
