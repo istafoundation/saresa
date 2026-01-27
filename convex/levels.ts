@@ -1003,6 +1003,12 @@ export const seedDemoLevels = mutation({
       { name: "hard", displayName: "Hard", requiredScore: 30, order: 3 },
     ];
     
+    // Helper to insert with code
+    const insertQuestion = async (data: any) => {
+       const questionCode = await generateUniqueQuestionCode(ctx);
+       await ctx.db.insert("levelQuestions", { ...data, questionCode });
+    };
+    
     // ==================== LEVEL 1 ====================
     const level1Id = await ctx.db.insert("levels", {
       levelNumber: 1,
@@ -1016,7 +1022,7 @@ export const seedDemoLevels = mutation({
     });
     
     // Level 1 - Easy Questions
-    await ctx.db.insert("levelQuestions", {
+    await insertQuestion({
       levelId: level1Id,
       difficultyName: "easy",
       questionType: "mcq",
@@ -1032,7 +1038,7 @@ export const seedDemoLevels = mutation({
       updatedAt: now,
     });
     
-    await ctx.db.insert("levelQuestions", {
+    await insertQuestion({
       levelId: level1Id,
       difficultyName: "easy",
       questionType: "select",
@@ -1048,7 +1054,7 @@ export const seedDemoLevels = mutation({
       updatedAt: now,
     });
     
-    await ctx.db.insert("levelQuestions", {
+    await insertQuestion({
       levelId: level1Id,
       difficultyName: "easy",
       questionType: "mcq",
@@ -1065,7 +1071,7 @@ export const seedDemoLevels = mutation({
     });
     
     // Level 1 - Medium Questions
-    await ctx.db.insert("levelQuestions", {
+    await insertQuestion({
       levelId: level1Id,
       difficultyName: "medium",
       questionType: "grid",
@@ -1077,7 +1083,7 @@ export const seedDemoLevels = mutation({
       updatedAt: now,
     });
     
-    await ctx.db.insert("levelQuestions", {
+    await insertQuestion({
       levelId: level1Id,
       difficultyName: "medium",
       questionType: "select",
@@ -1093,7 +1099,7 @@ export const seedDemoLevels = mutation({
       updatedAt: now,
     });
     
-    await ctx.db.insert("levelQuestions", {
+    await insertQuestion({
       levelId: level1Id,
       difficultyName: "medium",
       questionType: "mcq",
@@ -1110,7 +1116,7 @@ export const seedDemoLevels = mutation({
     });
     
     // Level 1 - Hard Questions
-    await ctx.db.insert("levelQuestions", {
+    await insertQuestion({
       levelId: level1Id,
       difficultyName: "hard",
       questionType: "map",
@@ -1122,7 +1128,7 @@ export const seedDemoLevels = mutation({
       updatedAt: now,
     });
     
-    await ctx.db.insert("levelQuestions", {
+    await insertQuestion({
       levelId: level1Id,
       difficultyName: "hard",
       questionType: "grid",
@@ -1134,7 +1140,7 @@ export const seedDemoLevels = mutation({
       updatedAt: now,
     });
     
-    await ctx.db.insert("levelQuestions", {
+    await insertQuestion({
       levelId: level1Id,
       difficultyName: "hard",
       questionType: "select",
@@ -1163,7 +1169,7 @@ export const seedDemoLevels = mutation({
     });
     
     // Level 2 - Easy Questions
-    await ctx.db.insert("levelQuestions", {
+    await insertQuestion({
       levelId: level2Id,
       difficultyName: "easy",
       questionType: "mcq",
@@ -1179,7 +1185,7 @@ export const seedDemoLevels = mutation({
       updatedAt: now,
     });
     
-    await ctx.db.insert("levelQuestions", {
+    await insertQuestion({
       levelId: level2Id,
       difficultyName: "easy",
       questionType: "select",
@@ -1195,7 +1201,7 @@ export const seedDemoLevels = mutation({
       updatedAt: now,
     });
     
-    await ctx.db.insert("levelQuestions", {
+    await insertQuestion({
       levelId: level2Id,
       difficultyName: "easy",
       questionType: "mcq",
@@ -1212,7 +1218,7 @@ export const seedDemoLevels = mutation({
     });
     
     // Level 2 - Medium Questions
-    await ctx.db.insert("levelQuestions", {
+    await insertQuestion({
       levelId: level2Id,
       difficultyName: "medium",
       questionType: "grid",
@@ -1224,7 +1230,7 @@ export const seedDemoLevels = mutation({
       updatedAt: now,
     });
     
-    await ctx.db.insert("levelQuestions", {
+    await insertQuestion({
       levelId: level2Id,
       difficultyName: "medium",
       questionType: "map",
@@ -1236,7 +1242,7 @@ export const seedDemoLevels = mutation({
       updatedAt: now,
     });
     
-    await ctx.db.insert("levelQuestions", {
+    await insertQuestion({
       levelId: level2Id,
       difficultyName: "medium",
       questionType: "select",
@@ -1253,7 +1259,7 @@ export const seedDemoLevels = mutation({
     });
     
     // Level 2 - Hard Questions
-    await ctx.db.insert("levelQuestions", {
+    await insertQuestion({
       levelId: level2Id,
       difficultyName: "hard",
       questionType: "mcq",
@@ -1269,7 +1275,7 @@ export const seedDemoLevels = mutation({
       updatedAt: now,
     });
     
-    await ctx.db.insert("levelQuestions", {
+    await insertQuestion({
       levelId: level2Id,
       difficultyName: "hard",
       questionType: "grid",
@@ -1281,7 +1287,7 @@ export const seedDemoLevels = mutation({
       updatedAt: now,
     });
     
-    await ctx.db.insert("levelQuestions", {
+    await insertQuestion({
       levelId: level2Id,
       difficultyName: "hard",
       questionType: "map",

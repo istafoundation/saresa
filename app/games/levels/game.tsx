@@ -342,22 +342,6 @@ export default function LevelGameScreen() {
 
         
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          {/* Question Code */}
-          {currentQuestion?.questionCode && (
-              <View style={{ 
-                paddingHorizontal: 6, 
-                paddingVertical: 2, 
-                backgroundColor: 'rgba(0,0,0,0.05)', 
-                borderRadius: 4,
-                borderWidth: 1,
-                borderColor: 'rgba(0,0,0,0.1)'
-              }}>
-                <Text style={{ fontSize: 10, color: COLORS.textMuted, opacity: 0.7 }}>
-                  #{currentQuestion?.questionCode}
-                </Text>
-              </View>
-          )}
-
           {/* Skip Button - only visible when not showing question result */}
           {!showQuestionResult && (
             <Pressable onPress={handleSkip} style={styles.skipButton}>
@@ -379,6 +363,24 @@ export default function LevelGameScreen() {
       {/* Question Renderer - key forces fresh state on question change */}
       {currentQuestion && !isTransitioning && (
         <View style={styles.questionContainer}>
+          {currentQuestion?.questionCode && (
+            <View style={{ 
+              position: 'absolute',
+              top: 8,
+              right: 16,
+              zIndex: 10,
+              paddingHorizontal: 6, 
+              paddingVertical: 2, 
+              backgroundColor: 'rgba(0,0,0,0.05)', 
+              borderRadius: 4,
+              borderWidth: 1,
+              borderColor: 'rgba(0,0,0,0.1)'
+            }}>
+              <Text style={{ fontSize: 10, color: COLORS.textMuted, opacity: 0.7 }}>
+                #{currentQuestion.questionCode}
+              </Text>
+            </View>
+          )}
           {currentQuestion.questionType === 'mcq' && (
             <MCQRenderer
               key={`mcq-${questionKey}`}

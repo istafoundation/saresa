@@ -81,6 +81,6 @@ export const backfillQuestionCodes = mutation({
       }
     }
     
-    return `Backfilled questionCode for ${updatedCount} questions.`;
+    return `Total questions found: ${questions.length}. Backfilled questionCode for ${updatedCount} questions.`;
   },
 });
