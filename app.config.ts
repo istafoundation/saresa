@@ -1,12 +1,14 @@
 import { ExpoConfig, ConfigContext } from 'expo/config';
+const pkg = require('./package.json');
+const versionCode = require('./version.json');
 
 const IS_DEV = process.env.APP_VARIANT === 'dev';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: IS_DEV ? "Saresa (Dev)" : "Saresa",
+  name: IS_DEV ? "Saresa Dev" : "Saresa",
   slug: "saresa",
-  version: IS_DEV ? "1.0.56-dev" : "1.0.56",
+  version: IS_DEV ? `${pkg.version}-dev` : pkg.version,
   orientation: "portrait",
   icon: "./assets/icon.png",
   userInterfaceStyle: "dark",
@@ -27,7 +29,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       backgroundColor: "#1A0A2E"
     },
     package: IS_DEV ? "in.istafoundation.saresa.dev" : "in.istafoundation.saresa",
-    versionCode: 57,
+    versionCode: versionCode.android.versionCode,
     permissions: [
       "android.permission.RECORD_AUDIO"
     ]

@@ -9,8 +9,9 @@ const packageJson = require(path.join(root, "package.json"));
 const version = packageJson.version;
 
 // App name for APK file naming
-const APK_NAME = "saresa";
+const APK_NAME_PREFIX = "saresa-dev";
 
+// Debug APK location (Standard Gradle output)
 const apkSourceDir = path.join(
   root,
   "android",
@@ -18,15 +19,15 @@ const apkSourceDir = path.join(
   "build",
   "outputs",
   "apk",
-  "release"
+  "debug"
 );
-const apkSourceFile = path.join(apkSourceDir, "app-release.apk");
+const apkSourceFile = path.join(apkSourceDir, "app-debug.apk");
 const buildsDir = path.join(root, "builds");
-const outputFile = path.join(buildsDir, `${APK_NAME}-v${version}.apk`);
+const outputFile = path.join(buildsDir, `${APK_NAME_PREFIX}-v${version}.apk`);
 
 console.log("");
-console.log(`🚀 Building ${APK_NAME} Release APK`);
-console.log(`   Version: ${version}`);
+console.log(`🚀 Building Saresa DEV APK`);
+console.log(`   Version: ${version}-dev`);
 console.log("");
 
 try {
@@ -40,12 +41,12 @@ try {
   console.log("✅ Prebuild completed");
   console.log("");
 
-  // Step 2: Run the Gradle build
-  console.log("📦 Running Gradle assembleRelease...");
+  // Step 2: Run the Gradle build (Debug)
+  console.log("📦 Running Gradle assembleDebug...");
 
   // Use gradlew.bat on Windows, ./gradlew on Unix
   const gradleCmd = process.platform === "win32" ? "gradlew.bat" : "./gradlew";
-  execSync(`${gradleCmd} assembleRelease`, {
+  execSync(`${gradleCmd} assembleDebug`, {
     cwd: path.join(root, "android"),
     stdio: "inherit",
     shell: true,
@@ -64,10 +65,10 @@ try {
     const sizeInMB = (fs.statSync(outputFile).size / (1024 * 1024)).toFixed(2);
 
     console.log("");
-    console.log("✅ Build completed successfully!");
+    console.log("✅ DEV Build completed successfully!");
     console.log("");
     console.log("📱 APK Details:");
-    console.log(`   File: builds/${APK_NAME}-v${version}.apk`);
+    console.log(`   File: builds/${APK_NAME_PREFIX}-v${version}.apk`);
     console.log(`   Size: ${sizeInMB} MB`);
     console.log(`   Path: ${outputFile}`);
     console.log("");

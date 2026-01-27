@@ -1,6 +1,6 @@
 {
   "name": "saresa",
-  "version": "1.0.56",
+  "version": "1.0.58",
   "main": "expo-router/entry",
   "scripts": {
     "start": "env-cmd -f .env.development expo start",
@@ -12,6 +12,10 @@
     "version:patch": "npm version patch --no-git-tag-version && node ./scripts/sync-version.js",
     "version:minor": "npm version minor --no-git-tag-version && node ./scripts/sync-version.js",
     "version:major": "npm version major --no-git-tag-version && node ./scripts/sync-version.js",
+    "build:dev": "cross-env APP_VARIANT=dev env-cmd -f .env.development node ./scripts/build-dev.js",
+    "dev:patch": "npm version patch --no-git-tag-version && node ./scripts/sync-version.js && npm run build:dev",
+    "dev:minor": "npm version minor --no-git-tag-version && node ./scripts/sync-version.js && npm run build:dev",
+    "dev:major": "npm version major --no-git-tag-version && node ./scripts/sync-version.js && npm run build:dev",
     "build:release": "env-cmd -f .env.production npm run version:patch && node ./scripts/build-release.js",
     "build:release:minor": "env-cmd -f .env.production npm run version:minor && node ./scripts/build-release.js",
     "build:release:major": "env-cmd -f .env.production npm run version:major && node ./scripts/build-release.js",
