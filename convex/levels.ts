@@ -25,6 +25,32 @@ async function requireAdmin(ctx: any): Promise<Id<"parents">> {
   return parent._id;
 }
 
+// Generate a unique 6-digit question code
+async function generateUniqueQuestionCode(ctx: any): Promise<string> {
+  const generate = () => Math.floor(100000 + Math.random() * 900000).toString();
+  
+  let code = generate();
+  let isUnique = false;
+  let attempts = 0;
+
+  while (!isUnique && attempts < 10) {
+    const existing = await ctx.db
+      .query("levelQuestions")
+      .withIndex("by_question_code", (q: any) => q.eq("questionCode", code))
+      .first();
+    
+    if (!existing) {
+      isUnique = true;
+    } else {
+      code = generate();
+      attempts++;
+    }
+  }
+
+  if (!isUnique) throw new ConvexError("Failed to generate unique question code");
+  return code;
+}
+
 // ============================================
 // MOBILE APP QUERIES
 // ============================================
@@ -460,6 +486,34 @@ export const getLevelQuestionsAdmin = query({
   },
 });
 
+// Search questions by code or text
+export const searchQuestionsAdmin = query({
+  args: { query: v.string() },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    
+    if (!args.query) return [];
+
+    // First try exact match on questionCode
+    const codeMatch = await ctx.db
+      .query("levelQuestions")
+      .withIndex("by_question_code", (q) => q.eq("questionCode", args.query))
+      .first();
+
+    if (codeMatch) {
+        // Fetch level info to provide context
+        const level = await ctx.db.get(codeMatch.levelId);
+        return [{ ...codeMatch, levelName: level?.name, levelNumber: level?.levelNumber }];
+    }
+
+    // Fallback: This is expensive if we scan everything, but for admin it's okay for now.
+    // Better to encourage using the code. 
+    // We won't do full text search on 'question' field here to avoid scanning table.
+    // If we really need text search, we should use Convex search capabilities.
+    return [];
+  },
+});
+
 // ============================================
 // ADMIN MUTATIONS - LEVELS
 // ============================================
@@ -737,12 +791,15 @@ export const addQuestion = mutation({
       .collect();
       
     const maxOrder = existing.reduce((max, q) => Math.max(max, q.order ?? 0), 0);
+    
+    const questionCode = await generateUniqueQuestionCode(ctx);
 
     const questionId = await ctx.db.insert("levelQuestions", {
       levelId: args.levelId,
       difficultyName: args.difficultyName,
       questionType: args.questionType,
       question: args.question,
+      questionCode,
       data: args.data,
       status: "active",
       order: maxOrder + 1,
@@ -833,11 +890,16 @@ export const bulkReplaceQuestions = mutation({
       // Ideally validation happens on frontend, but double checking here is good practice
       // For now, we assume frontend validation ensures difficulty exists
       
+      // For now, we assume frontend validation ensures difficulty exists
+      
+      const questionCode = await generateUniqueQuestionCode(ctx);
+
       await ctx.db.insert("levelQuestions", {
         levelId: args.levelId,
         difficultyName: q.difficultyName,
         questionType: q.questionType,
         question: q.question,
+        questionCode,
         data: q.data,
         status: "active",
         order: q.order || (Date.now() + (q.order || 0)), // Use provided order or fallback
@@ -896,11 +958,14 @@ export const bulkReplaceDifficultyQuestions = mutation({
     
     // Insert new questions
     for (const q of args.questions) {
+      const questionCode = await generateUniqueQuestionCode(ctx);
+      
       await ctx.db.insert("levelQuestions", {
         levelId: args.levelId,
         difficultyName: args.difficultyName,
         questionType: q.questionType,
         question: q.question,
+        questionCode,
         data: q.data,
         status: "active",
         order: q.order || (Date.now() + (q.order || 0)), 

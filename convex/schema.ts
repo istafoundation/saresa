@@ -413,12 +413,14 @@ export default defineSchema({
     order: v.optional(v.number()), // Sort order within difficulty (1, 2, 3...)
 
     status: v.union(v.literal("active"), v.literal("archived")),
+    questionCode: v.optional(v.string()), // 6-digit unique code (optional for backward compat until migration)
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_level", ["levelId"])
     .index("by_level_difficulty", ["levelId", "difficultyName"])
-    .index("by_status", ["status"]),
+    .index("by_status", ["status"])
+    .index("by_question_code", ["questionCode"]),
 
   // User progress per level
   levelProgress: defineTable({

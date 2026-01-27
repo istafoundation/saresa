@@ -143,6 +143,11 @@ function LevelsContent() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadLevelId, setUploadLevelId] = useState<Id<"levels"> | null>(null);
   const [uploadDifficultyName, setUploadDifficultyName] = useState<string | null>(null);
+  
+  // Search State
+  const [searchQuery, setSearchQuery] = useState("");
+  const searchResults = useQuery(api.levels.searchQuestionsAdmin, { query: searchQuery });
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
 
   const toggleLevel = (levelId: string) => {
     const newExpanded = new Set(expandedLevels);
@@ -619,6 +624,69 @@ EXAMPLE ROWS
           </div>
         </div>
       )}
+
+        {/* Search Bar */}
+        <div className="relative z-10">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search by Question Code (6 digits)..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
+              className="w-full px-4 py-3 pl-10 border border-slate-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <Target className="absolute left-3 top-3.5 w-5 h-5 text-slate-400" />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-3.5 text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
+          </div>
+
+          {searchQuery && (searchResults !== undefined) && (
+            <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden max-h-96 overflow-y-auto">
+              {searchResults.length === 0 ? (
+                <div className="p-4 text-center text-slate-500">No question found with code "{searchQuery}"</div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {searchResults.map((result: any) => (
+                    <div key={result._id} className="p-4 hover:bg-slate-50 transition-colors">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="font-medium text-slate-900">{result.question}</p>
+                          <div className="flex items-center gap-2 mt-1 text-sm text-slate-500">
+                            <span className="font-mono bg-slate-100 px-1 rounded">#{result.questionCode}</span>
+                            <span>•</span>
+                            <span>Level {result.levelNumber}: {result.levelName}</span>
+                            <span>•</span>
+                            <span className="capitalize">{result.difficultyName}</span>
+                          </div>
+                        </div>
+                        <button 
+                            onClick={() => {
+                                // Expand the level and difficulty
+                                if (!expandedLevels.has(result.levelId)) toggleLevel(result.levelId);
+                                const diffKey = `${result.levelId}-${result.difficultyName}`;
+                                if (!expandedDifficulties.has(diffKey)) toggleDifficulty(diffKey);
+                                setSearchQuery(""); // Clear search to show view
+                            }}
+                            className="text-sm text-indigo-600 hover:text-indigo-800 font-medium px-3 py-1 rounded-lg hover:bg-indigo-50"
+                        >
+                            Locate
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
       {/* Levels accordion */}
       <div className="space-y-4">
@@ -1190,8 +1258,13 @@ function LevelAccordion({
                           }`}>
                             {q.questionType.toUpperCase()}
                           </span>
-                          <span className="flex-1 text-sm text-slate-700 truncate">
+                          <span className="flex-1 text-sm text-slate-700 truncate flex items-center gap-2">
                             {q.question}
+                            {q.questionCode && (
+                                <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-xs font-mono border border-slate-200">
+                                    #{q.questionCode}
+                                </span>
+                            )}
                           </span>
 
                           {/* Question Reordering */}

@@ -28,6 +28,7 @@ type Question = {
   _id: Id<"levelQuestions">;
   questionType: 'mcq' | 'grid' | 'map' | 'select' | 'match' | 'speaking' | 'make_sentence';
   question: string;
+  questionCode?: string;
   data: any;
 };
 
@@ -81,8 +82,7 @@ export default function LevelGameScreen() {
   const currentLevel = levels?.find(l => l._id === levelId);
   const currentDifficulty = currentLevel?.difficulties.find(d => d.name === difficulty);
   
-  // Current question
-  const currentQuestion = questions?.[currentIndex];
+
   const totalQuestions = questions?.length ?? 0;
   
 
@@ -229,6 +229,23 @@ export default function LevelGameScreen() {
       </SafeAreaView>
     );
   }
+
+  // Safe to access questions here as it's checked above
+  const currentQuestion = questions[currentIndex];
+  
+  // Guard against out of bounds or undefined question
+  if (!currentQuestion) {
+    return (
+       <SafeAreaView style={styles.container}>
+         <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>Error loading question</Text>
+            <Pressable style={styles.backButton} onPress={handleBack}>
+              <Text style={styles.backButtonText}>Go Back</Text>
+            </Pressable>
+         </View>
+       </SafeAreaView>
+    );
+  }
   
   // Result screen
   if (showResult && gameResult) {
@@ -322,21 +339,41 @@ export default function LevelGameScreen() {
           </View>
         </View>
         
-        {/* Skip Button - only visible when not showing question result */}
-        {!showQuestionResult && (
-          <Pressable onPress={handleSkip} style={styles.skipButton}>
-            <Text style={styles.skipButtonText}>Skip</Text>
-            <Ionicons name="play-skip-forward" size={16} color={COLORS.textSecondary} />
-          </Pressable>
-        )}
+
         
-        {showQuestionResult && (
-          <View style={styles.difficultyBadge}>
-            <Text style={styles.difficultyText}>
-              {currentDifficulty?.displayName ?? difficulty}
-            </Text>
-          </View>
-        )}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          {/* Question Code */}
+          {currentQuestion?.questionCode && (
+              <View style={{ 
+                paddingHorizontal: 6, 
+                paddingVertical: 2, 
+                backgroundColor: 'rgba(0,0,0,0.05)', 
+                borderRadius: 4,
+                borderWidth: 1,
+                borderColor: 'rgba(0,0,0,0.1)'
+              }}>
+                <Text style={{ fontSize: 10, color: COLORS.textMuted, opacity: 0.7 }}>
+                  #{currentQuestion?.questionCode}
+                </Text>
+              </View>
+          )}
+
+          {/* Skip Button - only visible when not showing question result */}
+          {!showQuestionResult && (
+            <Pressable onPress={handleSkip} style={styles.skipButton}>
+              <Text style={styles.skipButtonText}>Skip</Text>
+              <Ionicons name="play-skip-forward" size={16} color={COLORS.textSecondary} />
+            </Pressable>
+          )}
+          
+          {showQuestionResult && (
+            <View style={styles.difficultyBadge}>
+              <Text style={styles.difficultyText}>
+                {currentDifficulty?.displayName ?? difficulty}
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
       
       {/* Question Renderer - key forces fresh state on question change */}
