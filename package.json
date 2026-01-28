@@ -1,6 +1,6 @@
 {
   "name": "saresa",
-  "version": "1.0.58",
+  "version": "1.0.61",
   "main": "expo-router/entry",
   "scripts": {
     "start": "env-cmd -f .env.development expo start",

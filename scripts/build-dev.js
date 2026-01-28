@@ -19,7 +19,7 @@ const apkSourceDir = path.join(
   "build",
   "outputs",
   "apk",
-  "debug"
+  "debug",
 );
 const apkSourceFile = path.join(apkSourceDir, "app-debug.apk");
 const buildsDir = path.join(root, "builds");
@@ -33,7 +33,7 @@ console.log("");
 try {
   // Step 1: Run Expo Prebuild to regenerate native projects with updated version
   console.log("🔄 Running Expo Prebuild...");
-  execSync("npx expo prebuild --clean --no-interactive", {
+  execSync("npx expo prebuild --clean", {
     cwd: root,
     stdio: "inherit",
     shell: true,
