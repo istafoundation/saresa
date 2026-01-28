@@ -219,14 +219,8 @@ export const clearTables = mutation({
     secret: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Check for Admin Auth OR Secret Bypass
-    try {
-        await requireAdmin(ctx);
-    } catch (e) {
-        if (args.secret !== "sk_sync_content_secret_12345") {
-            throw new ConvexError("Unauthorized: Admin access or correct secret required.");
-        }
-    }
+    // Require Admin Auth
+    await requireAdmin(ctx);
 
     const deletedCounts: Record<string, number> = {};
 

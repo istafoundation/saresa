@@ -213,6 +213,8 @@ export function useGameStatsActions() {
       wordsFound: number;
       xpEarned: number;
       correctAnswers?: number;
+      timeRemaining?: number;
+      hintUsed?: boolean;
     }): Promise<boolean> => {
       logSync('updateWordFinderStats', data);
       const authToken = getAuthToken();

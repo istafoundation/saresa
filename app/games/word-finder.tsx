@@ -181,8 +181,10 @@ export default function WordFinderScreen() {
     await updateWordFinderStats({
       mode: mode,
       wordsFound: gameResult.wordsFound,
-      xpEarned: gameResult.xpEarned,
+      xpEarned: gameResult.xpEarned, // kept for backward compatibility but ignored
       correctAnswers: mode === 'hard' ? gameResult.wordsFound : undefined,
+      timeRemaining: useWordFinderStore.getState().timeRemaining,
+      hintUsed: hintUsed,
     });
 
     if (gameResult.xpEarned > 0) {

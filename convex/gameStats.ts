@@ -318,8 +318,11 @@ export const updateWordFinderStats = mutation({
     token: v.string(),
     mode: v.union(v.literal("easy"), v.literal("hard")),
     wordsFound: v.number(),
-    xpEarned: v.number(),
+    xpEarned: v.optional(v.number()), // DEPRECATED: Ignored, calculated server-side
     correctAnswers: v.optional(v.number()), // For hard mode
+    // New args for server-side calculation
+    timeRemaining: v.optional(v.number()),
+    hintUsed: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const childId = await getChildIdFromSession(ctx, args.token);
@@ -333,9 +336,38 @@ export const updateWordFinderStats = mutation({
     if (!user) throw new ConvexError("User not found");
 
     const today = getISTDate();
+    
+    // Server-side XP Calculation
+    const MAX_TIME = 600;
+    const timeRemaining = args.timeRemaining ?? 0;
+    const timeBonus = 1 + 0.5 * (timeRemaining / MAX_TIME);
+    
+    let calculatedXP = 0;
+    
+    if (args.mode === "easy") {
+        const baseXP = args.wordsFound * 10;
+        calculatedXP = Math.min(50, Math.round(baseXP * timeBonus));
+    } else {
+        const correct = args.correctAnswers ?? 0;
+        const baseXP = correct * 40;
+        const hintPenalty = args.hintUsed ? 0.5 : 1;
+        calculatedXP = Math.min(200, Math.round(baseXP * timeBonus * hintPenalty));
+    }
+
     const updates: Record<string, any> = {
-      wfTotalXPEarned: user.wfTotalXPEarned + args.xpEarned,
+      wfTotalXPEarned: user.wfTotalXPEarned + calculatedXP,
+      // Add XP to user total
+      xp: user.xp + calculatedXP, 
     };
+    
+    // Check for artifact unlocks
+    const { updated: artifactsUpdated, artifacts: unlockedArtifacts } = getUnlockedArtifactsForXP(
+      updates.xp, 
+      user.unlockedArtifacts
+    );
+    if (artifactsUpdated) {
+        updates.unlockedArtifacts = unlockedArtifacts;
+    }
 
     if (args.mode === "easy") {
       updates.wfEasyGamesPlayed = user.wfEasyGamesPlayed + 1;
@@ -684,7 +716,7 @@ export const syncFlagChampsStats = mutation({
     token: v.string(),
     newGuessed: v.array(v.string()),  // IDs answered since last sync
     newCorrect: v.number(),           // Correct count since last sync
-    newXP: v.number(),                // XP earned since last sync
+    newXP: v.number(),                // XP earned since last sync (Client claim)
     isGameComplete: v.boolean(),      // True if all 195 answered
   },
   handler: async (ctx, args) => {
@@ -713,10 +745,22 @@ export const syncFlagChampsStats = mutation({
       }
     }
     correctToday += args.newCorrect;
-    dailyXP += args.newXP;
+    
+    // Validate XP Claim (Clamping)
+    // Max XP = (Correct * 5) + (Wrong * 1)
+    // Wrong count = Total attempts in this batch - Correct attempts
+    // Note: This logic assumes args.newGuessed contains ALL attempts from this batch
+    // If client is honest, newGuessed.length >= newCorrect
+    const wrongCount = Math.max(0, args.newGuessed.length - args.newCorrect);
+    const maxPossibleXP = (args.newCorrect * 5) + (wrongCount * 1);
+    
+    // Clamp to prevent massive spoofing
+    const validatedXP = Math.min(args.newXP, maxPossibleXP);
+    
+    dailyXP += validatedXP;
 
     // Calculate new total XP
-    const newXP = user.xp + args.newXP;
+    const newXP = user.xp + validatedXP;
 
     // Check for artifact unlocks
     // Use shared helper function for artifact unlocks
@@ -734,9 +778,8 @@ export const syncFlagChampsStats = mutation({
         newBestScore = correctToday;
       }
       // Only increment if this is a new completion (not a repeat sync)
-      if (guessedToday.length === TOTAL_FLAGS && !user.fcGuessedToday?.length) {
-        totalGamesCompleted += 1;
-      } else if (guessedToday.length === TOTAL_FLAGS && user.fcGuessedToday?.length !== TOTAL_FLAGS) {
+      // We check if we JUST reached 195 with this sync
+      if (guessedToday.length === 195 && (user.fcGuessedToday?.length ?? 0) < 195) {
         totalGamesCompleted += 1;
       }
     }
@@ -759,7 +802,8 @@ export const syncFlagChampsStats = mutation({
       correctToday,
       dailyXP,
       bestScore: newBestScore,
-      isComplete: guessedToday.length >= TOTAL_FLAGS,
+      isComplete: guessedToday.length >= 195,
+      xpAwarded: validatedXP
     };
   },
 });
