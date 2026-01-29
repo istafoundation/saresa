@@ -219,8 +219,17 @@ export const clearTables = mutation({
     secret: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Require Admin Auth
-    await requireAdmin(ctx);
+    // Check for secret bypass (for sync scripts)
+    // Securely check against environment variable
+    const SYNC_SECRET = process.env.SYNC_API_KEY;
+    
+    // If secret is provided and matches the env var, bypass admin check
+    const isAuthorized = SYNC_SECRET && args.secret === SYNC_SECRET;
+    
+    if (!isAuthorized) {
+      // Require Admin Auth if not authorized via secret
+      await requireAdmin(ctx);
+    }
 
     const deletedCounts: Record<string, number> = {};
 

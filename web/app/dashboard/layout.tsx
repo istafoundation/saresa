@@ -36,7 +36,6 @@ export default function DashboardLayout({
     if (isAdmin) {
       baseNav.push(
         { name: "Content", href: "/dashboard/content", icon: Package },
-        { name: "Students", href: "/dashboard/admin/students", icon: Search },
         { name: "User Management", href: "/dashboard/admin/user-management", icon: Shield }
       );
     }

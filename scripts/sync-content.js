@@ -38,6 +38,14 @@ async function run() {
   if (devDeployment.includes(':')) devDeployment = devDeployment.split(':')[1];
   console.log(`   Target: ${devDeployment}`);
 
+  // Get Sync Secret
+  const syncSecretMatch = devEnv.match(/SYNC_API_KEY=(.+)/);
+  const syncSecret = syncSecretMatch ? syncSecretMatch[1].trim() : null;
+  
+  if (!syncSecret) {
+      console.warn("⚠️  SYNC_API_KEY not found in .env.development. Tables might not be cleared if not Admin.");
+  }
+
   // Create temp dir (clean up previous if exists)
   if (fs.existsSync('temp_sync')) {
     fs.rmSync('temp_sync', { recursive: true, force: true });
@@ -60,7 +68,7 @@ async function run() {
   try {
       const argsObj = { 
           tableNames: CONTENT_TABLES,
-          secret: "sk_sync_content_secret_12345"
+          secret: syncSecret // Must be present in .env.development
       };
       const argsJson = JSON.stringify(argsObj);
       const argsEscaped = argsJson.replace(/"/g, '\\"');
@@ -69,7 +77,7 @@ async function run() {
       console.log(`   Running admin:clearTables...`);
       require('child_process').execSync(`npx convex run admin:clearTables --deployment-name ${devDeployment} ${finalArgs}`, { stdio: 'inherit' });
   } catch (e) {
-      console.error("❌ Failed to clear tables. Make sure you are an admin in Dev and the mutation exists.");
+      console.error("❌ Failed to clear tables. Make sure you are an admin in Dev or SYNC_API_KEY is recognized.");
       process.exit(1);
   }
   

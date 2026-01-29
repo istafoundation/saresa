@@ -13,9 +13,11 @@ import {
   RefreshCw,
   Trash2,
   Eye,
-  EyeOff
+  EyeOff,
+  Search,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { StudentsTab } from "./components/students-tab";
 
 // Action names mapped to human-readable labels
 const ACTION_LABELS: Record<string, string> = {
@@ -29,7 +31,7 @@ const ACTION_LABELS: Record<string, string> = {
 
 export default function UserManagementPage() {
   const isAdmin = useQuery(api.parents.isAdmin);
-  const [activeTab, setActiveTab] = useState<"notifications" | "overview">("notifications");
+  const [activeTab, setActiveTab] = useState<"notifications" | "overview" | "students">("notifications");
   const [showRead, setShowRead] = useState(false);
 
   const notifications = useQuery(api.admin.getRateLimitNotifications, { 
@@ -103,6 +105,17 @@ export default function UserManagementPage() {
           >
             <AlertTriangle className="w-4 h-4 inline mr-2" />
             Overview
+          </button>
+          <button
+            onClick={() => setActiveTab("students")}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+              activeTab === "students"
+                ? "bg-white text-slate-900 shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <Search className="w-4 h-4 inline mr-2" />
+            Students
           </button>
         </div>
       </div>
@@ -274,6 +287,10 @@ export default function UserManagementPage() {
           </div>
         </div>
       )}
+
+      {/* Students Tab */}
+      {activeTab === "students" && <StudentsTab />}
+
     </div>
   );
 }

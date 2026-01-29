@@ -6,8 +6,7 @@ import { api } from "@convex/_generated/api";
 import { Search, User, Gamepad2, BookOpen, Puzzle, Brain, TrendingUp } from "lucide-react";
 import type { Id } from "@convex/_generated/dataModel";
 
-export default function AdminStudentsPage() {
-  const isAdmin = useQuery(api.parents.isAdmin);
+export function StudentsTab() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedChildId, setSelectedChildId] = useState<Id<"children"> | null>(null);
 
@@ -23,20 +22,11 @@ export default function AdminStudentsPage() {
     selectedChildId ? { childId: selectedChildId } : "skip"
   );
 
-  if (isAdmin === false) {
-    return (
-      <div className="text-center py-20">
-        <h1 className="text-2xl font-bold text-red-600">Access Denied</h1>
-        <p className="text-slate-600 mt-2">You don't have permission to view this page.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Student Lookup</h1>
+        <h2 className="text-xl font-bold text-slate-900">Student Lookup</h2>
         <p className="text-slate-600">Search for any student by username or name</p>
       </div>
 
