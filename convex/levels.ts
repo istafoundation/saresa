@@ -425,27 +425,12 @@ export const getLevelsAdmin = query({
     // Sort by levelNumber
     levels.sort((a, b) => a.levelNumber - b.levelNumber);
     
-    // Get question counts per level/difficulty
-    const levelsWithCounts = await Promise.all(
-      levels.map(async (level) => {
-        const questions = await ctx.db
-          .query("levelQuestions")
-          .withIndex("by_level", (q) => q.eq("levelId", level._id))
-          .filter((q) => q.eq(q.field("status"), "active"))
-          .collect();
-        
-        const questionCounts: Record<string, number> = {};
-        questions.forEach(q => {
-          questionCounts[q.difficultyName] = (questionCounts[q.difficultyName] || 0) + 1;
-        });
-        
-        return {
-          ...level,
-          questionCounts,
-          totalQuestions: questions.length,
-        };
-      })
-    );
+    // Use denormalized counts if available, otherwise 0 (migration handles backfill)
+    const levelsWithCounts = levels.map((level) => ({
+      ...level,
+      questionCounts: level.questionCounts ?? {},
+      totalQuestions: level.totalQuestions ?? 0,
+    }));
     
     return levelsWithCounts;
   },
@@ -619,7 +604,7 @@ export const deleteLevel = mutation({
       .query("levelQuestions")
       .withIndex("by_level", (q) => q.eq("levelId", args.levelId))
       .collect();
-    
+      
     for (const question of questions) {
       await ctx.db.delete(question._id);
     }
@@ -744,6 +729,20 @@ export const deleteDifficulty = mutation({
       difficulties: level.difficulties.filter(d => d.name !== args.difficultyName),
       updatedAt: Date.now(),
     });
+
+    // Update level counts
+    const currentCounts = level.questionCounts ?? {};
+    const newTotalQuestions = Math.max(0, (level.totalQuestions ?? 0) - questions.length);
+    const newDifficultyCount = Math.max(0, (currentCounts[args.difficultyName] ?? 0) - questions.length);
+
+    await ctx.db.patch(args.levelId, {
+      questionCounts: {
+        ...currentCounts,
+        [args.difficultyName]: newDifficultyCount,
+      },
+      totalQuestions: newTotalQuestions,
+      updatedAt: Date.now(),
+    });
   },
 });
 
@@ -763,7 +762,8 @@ export const addQuestion = mutation({
       v.literal("select"),
       v.literal("match"),
       v.literal("speaking"),
-      v.literal("make_sentence")
+      v.literal("make_sentence"),
+      v.literal("fill_in_the_blanks")
     ),
     question: v.string(),
     data: v.any(),
@@ -792,6 +792,7 @@ export const addQuestion = mutation({
       
     const maxOrder = existing.reduce((max, q) => Math.max(max, q.order ?? 0), 0);
     
+    // Generate unique question code
     const questionCode = await generateUniqueQuestionCode(ctx);
 
     const questionId = await ctx.db.insert("levelQuestions", {
@@ -799,14 +800,27 @@ export const addQuestion = mutation({
       difficultyName: args.difficultyName,
       questionType: args.questionType,
       question: args.question,
-      questionCode,
       data: args.data,
-      status: "active",
       order: maxOrder + 1,
+      status: "active",
+      questionCode,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
+
+    // Update level counts
+    const currentCounts = level.questionCounts ?? {};
+    const newCount = (currentCounts[args.difficultyName] || 0) + 1;
     
+    await ctx.db.patch(args.levelId, {
+      questionCounts: {
+        ...currentCounts,
+        [args.difficultyName]: newCount,
+      },
+      totalQuestions: (level.totalQuestions ?? 0) + 1,
+      updatedAt: Date.now(),
+    });
+
     return questionId;
   },
 });
@@ -838,7 +852,32 @@ export const deleteQuestion = mutation({
   args: { questionId: v.id("levelQuestions") },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
+    
+    const question = await ctx.db.get(args.questionId);
+    if (!question) {
+      throw new ConvexError("Question not found");
+    }
+
     await ctx.db.delete(args.questionId);
+
+    // Update level counts
+    const level = await ctx.db.get(question.levelId);
+    if (level) {
+       const currentCounts = level.questionCounts ?? {};
+       const currentDiffCount = currentCounts[question.difficultyName] || 0;
+       
+       // Decrement only if greater than 0
+       if (currentDiffCount > 0) {
+           await ctx.db.patch(level._id, {
+             questionCounts: {
+               ...currentCounts,
+               [question.difficultyName]: currentDiffCount - 1,
+             },
+             totalQuestions: Math.max(0, (level.totalQuestions ?? 0) - 1),
+             updatedAt: Date.now(),
+           });
+       }
+    }
   },
 });
 
@@ -855,11 +894,13 @@ export const bulkReplaceQuestions = mutation({
         v.literal("select"),
         v.literal("match"),
         v.literal("speaking"),
-        v.literal("make_sentence")
+        v.literal("make_sentence"),
+        v.literal("fill_in_the_blanks") // Added fill_in_the_blanks
       ),
       question: v.string(),
       data: v.any(),
       order: v.optional(v.number()), // For maintaining CSV order
+      status: v.optional(v.union(v.literal("active"), v.literal("archived"))), // Added status
     })),
   },
   handler: async (ctx, args) => {
@@ -973,6 +1014,24 @@ export const bulkReplaceDifficultyQuestions = mutation({
         updatedAt: Date.now(),
       });
     }
+
+    // Update level counts
+    const currentCounts = level.questionCounts ?? {};
+    const questionDiff = args.questions.length - existingQuestions.length;
+    
+    // We are replacing ALL questions for this difficulty, so the new count is just args.questions.length
+    // But we need to update totalQuestions carefully
+    
+    const newTotal = Math.max(0, (level.totalQuestions ?? 0) + questionDiff);
+    
+    await ctx.db.patch(args.levelId, {
+        questionCounts: {
+            ...currentCounts,
+            [args.difficultyName]: args.questions.length
+        },
+        totalQuestions: newTotal,
+        updatedAt: Date.now(),
+    });
   },
 });
 

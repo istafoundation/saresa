@@ -23,10 +23,11 @@ import SelectRenderer from '../../../components/questions/SelectRenderer';
 import MatchRenderer from '../../../components/questions/MatchRenderer';
 import SpeakingRenderer from '../../../components/questions/SpeakingRenderer';
 import MakeSentenceRenderer from '../../../components/questions/MakeSentenceRenderer';
+import FillInBlanksRenderer from '../../../components/questions/FillInBlanksRenderer';
 
 type Question = {
   _id: Id<"levelQuestions">;
-  questionType: 'mcq' | 'grid' | 'map' | 'select' | 'match' | 'speaking' | 'make_sentence';
+  questionType: 'mcq' | 'grid' | 'map' | 'select' | 'match' | 'speaking' | 'make_sentence' | 'fill_in_the_blanks';
   question: string;
   questionCode?: string;
   data: any;
@@ -450,6 +451,16 @@ export default function LevelGameScreen() {
           {currentQuestion.questionType === 'make_sentence' && (
             <MakeSentenceRenderer
               key={`make-sentence-${questionKey}`}
+              question={currentQuestion.question}
+              data={currentQuestion.data}
+              onAnswer={handleAnswer}
+              onFeedback={handleFeedback}
+              disabled={showQuestionResult}
+            />
+          )}
+          {currentQuestion.questionType === 'fill_in_the_blanks' && (
+            <FillInBlanksRenderer
+              key={`fill-blanks-${questionKey}`}
               question={currentQuestion.question}
               data={currentQuestion.data}
               onAnswer={handleAnswer}

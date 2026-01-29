@@ -385,6 +385,10 @@ export default defineSchema({
       }),
     ),
 
+    // Denormalized counts for performance
+    questionCounts: v.optional(v.record(v.string(), v.number())), // { "easy": 5, "hard": 10 }
+    totalQuestions: v.optional(v.number()), // Total active questions
+
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -405,6 +409,7 @@ export default defineSchema({
       v.literal("match"), // Picture matching - connect images to texts
       v.literal("speaking"), // Speaking - pronounce a sentence
       v.literal("make_sentence"), // Sentence Builder - forge a sentence from a word
+      v.literal("fill_in_the_blanks"), // Fill in the Blanks - complete sentence with options
     ),
 
     question: v.string(), // The question/prompt text

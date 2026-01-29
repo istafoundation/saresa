@@ -47,7 +47,7 @@ type Level = Doc<"levels"> & {
 
 type LevelQuestion = Doc<"levelQuestions">;
 
-type QuestionType = "mcq" | "grid" | "map" | "select" | "match" | "speaking" | "make_sentence";
+type QuestionType = "mcq" | "grid" | "map" | "select" | "match" | "speaking" | "make_sentence" | "fill_in_the_blanks";
 
 const QUESTION_TYPES: { value: QuestionType; label: string; icon: React.ReactNode }[] = [
   { value: "mcq", label: "Multiple Choice", icon: <Zap className="w-4 h-4" /> },
@@ -56,7 +56,9 @@ const QUESTION_TYPES: { value: QuestionType; label: string; icon: React.ReactNod
   { value: "map", label: "Map Location", icon: <Map className="w-4 h-4" /> },
   { value: "match", label: "Picture Match", icon: <LinkIcon className="w-4 h-4" /> },
   { value: "speaking", label: "Speaking", icon: <Zap className="w-4 h-4" /> },
+
   { value: "make_sentence", label: "Make Sentence", icon: <Pencil className="w-4 h-4" /> },
+  { value: "fill_in_the_blanks", label: "Fill Blanks", icon: <Type className="w-4 h-4" /> },
 ];
 
 // Helper to process image URLs (used by CSV and Manual entry)
@@ -898,11 +900,148 @@ function LevelAccordion({
   onReorderDifficulty: (diffName: string, direction: "up" | "down") => Promise<void>;
   onReorderQuestion: (qId: Id<"levelQuestions">, direction: "up" | "down") => Promise<void>;
 }) {
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      {/* Level Header */}
+      <div className="flex items-center gap-4 p-4 bg-slate-50 border-b border-slate-200">
+        <button onClick={onToggle} className="p-1 hover:bg-slate-200 rounded transition-colors">
+          {isExpanded ? (
+            <ChevronDown className="w-5 h-5 text-slate-500" />
+          ) : (
+            <ChevronRight className="w-5 h-5 text-slate-500" />
+          )}
+        </button>
+        
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-lg font-medium text-slate-900">
+              Level {level.levelNumber}: {level.name}
+            </span>
+            {level.theme?.emoji && (
+              <span className="text-xl">{level.theme.emoji}</span>
+            )}
+          
+            <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+              level.isEnabled 
+                ? 'bg-green-100 text-green-700' 
+                : 'bg-amber-100 text-amber-700'
+            }`}>
+              {level.isEnabled ? 'Enabled' : 'Coming Soon'}
+            </span>
+
+            {/* Level Reordering */}
+            <div className="flex flex-col gap-0.5 ml-2">
+              <button 
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onReorderLevel("up"); }}
+                className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600 active:bg-slate-300"
+                title="Move Up"
+              >
+                <ArrowUp className="w-3 h-3" />
+              </button>
+              <button 
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onReorderLevel("down"); }}
+                className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600 active:bg-slate-300"
+                title="Move Down"
+              >
+                <ArrowDown className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+          <p className="text-sm text-slate-500 mt-0.5">
+            {level.difficulties.length} difficulties • {level.totalQuestions ?? 0} questions
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+        {/* Actions moved to expanded view or remaining simple ones here */}
+          
+          <div className="w-px h-6 bg-slate-300 mx-2" />
+
+          <button
+            onClick={onToggleEnabled}
+            className={`p-2 rounded-lg transition-colors ${
+              level.isEnabled ? 'text-green-600 hover:bg-green-50' : 'text-slate-400 hover:bg-slate-100'
+            }`}
+            title={level.isEnabled ? 'Disable level' : 'Enable level'}
+          >
+            {level.isEnabled ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
+          </button>
+          <button
+            onClick={onEdit}
+            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+            title="Edit level"
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
+          <button
+            onClick={onDelete}
+            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            title="Delete level"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Difficulties (Lazy Loaded) */}
+      {isExpanded && (
+        <LevelExpandedContent
+            level={level}
+            expandedDifficulties={expandedDifficulties}
+            onToggleDifficulty={onToggleDifficulty}
+            onAddDifficulty={onAddDifficulty}
+            onEditDifficulty={onEditDifficulty}
+            onDeleteDifficulty={onDeleteDifficulty}
+            onAddQuestion={onAddQuestion}
+            onEditQuestion={onEditQuestion}
+            onDeleteQuestion={onDeleteQuestion}
+            onUploadCSV={onUploadCSV}
+            onUploadDifficultyCSV={onUploadDifficultyCSV}
+            escapeCSV={escapeCSV}
+            onReorderDifficulty={onReorderDifficulty}
+            onReorderQuestion={onReorderQuestion}
+        />
+      )}
+    </div>
+  );
+}
+
+function LevelExpandedContent({
+    level,
+    expandedDifficulties,
+    onToggleDifficulty,
+    onAddDifficulty,
+    onEditDifficulty,
+    onDeleteDifficulty,
+    onAddQuestion,
+    onEditQuestion,
+    onDeleteQuestion,
+    onUploadCSV,
+    onUploadDifficultyCSV,
+    escapeCSV,
+    onReorderDifficulty,
+    onReorderQuestion,
+}: {
+    level: Level;
+    expandedDifficulties: Set<string>;
+    onToggleDifficulty: (key: string) => void;
+    onAddDifficulty: () => void;
+    onEditDifficulty: (diff: { name: string; displayName: string; requiredScore: number }) => void;
+    onDeleteDifficulty: (diffName: string) => void;
+    onAddQuestion: (diffName: string) => void;
+    onEditQuestion: (q: LevelQuestion) => void;
+    onDeleteQuestion: (id: Id<"levelQuestions">) => void;
+    onUploadCSV: () => void;
+    onUploadDifficultyCSV: (diffName: string) => void;
+    escapeCSV: (val: string | undefined | null) => string;
+    onReorderDifficulty: (diffName: string, direction: "up" | "down") => Promise<void>;
+    onReorderQuestion: (qId: Id<"levelQuestions">, direction: "up" | "down") => Promise<void>;
+}) {
   const questions = useQuery(api.levels.getLevelQuestionsAdmin, { levelId: level._id });
-  
   const sortedDifficulties = [...level.difficulties].sort((a, b) => a.order - b.order);
 
-  /* Inserted handleDownloadDifficulty */
   const handleDownloadDifficulty = (diffName: string) => {
     if (!questions || !questions[diffName]) return;
     
@@ -978,64 +1117,48 @@ function LevelAccordion({
 
   const handleDownload = () => {
     if (!questions) return;
-
-    // Flatten logic similar to upload
     const headers = ['Order','Type','Difficulty','Question','Option 1','Option 2','Option 3','Option 4','Correct Option','Solution','Statement','Correct Words','Select Mode','Explanation','Pairs','Sentence'];
-    
-    // Flatten all questions into a single list
-    // We need to establish an order. Ideally we sort by createdAt or similar if order field not guaranteed?
-    // Convex `getLevelQuestionsAdmin` returns grouped object.
     const allQuestions: LevelQuestion[] = [];
     Object.values(questions).forEach(qs => allQuestions.push(...qs));
-    
-    // Sort by createdAt (default order)
     allQuestions.sort((a, b) => a.createdAt - b.createdAt);
 
     const rows = allQuestions.map((q, index) => {
-      const order = index + 1;
-      const type = q.questionType;
-      const diff = q.difficultyName;
-      const qt = escapeCSV(q.question);
-      
-      let opt1 = '', opt2 = '', opt3 = '', opt4 = '', correct = '', solution = '', stmt = '', words = '', mode = '', expl = '', pairs = '';
-      
-      const d = q.data as any;
-      if (type === 'mcq') {
-        opt1 = escapeCSV(d.options?.[0]);
-        opt2 = escapeCSV(d.options?.[1]);
-        opt3 = escapeCSV(d.options?.[2]);
-        opt4 = escapeCSV(d.options?.[3]);
-        correct = String(d.correctIndex + 1);
-        expl = escapeCSV(d.explanation);
-      } else if (type === 'grid') {
-        solution = escapeCSV(d.solution);
-      } else if (type === 'map') {
-        solution = escapeCSV(d.solution);
-      } else if (type === 'select') {
-        stmt = escapeCSV(d.statement);
-        words = escapeCSV(d.correctWords?.join(', '));
-        mode = escapeCSV(d.selectMode);
-      } else if (type === 'match') {
-        // Pairs: url|text;url|text
-        if (d.pairs && Array.isArray(d.pairs)) {
-           const pairStrings = d.pairs.map((p: any) => `${p.imageUrl}|${p.text}`);
-           pairs = escapeCSV(pairStrings.join(';'));
+        const order = index + 1;
+        const type = q.questionType;
+        const diff = q.difficultyName;
+        const qt = escapeCSV(q.question);
+        
+        // ... (Similar mapping as detailed in original code)
+        // I will implement a helper or inline it to save context if it's identical
+        // For brevity in replacement, re-using logic
+        let opt1 = '', opt2 = '', opt3 = '', opt4 = '', correct = '', solution = '', stmt = '', words = '', mode = '', expl = '', pairs = '';
+        
+        const d = q.data as any;
+        if (type === 'mcq') {
+            opt1 = escapeCSV(d.options?.[0]);
+            opt2 = escapeCSV(d.options?.[1]);
+            opt3 = escapeCSV(d.options?.[2]);
+            opt4 = escapeCSV(d.options?.[3]);
+            correct = String(d.correctIndex + 1);
+            expl = escapeCSV(d.explanation);
+        } else if (type === 'grid') {
+            solution = escapeCSV(d.solution);
+        } else if (type === 'map') {
+            solution = escapeCSV(d.solution);
+        } else if (type === 'select') {
+            stmt = escapeCSV(d.statement);
+            words = escapeCSV(d.correctWords?.join(', '));
+            mode = escapeCSV(d.selectMode);
+        } else if (type === 'match') {
+            if (d.pairs && Array.isArray(d.pairs)) {
+            const pairStrings = d.pairs.map((p: any) => `${p.imageUrl}|${p.text}`);
+            pairs = escapeCSV(pairStrings.join(';'));
+            }
         }
-      }
 
-      return [
-        order,
-        type,
-        diff,
-        qt,
-        opt1, opt2, opt3, opt4, correct,
-        solution,
-        stmt,
-        words,
-        mode,
-        expl,
-        pairs
-      ].join(',');
+        return [
+            order, type, diff, qt, opt1, opt2, opt3, opt4, correct, solution, stmt, words, mode, expl, pairs
+        ].join(',');
     });
 
     const csvContent = [headers.join(','), ...rows].join('\n');
@@ -1050,278 +1173,194 @@ function LevelAccordion({
   };
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-      {/* Level Header */}
-      <div className="flex items-center gap-4 p-4 bg-slate-50 border-b border-slate-200">
-        <button onClick={onToggle} className="p-1 hover:bg-slate-200 rounded transition-colors">
-          {isExpanded ? (
-            <ChevronDown className="w-5 h-5 text-slate-500" />
-          ) : (
-            <ChevronRight className="w-5 h-5 text-slate-500" />
-          )}
-        </button>
-        
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <span className="text-lg font-medium text-slate-900">
-              Level {level.levelNumber}: {level.name}
-            </span>
-            {level.theme?.emoji && (
-              <span className="text-xl">{level.theme.emoji}</span>
-            )}
-          
-            <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-              level.isEnabled 
-                ? 'bg-green-100 text-green-700' 
-                : 'bg-amber-100 text-amber-700'
-            }`}>
-              {level.isEnabled ? 'Enabled' : 'Coming Soon'}
-            </span>
-
-            {/* Level Reordering */}
-            <div className="flex flex-col gap-0.5 ml-2">
-              <button 
-                type="button"
-                onClick={(e) => { e.stopPropagation(); onReorderLevel("up"); }}
-                className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600 active:bg-slate-300"
-                title="Move Up"
-              >
-                <ArrowUp className="w-3 h-3" />
-              </button>
-              <button 
-                type="button"
-                onClick={(e) => { e.stopPropagation(); onReorderLevel("down"); }}
-                className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600 active:bg-slate-300"
-                title="Move Down"
-              >
-                <ArrowDown className="w-3 h-3" />
-              </button>
-            </div>
-          </div>
-          <p className="text-sm text-slate-500 mt-0.5">
-            {level.difficulties.length} difficulties • {level.totalQuestions} questions
-          </p>
+    <div className="divide-y divide-slate-100 border-t border-slate-100">
+        {/* Level Actions Toolbar */}
+        <div className="p-3 bg-slate-50 flex justify-end gap-2">
+            <button
+                onClick={handleDownload}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                title="Download all questions in level as CSV"
+            >
+                <Download className="w-4 h-4" />
+                Download CSV
+            </button>
+            <button
+                onClick={onUploadCSV}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                title="Upload CSV to replace all questions"
+            >
+                <Upload className="w-4 h-4" />
+                Upload CSV
+            </button>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* CSV Actions */}
-          <button
-            onClick={handleDownload}
-            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-            title="Download questions CSV"
-          >
-            <Download className="w-4 h-4" />
-          </button>
-          <button
-            onClick={onUploadCSV}
-            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-            title="Upload questions CSV (Replaces all)"
-          >
-            <Upload className="w-4 h-4" />
-          </button>
-          
-          <div className="w-px h-6 bg-slate-300 mx-2" />
+      {sortedDifficulties.map((difficulty) => {
+        const diffKey = `${level._id}-${difficulty.name}`;
+        const diffExpanded = expandedDifficulties.has(diffKey);
+        const diffQuestions = questions?.[difficulty.name] ?? [];
 
-          <button
-            onClick={onToggleEnabled}
-            className={`p-2 rounded-lg transition-colors ${
-              level.isEnabled ? 'text-green-600 hover:bg-green-50' : 'text-slate-400 hover:bg-slate-100'
-            }`}
-            title={level.isEnabled ? 'Disable level' : 'Enable level'}
-          >
-            {level.isEnabled ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
-          </button>
-          <button
-            onClick={onEdit}
-            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-            title="Edit level"
-          >
-            <Pencil className="w-4 h-4" />
-          </button>
-          <button
-            onClick={onDelete}
-            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-            title="Delete level"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* Difficulties */}
-      {isExpanded && (
-        <div className="divide-y divide-slate-100">
-          {sortedDifficulties.map((difficulty) => {
-            const diffKey = `${level._id}-${difficulty.name}`;
-            const diffExpanded = expandedDifficulties.has(diffKey);
-            const diffQuestions = questions?.[difficulty.name] ?? [];
-
-            return (
-              <div key={difficulty.name} className="ml-8">
-                {/* Difficulty Header */}
-                <div className="flex items-center gap-3 p-3 hover:bg-slate-50">
-                  <button
-                    onClick={() => onToggleDifficulty(diffKey)}
-                    className="p-1 hover:bg-slate-200 rounded transition-colors"
-                  >
-                    {diffExpanded ? (
-                      <ChevronDown className="w-4 h-4 text-slate-400" />
-                    ) : (
-                      <ChevronRight className="w-4 h-4 text-slate-400" />
-                    )}
-                  </button>
-                  <Target className="w-4 h-4 text-indigo-500" />
-                  <span className="font-medium text-slate-800">{difficulty.displayName}</span>
-                  
-                  {/* Difficulty Reordering */}
-                  <div className="flex flex-col gap-0.5 mx-1">
-                    <button 
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); onReorderDifficulty(difficulty.name, "up"); }}
-                      className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600 active:bg-slate-300"
-                      title="Move Up"
-                    >
-                      <ArrowUp className="w-3 h-3" />
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); onReorderDifficulty(difficulty.name, "down"); }}
-                      className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600 active:bg-slate-300"
-                      title="Move Down"
-                    >
-                      <ArrowDown className="w-3 h-3" />
-                    </button>
-                  </div>
-
-                  {/* CSV Actions for Difficulty */}
-                  <div className="flex items-center gap-1 mx-2">
-                    <button
-                        onClick={(e) => { e.stopPropagation(); handleDownloadDifficulty(difficulty.name); }}
-                        className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
-                        title="Download CSV"
-                    >
-                        <Download className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                        onClick={(e) => { e.stopPropagation(); onUploadDifficultyCSV(difficulty.name); }}
-                        className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
-                        title="Upload CSV (Replaces specific difficulty)"
-                    >
-                        <Upload className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  <span className="text-sm text-slate-500">({difficulty.requiredScore}% to pass)</span>
-                  <button
-                    onClick={() => onEditDifficulty(difficulty)}
-                    className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors ml-2"
-                    title="Edit difficulty"
-                  >
-                    <Pencil className="w-3 h-3" />
-                  </button>
-                  <span className="text-xs text-slate-400 ml-auto mr-4">
-                    {diffQuestions.length} questions
-                  </span>
-                  <button
-                    onClick={() => onAddQuestion(difficulty.name)}
-                    className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
-                  >
-                    + Add Question
-                  </button>
-                  {level.difficulties.length > 1 && (
-                    <button
-                      onClick={() => onDeleteDifficulty(difficulty.name)}
-                      className="p-1 text-red-500 hover:bg-red-50 rounded transition-colors"
-                      title="Delete difficulty"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  )}
+        return (
+            <div key={difficulty.name} className="ml-8">
+            {/* Difficulty Header */}
+            <div className="flex items-center gap-3 p-3 hover:bg-slate-50">
+                <button
+                onClick={() => onToggleDifficulty(diffKey)}
+                className="p-1 hover:bg-slate-200 rounded transition-colors"
+                >
+                {diffExpanded ? (
+                    <ChevronDown className="w-4 h-4 text-slate-400" />
+                ) : (
+                    <ChevronRight className="w-4 h-4 text-slate-400" />
+                )}
+                </button>
+                <Target className="w-4 h-4 text-indigo-500" />
+                <span className="font-medium text-slate-800">{difficulty.displayName}</span>
+                
+                {/* Difficulty Reordering */}
+                <div className="flex flex-col gap-0.5 mx-1">
+                <button 
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onReorderDifficulty(difficulty.name, "up"); }}
+                    className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600 active:bg-slate-300"
+                    title="Move Up"
+                >
+                    <ArrowUp className="w-3 h-3" />
+                </button>
+                <button 
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onReorderDifficulty(difficulty.name, "down"); }}
+                    className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600 active:bg-slate-300"
+                    title="Move Down"
+                >
+                    <ArrowDown className="w-3 h-3" />
+                </button>
                 </div>
 
-                {/* Questions List */}
-                {diffExpanded && (
-                  <div className="ml-10 pb-2 space-y-1">
-                    {diffQuestions.length === 0 ? (
-                      <p className="text-sm text-slate-400 italic p-2">No questions yet</p>
-                    ) : (
-                      diffQuestions.map((q) => (
-                        <div
-                          key={q._id}
-                          className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-50 group"
-                        >
-                          <span className="w-5 h-5 flex items-center justify-center text-slate-400">
-                            {QUESTION_TYPES.find(t => t.value === q.questionType)?.icon}
-                          </span>
-                          <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
-                            q.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'
-                          }`}>
-                            {q.questionType.toUpperCase()}
-                          </span>
-                          <span className="flex-1 text-sm text-slate-700 truncate flex items-center gap-2">
-                            {q.question}
-                            {q.questionCode && (
-                                <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-xs font-mono border border-slate-200">
-                                    #{q.questionCode}
-                                </span>
-                            )}
-                          </span>
+                <div className="flex items-center gap-1 mx-2">
+                <button
+                    onClick={(e) => { e.stopPropagation(); handleDownloadDifficulty(difficulty.name); }}
+                    className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                    title="Download CSV"
+                >
+                    <Download className="w-3.5 h-3.5" />
+                </button>
+                <button
+                    onClick={(e) => { e.stopPropagation(); onUploadDifficultyCSV(difficulty.name); }}
+                    className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                    title="Upload CSV"
+                >
+                    <Upload className="w-3.5 h-3.5" />
+                </button>
+                </div>
 
-                          {/* Question Reordering */}
-                          <div className="flex flex-col gap-0.5 px-2">
-                             <button 
-                              type="button"
-                              onClick={() => onReorderQuestion(q._id, "up")}
-                              className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600 active:bg-slate-300"
-                              title="Move Up"
-                            >
-                              <ArrowUp className="w-3 h-3" />
-                            </button>
-                            <button 
-                              type="button"
-                              onClick={() => onReorderQuestion(q._id, "down")}
-                              className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600 active:bg-slate-300"
-                              title="Move Down"
-                            >
-                              <ArrowDown className="w-3 h-3" />
-                            </button>
-                          </div>
-
-                          <button
-                            onClick={() => onEditQuestion(q)}
-                            className="p-1 text-blue-600 opacity-0 group-hover:opacity-100 hover:bg-blue-50 rounded transition-all"
-                            title="Edit"
-                          >
-                            <Pencil className="w-3 h-3" />
-                          </button>
-                          <button
-                            onClick={() => onDeleteQuestion(q._id)}
-                            className="p-1 text-red-600 opacity-0 group-hover:opacity-100 hover:bg-red-50 rounded transition-all"
-                            title="Delete"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ))
-                    )}
-                  </div>
+                <span className="text-sm text-slate-500">({difficulty.requiredScore}% to pass)</span>
+                <button
+                onClick={() => onEditDifficulty(difficulty)}
+                className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors ml-2"
+                title="Edit difficulty"
+                >
+                <Pencil className="w-3 h-3" />
+                </button>
+                <span className="text-xs text-slate-400 ml-auto mr-4">
+                {diffQuestions.length} questions
+                </span>
+                <button
+                onClick={() => onAddQuestion(difficulty.name)}
+                className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+                >
+                + Add Question
+                </button>
+                {level.difficulties.length > 1 && (
+                <button
+                    onClick={() => onDeleteDifficulty(difficulty.name)}
+                    className="p-1 text-red-500 hover:bg-red-50 rounded transition-colors"
+                    title="Delete difficulty"
+                >
+                    <Trash2 className="w-3 h-3" />
+                </button>
                 )}
-              </div>
-            );
-          })}
-          
-          {/* Add Difficulty Button */}
-          <div className="ml-8 p-3">
-            <button
-              onClick={onAddDifficulty}
-              className="text-sm text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
-            >
-              <Plus className="w-4 h-4" />
-              Add Difficulty
-            </button>
-          </div>
+            </div>
+
+            {/* Questions List */}
+            {diffExpanded && (
+                <div className="ml-10 pb-2 space-y-1">
+                {diffQuestions.length === 0 ? (
+                    <p className="text-sm text-slate-400 italic p-2">No questions yet</p>
+                ) : (
+                    diffQuestions.map((q) => (
+                    <div
+                        key={q._id}
+                        className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-50 group"
+                    >
+                        <span className="w-5 h-5 flex items-center justify-center text-slate-400">
+                        {QUESTION_TYPES.find(t => t.value === q.questionType)?.icon}
+                        </span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                        q.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'
+                        }`}>
+                        {q.questionType.toUpperCase()}
+                        </span>
+                        <span className="flex-1 text-sm text-slate-700 truncate flex items-center gap-2">
+                        {q.question}
+                        {q.questionCode && (
+                            <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-xs font-mono border border-slate-200">
+                                #{q.questionCode}
+                            </span>
+                        )}
+                        </span>
+
+                        <div className="flex flex-col gap-0.5 px-2">
+                            <button 
+                            type="button"
+                            onClick={() => onReorderQuestion(q._id, "up")}
+                            className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600 active:bg-slate-300"
+                            title="Move Up"
+                        >
+                            <ArrowUp className="w-3 h-3" />
+                        </button>
+                        <button 
+                            type="button"
+                            onClick={() => onReorderQuestion(q._id, "down")}
+                            className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-indigo-600 active:bg-slate-300"
+                            title="Move Down"
+                        >
+                            <ArrowDown className="w-3 h-3" />
+                        </button>
+                        </div>
+
+                        <button
+                        onClick={() => onEditQuestion(q)}
+                        className="p-1 text-blue-600 opacity-0 group-hover:opacity-100 hover:bg-blue-50 rounded transition-all"
+                        title="Edit"
+                        >
+                        <Pencil className="w-3 h-3" />
+                        </button>
+                        <button
+                        onClick={() => onDeleteQuestion(q._id)}
+                        className="p-1 text-red-600 opacity-0 group-hover:opacity-100 hover:bg-red-50 rounded transition-all"
+                        title="Delete"
+                        >
+                        <Trash2 className="w-3 h-3" />
+                        </button>
+                    </div>
+                    ))
+                )}
+                </div>
+            )}
+            </div>
+        );
+        })}
+        
+        {/* Add Difficulty Button */}
+        <div className="ml-8 p-3">
+        <button
+            onClick={onAddDifficulty}
+            className="text-sm text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+        >
+            <Plus className="w-4 h-4" />
+            Add Difficulty
+        </button>
         </div>
-      )}
     </div>
   );
 }
@@ -1633,6 +1672,9 @@ function AddQuestionModal({ levelId, difficultyName, onClose, onCreate }: {
   // Make Sentence fields
   const [makeSentenceWord, setMakeSentenceWord] = useState("");
 
+  // Fill in Blanks fields
+  const [fillBlanksDistractors, setFillBlanksDistractors] = useState("");
+
 
 
   const addMatchPair = () => {
@@ -1706,6 +1748,11 @@ function AddQuestionModal({ levelId, difficultyName, onClose, onCreate }: {
         break;
       case "make_sentence":
         data = { word: makeSentenceWord.trim() };
+        break;
+      case "fill_in_the_blanks":
+        data = { 
+          distractors: fillBlanksDistractors.split(',').map((s: string) => s.trim()).filter((s: string) => s.length > 0) 
+        };
         break;
     }
 
@@ -1973,6 +2020,31 @@ function AddQuestionModal({ levelId, difficultyName, onClose, onCreate }: {
           </div>
         )}
 
+        {questionType === "fill_in_the_blanks" && (
+          <>
+            <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 mb-4">
+              <p className="text-sm text-blue-800">
+                <strong>How to write the question:</strong> Use curly braces to create blanks.
+                <br />
+                Example: <code className="bg-blue-100 px-1 rounded">The sky is &#123;blue&#125; and grass is &#123;green&#125;.</code>
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Distractors (comma-separated)</label>
+              <input
+                type="text"
+                value={fillBlanksDistractors}
+                onChange={(e) => setFillBlanksDistractors(e.target.value)}
+                placeholder="e.g., red, yellow, purple"
+                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                Wrong options that will be mixed with the correct answers.
+              </p>
+            </div>
+          </>
+        )}
+
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">
             Cancel
@@ -2023,6 +2095,11 @@ function EditQuestionModal({ question, onClose, onSave }: {
   // Make Sentence fields
   const [makeSentenceWord, setMakeSentenceWord] = useState(
     question.questionType === "make_sentence" ? data.word ?? "" : ""
+  );
+
+  // Fill in Blanks fields
+  const [fillBlanksDistractors, setFillBlanksDistractors] = useState(
+    question.questionType === "fill_in_the_blanks" ? (data.distractors ?? []).join(", ") : ""
   );
 
   const addMatchPair = () => {
@@ -2095,6 +2172,11 @@ function EditQuestionModal({ question, onClose, onSave }: {
         break;
       case "make_sentence":
         newData = { word: makeSentenceWord.trim() };
+        break;
+      case "fill_in_the_blanks":
+        newData = { 
+          distractors: fillBlanksDistractors.split(',').map((s: string) => s.trim()).filter((s: string) => s.length > 0) 
+        };
         break;
     }
 
@@ -2310,6 +2392,28 @@ function EditQuestionModal({ question, onClose, onSave }: {
               className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
+        )}
+
+        {question.questionType === "fill_in_the_blanks" && (
+          <>
+            <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 mb-4">
+              <p className="text-sm text-blue-800">
+                <strong>How to edit:</strong> Use curly braces to create blanks.
+                <br />
+                Example: <code className="bg-blue-100 px-1 rounded">The sky is &#123;blue&#125; and grass is &#123;green&#125;.</code>
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Distractors (comma-separated)</label>
+              <input
+                type="text"
+                value={fillBlanksDistractors}
+                onChange={(e) => setFillBlanksDistractors(e.target.value)}
+                placeholder="e.g., red, yellow, purple"
+                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          </>
         )}
 
         <div className="flex justify-end gap-2 pt-2">
