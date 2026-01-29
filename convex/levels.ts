@@ -12,23 +12,23 @@ async function requireAdmin(ctx: any): Promise<Id<"parents">> {
   if (!identity) {
     throw new ConvexError("Must be logged in");
   }
-
+  
   const parent = await ctx.db
     .query("parents")
     .withIndex("by_clerk_id", (q: any) => q.eq("clerkId", identity.subject))
     .first();
-
+    
   if (!parent || parent.role !== "admin") {
     throw new ConvexError("Admin access required");
   }
-
+  
   return parent._id;
 }
 
 // Generate a unique 6-digit question code
 async function generateUniqueQuestionCode(ctx: any): Promise<string> {
   const generate = () => Math.floor(100000 + Math.random() * 900000).toString();
-
+  
   let code = generate();
   let isUnique = false;
   let attempts = 0;
@@ -38,7 +38,7 @@ async function generateUniqueQuestionCode(ctx: any): Promise<string> {
       .query("levelQuestions")
       .withIndex("by_question_code", (q: any) => q.eq("questionCode", code))
       .first();
-
+    
     if (!existing) {
       isUnique = true;
     } else {
@@ -47,8 +47,7 @@ async function generateUniqueQuestionCode(ctx: any): Promise<string> {
     }
   }
 
-  if (!isUnique)
-    throw new ConvexError("Failed to generate unique question code");
+  if (!isUnique) throw new ConvexError("Failed to generate unique question code");
   return code;
 }
 
@@ -65,34 +64,34 @@ export const getAllLevelsWithProgress = query({
       .query("childSessions")
       .withIndex("by_token", (q) => q.eq("token", args.token))
       .first();
-
+      
     if (!session || session.expiresAt < Date.now()) {
       throw new ConvexError("Invalid or expired session");
     }
-
+    
     // Get all enabled levels ordered by levelNumber
     const levels = await ctx.db
       .query("levels")
       .withIndex("by_level_number")
       .collect();
-
+    
     // Get user's progress for all levels
     const progress = await ctx.db
       .query("levelProgress")
       .withIndex("by_child", (q) => q.eq("childId", session.childId))
       .collect();
-
-    const progressMap = new Map(progress.map((p) => [p.levelId, p]));
-
+    
+    const progressMap = new Map(progress.map(p => [p.levelId, p]));
+    
     // Determine unlock status for each level
     let previousLevelCompleted = true; // Level 1 is always unlockable
-
+    
     return levels.map((level, index) => {
       const levelProgress = progressMap.get(level._id);
-
+      
       // Determine level state
       let state: "locked" | "unlocked" | "completed" | "coming_soon";
-
+      
       if (!level.isEnabled) {
         state = "coming_soon";
       } else if (levelProgress?.isCompleted) {
@@ -102,12 +101,12 @@ export const getAllLevelsWithProgress = query({
       } else {
         state = "locked";
       }
-
+      
       // Update for next iteration
       if (level.isEnabled) {
         previousLevelCompleted = levelProgress?.isCompleted ?? false;
       }
-
+      
       return {
         ...level,
         state,
@@ -130,21 +129,21 @@ export const getLevelQuestions = query({
       .query("childSessions")
       .withIndex("by_token", (q) => q.eq("token", args.token))
       .first();
-
+      
     if (!session || session.expiresAt < Date.now()) {
       throw new ConvexError("Invalid or expired session");
     }
-
+    
     // Get active questions for this level and difficulty
     // Return in creation order (as entered in dashboard)
     const questions = await ctx.db
       .query("levelQuestions")
-      .withIndex("by_level_difficulty", (q) =>
-        q.eq("levelId", args.levelId).eq("difficultyName", args.difficultyName),
+      .withIndex("by_level_difficulty", (q) => 
+        q.eq("levelId", args.levelId).eq("difficultyName", args.difficultyName)
       )
       .filter((q) => q.eq(q.field("status"), "active"))
       .collect();
-
+    
     // Sort by order field, then creation time for stability
     return questions.sort((a, b) => {
       const orderDiff = (a.order ?? 0) - (b.order ?? 0);
@@ -162,37 +161,36 @@ export const reorderLevels = mutation({
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-
+    
     const level = await ctx.db.get(args.levelId);
     if (!level) throw new ConvexError("Level not found");
-
+    
     // Sort levels by current levelNumber
     const levels = await ctx.db
       .query("levels")
       .withIndex("by_level_number")
       .collect();
-
+      
     levels.sort((a, b) => a.levelNumber - b.levelNumber);
-
-    const currentIndex = levels.findIndex((l) => l._id === args.levelId);
+    
+    const currentIndex = levels.findIndex(l => l._id === args.levelId);
     if (currentIndex === -1) throw new ConvexError("Level not found in list");
-
+    
     // Find target index
-    const targetIndex =
-      args.direction === "up" ? currentIndex - 1 : currentIndex + 1;
+    const targetIndex = args.direction === "up" ? currentIndex - 1 : currentIndex + 1;
     if (targetIndex < 0 || targetIndex >= levels.length) return; // Cannot move
-
+    
     // Swap in memory
     const temp = levels[currentIndex];
     levels[currentIndex] = levels[targetIndex];
     levels[targetIndex] = temp;
-
+    
     // Re-index ALL levels to ensure sequential integrity
     for (let i = 0; i < levels.length; i++) {
-      const expectedNum = i + 1;
-      if (levels[i].levelNumber !== expectedNum) {
-        await ctx.db.patch(levels[i]._id, { levelNumber: expectedNum });
-      }
+        const expectedNum = i + 1;
+        if (levels[i].levelNumber !== expectedNum) {
+            await ctx.db.patch(levels[i]._id, { levelNumber: expectedNum });
+        }
     }
   },
 });
@@ -206,31 +204,29 @@ export const reorderDifficulties = mutation({
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-
+    
     const level = await ctx.db.get(args.levelId);
     if (!level) throw new ConvexError("Level not found");
-
-    const diffIndex = level.difficulties.findIndex(
-      (d) => d.name === args.difficultyName,
-    );
+    
+    const diffIndex = level.difficulties.findIndex(d => d.name === args.difficultyName);
     if (diffIndex === -1) throw new ConvexError("Difficulty not found");
-
+    
     const targetIndex = args.direction === "up" ? diffIndex - 1 : diffIndex + 1;
     if (targetIndex < 0 || targetIndex >= level.difficulties.length) return;
-
+    
     // Create mutable copies of difficulties
-    const newDifficulties = level.difficulties.map((d) => ({ ...d }));
-
+    const newDifficulties = level.difficulties.map(d => ({ ...d }));
+    
     // Swap
     const temp = newDifficulties[diffIndex];
     newDifficulties[diffIndex] = newDifficulties[targetIndex];
     newDifficulties[targetIndex] = temp;
-
+    
     // Update order fields to ensure they are sequential
     newDifficulties.forEach((d, i) => {
       d.order = i + 1;
     });
-
+    
     await ctx.db.patch(level._id, { difficulties: newDifficulties });
   },
 });
@@ -243,53 +239,48 @@ export const reorderQuestions = mutation({
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-
+    
     const question = await ctx.db.get(args.questionId);
     if (!question) throw new ConvexError("Question not found");
-
+    
     // Get all questions in this group to determine order
     const siblings = await ctx.db
       .query("levelQuestions")
-      .withIndex("by_level_difficulty", (q) =>
-        q
-          .eq("levelId", question.levelId)
-          .eq("difficultyName", question.difficultyName),
+      .withIndex("by_level_difficulty", (q) => 
+        q.eq("levelId", question.levelId).eq("difficultyName", question.difficultyName)
       )
       .filter((q) => q.eq(q.field("status"), "active"))
       .collect();
-
+      
     // Stable sort
     siblings.sort((a, b) => {
-      const orderDiff = (a.order ?? 0) - (b.order ?? 0);
-      if (orderDiff !== 0) return orderDiff;
-      return a.createdAt - b.createdAt;
+        const orderDiff = (a.order ?? 0) - (b.order ?? 0);
+        if (orderDiff !== 0) return orderDiff;
+        return a.createdAt - b.createdAt;
     });
-
-    const currentIndex = siblings.findIndex((q) => q._id === question._id);
+    
+    const currentIndex = siblings.findIndex(q => q._id === question._id);
     if (currentIndex === -1) return;
-
-    const targetIndex =
-      args.direction === "up" ? currentIndex - 1 : currentIndex + 1;
+    
+    const targetIndex = args.direction === "up" ? currentIndex - 1 : currentIndex + 1;
     if (targetIndex < 0 || targetIndex >= siblings.length) return;
-
+    
     // Swap in memory
     const temp = siblings[currentIndex];
     siblings[currentIndex] = siblings[targetIndex];
     siblings[targetIndex] = temp;
-
+    
     // Re-index ALL siblings to fix gaps/dupes
-    await Promise.all(
-      siblings.map((q, index) => {
+    await Promise.all(siblings.map((q, index) => {
         const newOrder = index + 1;
         if (q.order !== newOrder) {
-          return ctx.db.patch(q._id, { order: newOrder });
+            return ctx.db.patch(q._id, { order: newOrder });
         }
         return Promise.resolve();
-      }),
-    );
-
-    // If we want to accept that other items might have gaps/dupes, this swap works
-    // IF we assume they were sorted correctly before.
+    }));
+    
+    // If we want to accept that other items might have gaps/dupes, this swap works 
+    // IF we assume they were sorted correctly before. 
     // To be robust:
     /*
     const updates = [];
@@ -317,45 +308,43 @@ export const submitLevelAttempt = mutation({
       .query("childSessions")
       .withIndex("by_token", (q) => q.eq("token", args.token))
       .first();
-
+      
     if (!session || session.expiresAt < Date.now()) {
       throw new ConvexError("Invalid or expired session");
     }
-
+    
     // Get level to check required score
     const level = await ctx.db.get(args.levelId);
     if (!level) {
       throw new ConvexError("Level not found");
     }
-
-    const difficulty = level.difficulties.find(
-      (d) => d.name === args.difficultyName,
-    );
+    
+    const difficulty = level.difficulties.find(d => d.name === args.difficultyName);
     if (!difficulty) {
       throw new ConvexError("Difficulty not found");
     }
-
+    
     const passed = args.score >= difficulty.requiredScore;
-
+    
     // Get or create progress record
     let progress = await ctx.db
       .query("levelProgress")
-      .withIndex("by_child_level", (q) =>
-        q.eq("childId", session.childId).eq("levelId", args.levelId),
+      .withIndex("by_child_level", (q) => 
+        q.eq("childId", session.childId).eq("levelId", args.levelId)
       )
       .first();
-
+    
     if (!progress) {
       // Create new progress with all difficulties from the level
-      const difficultyProgress = level.difficulties.map((d) => ({
+      const difficultyProgress = level.difficulties.map(d => ({
         difficultyName: d.name,
         highScore: d.name === args.difficultyName ? args.score : 0,
         passed: d.name === args.difficultyName ? passed : false,
         attempts: d.name === args.difficultyName ? 1 : 0,
       }));
-
-      const allPassed = difficultyProgress.every((dp) => dp.passed);
-
+      
+      const allPassed = difficultyProgress.every(dp => dp.passed);
+      
       await ctx.db.insert("levelProgress", {
         childId: session.childId,
         levelId: args.levelId,
@@ -364,17 +353,12 @@ export const submitLevelAttempt = mutation({
         completedAt: allPassed ? Date.now() : undefined,
         updatedAt: Date.now(),
       });
-
-      return {
-        passed,
-        score: args.score,
-        isNewHighScore: true,
-        levelCompleted: allPassed,
-      };
+      
+      return { passed, score: args.score, isNewHighScore: true, levelCompleted: allPassed };
     }
-
+    
     // Update existing progress
-    const updatedDifficultyProgress = progress.difficultyProgress.map((dp) => {
+    const updatedDifficultyProgress = progress.difficultyProgress.map(dp => {
       if (dp.difficultyName === args.difficultyName) {
         const isNewHighScore = args.score > dp.highScore;
         return {
@@ -386,10 +370,10 @@ export const submitLevelAttempt = mutation({
       }
       return dp;
     });
-
+    
     // Check if a new difficulty was attempted that wasn't in the array
     const existingDiff = updatedDifficultyProgress.find(
-      (dp) => dp.difficultyName === args.difficultyName,
+      dp => dp.difficultyName === args.difficultyName
     );
     if (!existingDiff) {
       updatedDifficultyProgress.push({
@@ -399,27 +383,24 @@ export const submitLevelAttempt = mutation({
         attempts: 1,
       });
     }
-
-    const allPassed = level.difficulties.every(
-      (d) =>
-        updatedDifficultyProgress.find((dp) => dp.difficultyName === d.name)
-          ?.passed ?? false,
+    
+    const allPassed = level.difficulties.every(d => 
+      updatedDifficultyProgress.find(dp => dp.difficultyName === d.name)?.passed ?? false
     );
-
+    
     const wasCompleted = progress.isCompleted;
     const isNewHighScore = args.score > (existingDiff?.highScore ?? 0);
-
+    
     await ctx.db.patch(progress._id, {
       difficultyProgress: updatedDifficultyProgress,
       isCompleted: allPassed,
-      completedAt:
-        allPassed && !wasCompleted ? Date.now() : progress.completedAt,
+      completedAt: allPassed && !wasCompleted ? Date.now() : progress.completedAt,
       updatedAt: Date.now(),
     });
-
-    return {
-      passed,
-      score: args.score,
+    
+    return { 
+      passed, 
+      score: args.score, 
       isNewHighScore,
       levelCompleted: allPassed && !wasCompleted,
     };
@@ -435,22 +416,40 @@ export const getLevelsAdmin = query({
   args: {},
   handler: async (ctx) => {
     await requireAdmin(ctx);
-
+    
     const levels = await ctx.db
       .query("levels")
       .withIndex("by_level_number")
       .collect();
-
+      
     // Sort by levelNumber
     levels.sort((a, b) => a.levelNumber - b.levelNumber);
-
-    // Use denormalized counts if available, otherwise 0 (migration handles backfill)
-    const levelsWithCounts = levels.map((level) => ({
-      ...level,
-      questionCounts: level.questionCounts ?? {},
-      totalQuestions: level.totalQuestions ?? 0,
+    
+    // Calculate counts dynamically from actual questions to ensuring accuracy
+    const levelsWithCounts = await Promise.all(levels.map(async (level) => {
+      // We explicitly fetch all questions to get the real count
+      // This fixes the issue where denormalized counts might be out of sync
+      const questions = await ctx.db
+        .query("levelQuestions")
+        .withIndex("by_level", (q) => q.eq("levelId", level._id))
+        .collect();
+        
+      const questionCounts: Record<string, number> = {};
+      let totalQuestions = 0;
+      
+      questions.forEach(q => {
+        const diff = q.difficultyName;
+        questionCounts[diff] = (questionCounts[diff] || 0) + 1;
+        totalQuestions++;
+      });
+      
+      return {
+        ...level,
+        questionCounts,
+        totalQuestions,
+      };
     }));
-
+    
     return levelsWithCounts;
   },
 });
@@ -460,30 +459,32 @@ export const getLevelQuestionsAdmin = query({
   args: { levelId: v.id("levels") },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-
+    
     const questions = await ctx.db
       .query("levelQuestions")
       .withIndex("by_level", (q) => q.eq("levelId", args.levelId))
       .collect();
+    
 
+    
     // Group by difficulty and Sort
     const grouped: Record<string, typeof questions> = {};
-    questions.forEach((q) => {
+    questions.forEach(q => {
       if (!grouped[q.difficultyName]) {
         grouped[q.difficultyName] = [];
       }
       grouped[q.difficultyName].push(q);
     });
-
+    
     // Sort each group
-    Object.keys(grouped).forEach((key) => {
+    Object.keys(grouped).forEach(key => {
       grouped[key].sort((a, b) => {
         const orderDiff = (a.order ?? 0) - (b.order ?? 0);
         if (orderDiff !== 0) return orderDiff;
         return a.createdAt - b.createdAt;
       });
     });
-
+    
     return grouped;
   },
 });
@@ -493,7 +494,7 @@ export const searchQuestionsAdmin = query({
   args: { query: v.string() },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-
+    
     if (!args.query) return [];
 
     // First try exact match on questionCode
@@ -503,19 +504,13 @@ export const searchQuestionsAdmin = query({
       .first();
 
     if (codeMatch) {
-      // Fetch level info to provide context
-      const level = await ctx.db.get(codeMatch.levelId);
-      return [
-        {
-          ...codeMatch,
-          levelName: level?.name,
-          levelNumber: level?.levelNumber,
-        },
-      ];
+        // Fetch level info to provide context
+        const level = await ctx.db.get(codeMatch.levelId);
+        return [{ ...codeMatch, levelName: level?.name, levelNumber: level?.levelNumber }];
     }
 
     // Fallback: This is expensive if we scan everything, but for admin it's okay for now.
-    // Better to encourage using the code.
+    // Better to encourage using the code. 
     // We won't do full text search on 'question' field here to avoid scanning table.
     // If we really need text search, we should use Convex search capabilities.
     return [];
@@ -531,32 +526,31 @@ export const createLevel = mutation({
   args: {
     name: v.string(),
     description: v.optional(v.string()),
-    theme: v.optional(
-      v.object({
-        emoji: v.string(),
-        color: v.string(),
-      }),
-    ),
+    theme: v.optional(v.object({
+      emoji: v.string(),
+      color: v.string(),
+    })),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-
+    
     // Get the next level number
     const levels = await ctx.db
       .query("levels")
       .withIndex("by_level_number")
       .collect();
-
-    const nextNumber =
-      levels.length > 0 ? Math.max(...levels.map((l) => l.levelNumber)) + 1 : 1;
-
+    
+    const nextNumber = levels.length > 0 
+      ? Math.max(...levels.map(l => l.levelNumber)) + 1 
+      : 1;
+    
     // Default difficulties
     const defaultDifficulties = [
       { name: "easy", displayName: "Easy", requiredScore: 75, order: 1 },
       { name: "medium", displayName: "Medium", requiredScore: 55, order: 2 },
       { name: "hard", displayName: "Hard", requiredScore: 30, order: 3 },
     ];
-
+    
     const levelId = await ctx.db.insert("levels", {
       levelNumber: nextNumber,
       name: args.name,
@@ -567,7 +561,7 @@ export const createLevel = mutation({
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
-
+    
     return levelId;
   },
 });
@@ -578,24 +572,21 @@ export const updateLevel = mutation({
     levelId: v.id("levels"),
     name: v.optional(v.string()),
     description: v.optional(v.string()),
-    theme: v.optional(
-      v.object({
-        emoji: v.string(),
-        color: v.string(),
-      }),
-    ),
+    theme: v.optional(v.object({
+      emoji: v.string(),
+      color: v.string(),
+    })),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-
+    
     const { levelId, ...updates } = args;
     const filteredUpdates: any = { updatedAt: Date.now() };
-
+    
     if (updates.name !== undefined) filteredUpdates.name = updates.name;
-    if (updates.description !== undefined)
-      filteredUpdates.description = updates.description;
+    if (updates.description !== undefined) filteredUpdates.description = updates.description;
     if (updates.theme !== undefined) filteredUpdates.theme = updates.theme;
-
+    
     await ctx.db.patch(levelId, filteredUpdates);
   },
 });
@@ -605,17 +596,17 @@ export const toggleLevelEnabled = mutation({
   args: { levelId: v.id("levels") },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-
+    
     const level = await ctx.db.get(args.levelId);
     if (!level) {
       throw new ConvexError("Level not found");
     }
-
+    
     await ctx.db.patch(args.levelId, {
       isEnabled: !level.isEnabled,
       updatedAt: Date.now(),
     });
-
+    
     return !level.isEnabled;
   },
 });
@@ -625,17 +616,17 @@ export const deleteLevel = mutation({
   args: { levelId: v.id("levels") },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-
+    
     // Delete all questions for this level
     const questions = await ctx.db
       .query("levelQuestions")
       .withIndex("by_level", (q) => q.eq("levelId", args.levelId))
       .collect();
-
+      
     for (const question of questions) {
       await ctx.db.delete(question._id);
     }
-
+    
     // Delete the level
     await ctx.db.delete(args.levelId);
   },
@@ -655,23 +646,22 @@ export const addDifficulty = mutation({
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-
+    
     const level = await ctx.db.get(args.levelId);
     if (!level) {
       throw new ConvexError("Level not found");
     }
-
+    
     // Check for duplicate name
-    if (level.difficulties.some((d) => d.name === args.name)) {
+    if (level.difficulties.some(d => d.name === args.name)) {
       throw new ConvexError("Difficulty name already exists");
     }
-
+    
     // Add at the end
-    const nextOrder =
-      level.difficulties.length > 0
-        ? Math.max(...level.difficulties.map((d) => d.order)) + 1
-        : 1;
-
+    const nextOrder = level.difficulties.length > 0
+      ? Math.max(...level.difficulties.map(d => d.order)) + 1
+      : 1;
+    
     await ctx.db.patch(args.levelId, {
       difficulties: [
         ...level.difficulties,
@@ -697,13 +687,13 @@ export const updateDifficulty = mutation({
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-
+    
     const level = await ctx.db.get(args.levelId);
     if (!level) {
       throw new ConvexError("Level not found");
     }
-
-    const updatedDifficulties = level.difficulties.map((d) => {
+    
+    const updatedDifficulties = level.difficulties.map(d => {
       if (d.name === args.difficultyName) {
         return {
           ...d,
@@ -713,7 +703,7 @@ export const updateDifficulty = mutation({
       }
       return d;
     });
-
+    
     await ctx.db.patch(args.levelId, {
       difficulties: updatedDifficulties,
       updatedAt: Date.now(),
@@ -729,54 +719,54 @@ export const deleteDifficulty = mutation({
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-
+    
     const level = await ctx.db.get(args.levelId);
     if (!level) {
       throw new ConvexError("Level not found");
     }
-
+    
     // Must have at least one difficulty
     if (level.difficulties.length <= 1) {
       throw new ConvexError("Cannot delete the only difficulty");
     }
-
+    
     // Delete questions for this difficulty
     const questions = await ctx.db
       .query("levelQuestions")
       .withIndex("by_level_difficulty", (q) =>
-        q.eq("levelId", args.levelId).eq("difficultyName", args.difficultyName),
+        q.eq("levelId", args.levelId).eq("difficultyName", args.difficultyName)
       )
       .collect();
-
+    
     for (const question of questions) {
       await ctx.db.delete(question._id);
     }
-
+    
     // Remove difficulty from level
     await ctx.db.patch(args.levelId, {
-      difficulties: level.difficulties.filter(
-        (d) => d.name !== args.difficultyName,
-      ),
+      difficulties: level.difficulties.filter(d => d.name !== args.difficultyName),
       updatedAt: Date.now(),
     });
 
     // Update level counts
-    const currentCounts = level.questionCounts ?? {};
-    const newTotalQuestions = Math.max(
-      0,
-      (level.totalQuestions ?? 0) - questions.length,
-    );
-    const newDifficultyCount = Math.max(
-      0,
-      (currentCounts[args.difficultyName] ?? 0) - questions.length,
-    );
+    // Recalculate from scratch to ensure accuracy
+    const allQuestions = await ctx.db
+      .query("levelQuestions")
+      .withIndex("by_level", (q) => q.eq("levelId", args.levelId))
+      .collect();
 
+    const questionCounts: Record<string, number> = {};
+    let totalQuestions = 0;
+    
+    allQuestions.forEach(q => {
+        const diff = q.difficultyName;
+        questionCounts[diff] = (questionCounts[diff] || 0) + 1;
+        totalQuestions++;
+    });
+    
     await ctx.db.patch(args.levelId, {
-      questionCounts: {
-        ...currentCounts,
-        [args.difficultyName]: newDifficultyCount,
-      },
-      totalQuestions: newTotalQuestions,
+      questionCounts,
+      totalQuestions,
       updatedAt: Date.now(),
     });
   },
@@ -799,38 +789,35 @@ export const addQuestion = mutation({
       v.literal("match"),
       v.literal("speaking"),
       v.literal("make_sentence"),
-      v.literal("fill_in_the_blanks"),
+      v.literal("fill_in_the_blanks")
     ),
     question: v.string(),
     data: v.any(),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-
+    
     // Validate level exists
     const level = await ctx.db.get(args.levelId);
     if (!level) {
       throw new ConvexError("Level not found");
     }
-
+    
     // Validate difficulty exists
-    if (!level.difficulties.some((d) => d.name === args.difficultyName)) {
+    if (!level.difficulties.some(d => d.name === args.difficultyName)) {
       throw new ConvexError("Difficulty not found");
     }
-
+    
     // Determine order: last + 1
     const existing = await ctx.db
       .query("levelQuestions")
-      .withIndex("by_level_difficulty", (q) =>
-        q.eq("levelId", args.levelId).eq("difficultyName", args.difficultyName),
+      .withIndex("by_level_difficulty", (q) => 
+        q.eq("levelId", args.levelId).eq("difficultyName", args.difficultyName)
       )
       .collect();
-
-    const maxOrder = existing.reduce(
-      (max, q) => Math.max(max, q.order ?? 0),
-      0,
-    );
-
+      
+    const maxOrder = existing.reduce((max, q) => Math.max(max, q.order ?? 0), 0);
+    
     // Generate unique question code
     const questionCode = await generateUniqueQuestionCode(ctx);
 
@@ -850,7 +837,7 @@ export const addQuestion = mutation({
     // Update level counts
     const currentCounts = level.questionCounts ?? {};
     const newCount = (currentCounts[args.difficultyName] || 0) + 1;
-
+    
     await ctx.db.patch(args.levelId, {
       questionCounts: {
         ...currentCounts,
@@ -874,15 +861,14 @@ export const updateQuestion = mutation({
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-
+    
     const { questionId, ...updates } = args;
     const filteredUpdates: any = { updatedAt: Date.now() };
-
-    if (updates.question !== undefined)
-      filteredUpdates.question = updates.question;
+    
+    if (updates.question !== undefined) filteredUpdates.question = updates.question;
     if (updates.data !== undefined) filteredUpdates.data = updates.data;
     if (updates.status !== undefined) filteredUpdates.status = updates.status;
-
+    
     await ctx.db.patch(questionId, filteredUpdates);
   },
 });
@@ -892,7 +878,7 @@ export const deleteQuestion = mutation({
   args: { questionId: v.id("levelQuestions") },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-
+    
     const question = await ctx.db.get(args.questionId);
     if (!question) {
       throw new ConvexError("Question not found");
@@ -903,20 +889,20 @@ export const deleteQuestion = mutation({
     // Update level counts
     const level = await ctx.db.get(question.levelId);
     if (level) {
-      const currentCounts = level.questionCounts ?? {};
-      const currentDiffCount = currentCounts[question.difficultyName] || 0;
-
-      // Decrement only if greater than 0
-      if (currentDiffCount > 0) {
-        await ctx.db.patch(level._id, {
-          questionCounts: {
-            ...currentCounts,
-            [question.difficultyName]: currentDiffCount - 1,
-          },
-          totalQuestions: Math.max(0, (level.totalQuestions ?? 0) - 1),
-          updatedAt: Date.now(),
-        });
-      }
+       const currentCounts = level.questionCounts ?? {};
+       const currentDiffCount = currentCounts[question.difficultyName] || 0;
+       
+       // Decrement only if greater than 0
+       if (currentDiffCount > 0) {
+           await ctx.db.patch(level._id, {
+             questionCounts: {
+               ...currentCounts,
+               [question.difficultyName]: currentDiffCount - 1,
+             },
+             totalQuestions: Math.max(0, (level.totalQuestions ?? 0) - 1),
+             updatedAt: Date.now(),
+           });
+       }
     }
   },
 });
@@ -925,57 +911,54 @@ export const deleteQuestion = mutation({
 export const bulkReplaceQuestions = mutation({
   args: {
     levelId: v.id("levels"),
-    questions: v.array(
-      v.object({
-        difficultyName: v.string(),
-        questionType: v.union(
-          v.literal("mcq"),
-          v.literal("grid"),
-          v.literal("map"),
-          v.literal("select"),
-          v.literal("match"),
-          v.literal("speaking"),
-          v.literal("make_sentence"),
-          v.literal("fill_in_the_blanks"), // Added fill_in_the_blanks
-        ),
-        question: v.string(),
-        data: v.any(),
-        order: v.optional(v.number()), // For maintaining CSV order
-        status: v.optional(v.union(v.literal("active"), v.literal("archived"))), // Added status
-      }),
-    ),
+    questions: v.array(v.object({
+      difficultyName: v.string(),
+      questionType: v.union(
+        v.literal("mcq"),
+        v.literal("grid"),
+        v.literal("map"),
+        v.literal("select"),
+        v.literal("match"),
+        v.literal("speaking"),
+        v.literal("make_sentence"),
+        v.literal("fill_in_the_blanks") // Added fill_in_the_blanks
+      ),
+      question: v.string(),
+      data: v.any(),
+      order: v.optional(v.number()), // For maintaining CSV order
+      status: v.optional(v.union(v.literal("active"), v.literal("archived"))), // Added status
+    })),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-
+    
     // Validate level exists
     const level = await ctx.db.get(args.levelId);
     if (!level) {
       throw new ConvexError("Level not found");
     }
-
+    
     // Delete all existing questions for this level
     const existingQuestions = await ctx.db
       .query("levelQuestions")
       .withIndex("by_level", (q) => q.eq("levelId", args.levelId))
       .collect();
-
+      
     for (const q of existingQuestions) {
       await ctx.db.delete(q._id);
     }
-
+    
     // Insert new questions
     // Note: We use the order from the CSV if provided, otherwise we rely on insertion order
     // Since insertion is sequential in the loop, created time will roughly follow CSV order
-
-    const newCounts: Record<string, number> = {};
-
     for (const q of args.questions) {
       // Validate difficulty
       // If difficulty doesn't exist in level, we might want to auto-add it or throw error
       // Ideally validation happens on frontend, but double checking here is good practice
       // For now, we assume frontend validation ensures difficulty exists
-
+      
+      // For now, we assume frontend validation ensures difficulty exists
+      
       const questionCode = await generateUniqueQuestionCode(ctx);
 
       await ctx.db.insert("levelQuestions", {
@@ -986,20 +969,26 @@ export const bulkReplaceQuestions = mutation({
         questionCode,
         data: q.data,
         status: "active",
-        order: q.order || Date.now() + (q.order || 0), // Use provided order or fallback
+        order: q.order || (Date.now() + (q.order || 0)), // Use provided order or fallback
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
-
-      // Track counts
-      newCounts[q.difficultyName] = (newCounts[q.difficultyName] || 0) + 1;
     }
 
     // Update level counts
+    const questionCounts: Record<string, number> = {};
+    let totalQuestions = 0;
+    
+    args.questions.forEach(q => {
+        const diff = q.difficultyName;
+        questionCounts[diff] = (questionCounts[diff] || 0) + 1;
+        totalQuestions++;
+    });
+    
     await ctx.db.patch(args.levelId, {
-      questionCounts: newCounts,
-      totalQuestions: args.questions.length,
-      updatedAt: Date.now(),
+        questionCounts,
+        totalQuestions,
+        updatedAt: Date.now(),
     });
   },
 });
@@ -1009,26 +998,24 @@ export const bulkReplaceDifficultyQuestions = mutation({
   args: {
     levelId: v.id("levels"),
     difficultyName: v.string(),
-    questions: v.array(
-      v.object({
-        questionType: v.union(
-          v.literal("mcq"),
-          v.literal("grid"),
-          v.literal("map"),
-          v.literal("select"),
-          v.literal("match"),
-          v.literal("speaking"),
-          v.literal("make_sentence"),
-        ),
-        question: v.string(),
-        data: v.any(),
-        order: v.optional(v.number()),
-      }),
-    ),
+    questions: v.array(v.object({
+      questionType: v.union(
+        v.literal("mcq"),
+        v.literal("grid"),
+        v.literal("map"),
+        v.literal("select"),
+        v.literal("match"),
+        v.literal("speaking"),
+        v.literal("make_sentence")
+      ),
+      question: v.string(),
+      data: v.any(),
+      order: v.optional(v.number()),
+    })),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-
+    
     // Validate level exists
     const level = await ctx.db.get(args.levelId);
     if (!level) {
@@ -1036,26 +1023,26 @@ export const bulkReplaceDifficultyQuestions = mutation({
     }
 
     // Validate difficulty exists
-    if (!level.difficulties.some((d) => d.name === args.difficultyName)) {
+    if (!level.difficulties.some(d => d.name === args.difficultyName)) {
       throw new ConvexError("Difficulty not found in this level");
     }
-
+    
     // Delete all existing questions for this level AND difficulty
     const existingQuestions = await ctx.db
       .query("levelQuestions")
-      .withIndex("by_level_difficulty", (q) =>
-        q.eq("levelId", args.levelId).eq("difficultyName", args.difficultyName),
+      .withIndex("by_level_difficulty", (q) => 
+        q.eq("levelId", args.levelId).eq("difficultyName", args.difficultyName)
       )
       .collect();
-
+      
     for (const q of existingQuestions) {
       await ctx.db.delete(q._id);
     }
-
+    
     // Insert new questions
     for (const q of args.questions) {
       const questionCode = await generateUniqueQuestionCode(ctx);
-
+      
       await ctx.db.insert("levelQuestions", {
         levelId: args.levelId,
         difficultyName: args.difficultyName,
@@ -1064,28 +1051,33 @@ export const bulkReplaceDifficultyQuestions = mutation({
         questionCode,
         data: q.data,
         status: "active",
-        order: q.order || Date.now() + (q.order || 0),
+        order: q.order || (Date.now() + (q.order || 0)), 
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
     }
 
     // Update level counts
-    const currentCounts = level.questionCounts ?? {};
-    const questionDiff = args.questions.length - existingQuestions.length;
+    // Update level counts
+    // We fetch ALL questions to ensure the total count is accurate even if it was previously desynced
+    const allQuestions = await ctx.db
+      .query("levelQuestions")
+      .withIndex("by_level", (q) => q.eq("levelId", args.levelId))
+      .collect();
 
-    // We are replacing ALL questions for this difficulty, so the new count is just args.questions.length
-    // But we need to update totalQuestions carefully
-
-    const newTotal = Math.max(0, (level.totalQuestions ?? 0) + questionDiff);
-
+    const questionCounts: Record<string, number> = {};
+    let totalQuestions = 0;
+    
+    allQuestions.forEach(q => {
+        const diff = q.difficultyName;
+        questionCounts[diff] = (questionCounts[diff] || 0) + 1;
+        totalQuestions++;
+    });
+    
     await ctx.db.patch(args.levelId, {
-      questionCounts: {
-        ...currentCounts,
-        [args.difficultyName]: args.questions.length,
-      },
-      totalQuestions: newTotal,
-      updatedAt: Date.now(),
+        questionCounts,
+        totalQuestions,
+        updatedAt: Date.now(),
     });
   },
 });
@@ -1099,32 +1091,30 @@ export const seedDemoLevels = mutation({
   handler: async (ctx) => {
     // NOTE: This function intentionally skips auth for initial seeding
     // It can only run once (checks for existing levels)
-
+    
     // Check if levels already exist
     const existingLevels = await ctx.db
       .query("levels")
       .withIndex("by_level_number")
       .collect();
-
+    
     if (existingLevels.length > 0) {
-      throw new ConvexError(
-        "Levels already exist. Delete them first to re-seed.",
-      );
+      throw new ConvexError("Levels already exist. Delete them first to re-seed.");
     }
-
+    
     const now = Date.now();
     const defaultDifficulties = [
       { name: "easy", displayName: "Easy", requiredScore: 75, order: 1 },
       { name: "medium", displayName: "Medium", requiredScore: 55, order: 2 },
       { name: "hard", displayName: "Hard", requiredScore: 30, order: 3 },
     ];
-
+    
     // Helper to insert with code
     const insertQuestion = async (data: any) => {
-      const questionCode = await generateUniqueQuestionCode(ctx);
-      await ctx.db.insert("levelQuestions", { ...data, questionCode });
+       const questionCode = await generateUniqueQuestionCode(ctx);
+       await ctx.db.insert("levelQuestions", { ...data, questionCode });
     };
-
+    
     // ==================== LEVEL 1 ====================
     const level1Id = await ctx.db.insert("levels", {
       levelNumber: 1,
@@ -1136,7 +1126,7 @@ export const seedDemoLevels = mutation({
       createdAt: now,
       updatedAt: now,
     });
-
+    
     // Level 1 - Easy Questions
     await insertQuestion({
       levelId: level1Id,
@@ -1153,7 +1143,7 @@ export const seedDemoLevels = mutation({
       createdAt: now,
       updatedAt: now,
     });
-
+    
     await insertQuestion({
       levelId: level1Id,
       difficultyName: "easy",
@@ -1169,7 +1159,7 @@ export const seedDemoLevels = mutation({
       createdAt: now,
       updatedAt: now,
     });
-
+    
     await insertQuestion({
       levelId: level1Id,
       difficultyName: "easy",
@@ -1185,7 +1175,7 @@ export const seedDemoLevels = mutation({
       createdAt: now,
       updatedAt: now,
     });
-
+    
     // Level 1 - Medium Questions
     await insertQuestion({
       levelId: level1Id,
@@ -1198,7 +1188,7 @@ export const seedDemoLevels = mutation({
       createdAt: now,
       updatedAt: now,
     });
-
+    
     await insertQuestion({
       levelId: level1Id,
       difficultyName: "medium",
@@ -1214,7 +1204,7 @@ export const seedDemoLevels = mutation({
       createdAt: now,
       updatedAt: now,
     });
-
+    
     await insertQuestion({
       levelId: level1Id,
       difficultyName: "medium",
@@ -1223,15 +1213,14 @@ export const seedDemoLevels = mutation({
       data: {
         options: ["Venus", "Mars", "Jupiter", "Saturn"],
         correctIndex: 1,
-        explanation:
-          "Mars is called the Red Planet due to its reddish appearance.",
+        explanation: "Mars is called the Red Planet due to its reddish appearance.",
       },
       status: "active",
       order: 1,
       createdAt: now,
       updatedAt: now,
     });
-
+    
     // Level 1 - Hard Questions
     await insertQuestion({
       levelId: level1Id,
@@ -1244,7 +1233,7 @@ export const seedDemoLevels = mutation({
       createdAt: now,
       updatedAt: now,
     });
-
+    
     await insertQuestion({
       levelId: level1Id,
       difficultyName: "hard",
@@ -1256,7 +1245,7 @@ export const seedDemoLevels = mutation({
       createdAt: now,
       updatedAt: now,
     });
-
+    
     await insertQuestion({
       levelId: level1Id,
       difficultyName: "hard",
@@ -1272,7 +1261,7 @@ export const seedDemoLevels = mutation({
       createdAt: now,
       updatedAt: now,
     });
-
+    
     // ==================== LEVEL 2 ====================
     const level2Id = await ctx.db.insert("levels", {
       levelNumber: 2,
@@ -1284,7 +1273,7 @@ export const seedDemoLevels = mutation({
       createdAt: now,
       updatedAt: now,
     });
-
+    
     // Level 2 - Easy Questions
     await insertQuestion({
       levelId: level2Id,
@@ -1301,7 +1290,7 @@ export const seedDemoLevels = mutation({
       createdAt: now,
       updatedAt: now,
     });
-
+    
     await insertQuestion({
       levelId: level2Id,
       difficultyName: "easy",
@@ -1317,7 +1306,7 @@ export const seedDemoLevels = mutation({
       createdAt: now,
       updatedAt: now,
     });
-
+    
     await insertQuestion({
       levelId: level2Id,
       difficultyName: "easy",
@@ -1333,7 +1322,7 @@ export const seedDemoLevels = mutation({
       createdAt: now,
       updatedAt: now,
     });
-
+    
     // Level 2 - Medium Questions
     await insertQuestion({
       levelId: level2Id,
@@ -1346,7 +1335,7 @@ export const seedDemoLevels = mutation({
       createdAt: now,
       updatedAt: now,
     });
-
+    
     await insertQuestion({
       levelId: level2Id,
       difficultyName: "medium",
@@ -1358,7 +1347,7 @@ export const seedDemoLevels = mutation({
       createdAt: now,
       updatedAt: now,
     });
-
+    
     await insertQuestion({
       levelId: level2Id,
       difficultyName: "medium",
@@ -1374,7 +1363,7 @@ export const seedDemoLevels = mutation({
       createdAt: now,
       updatedAt: now,
     });
-
+    
     // Level 2 - Hard Questions
     await insertQuestion({
       levelId: level2Id,
@@ -1391,7 +1380,7 @@ export const seedDemoLevels = mutation({
       createdAt: now,
       updatedAt: now,
     });
-
+    
     await insertQuestion({
       levelId: level2Id,
       difficultyName: "hard",
@@ -1403,7 +1392,7 @@ export const seedDemoLevels = mutation({
       createdAt: now,
       updatedAt: now,
     });
-
+    
     await insertQuestion({
       levelId: level2Id,
       difficultyName: "hard",
@@ -1415,8 +1404,8 @@ export const seedDemoLevels = mutation({
       createdAt: now,
       updatedAt: now,
     });
-
-    return {
+    
+    return { 
       message: "Created 2 demo levels with 9 questions each",
       level1Id,
       level2Id,
