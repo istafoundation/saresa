@@ -1,20 +1,25 @@
 // Level Path Component - Candy Crush-style scrollable level path
 // ✨ Magical fairy dust trail with glowing orb waypoints
-import { useCallback, useMemo } from "react";
+// Optimizations:
+// 1. Converted ScrollView -> FlashList for virtualization
+// 2. Chunked SVGs per item instead of one massive global SVG
+// 3. Optimized animations
+
+import React, { useCallback, useMemo, memo } from "react";
 import {
   View,
-  ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
+
 } from "react-native";
+import { FlashList, ListRenderItem, FlashListProps } from "@shopify/flash-list";
 import { useQuery } from "convex/react";
 import Svg, {
   Path,
   Defs,
   LinearGradient,
   Stop,
-  Circle,
 } from "react-native-svg";
 import { MotiView } from "moti";
 import { api } from "../convex/_generated/api";
@@ -24,12 +29,10 @@ import { COLORS, SPACING } from "../constants/theme";
 import LevelNode from "./LevelNode";
 import type { Id } from "../convex/_generated/dataModel";
 
-// Constants for layout calculation - derived from LevelNode styles
+// Constants for layout calculation
 const NODE_SIZE = 76;
 const LEVEL_MARGIN_VERTICAL = SPACING.lg + 4; // 28px
 const LEVEL_SPACING = LEVEL_MARGIN_VERTICAL * 2 + NODE_SIZE; // ~132px
-const PATH_START_Y = 60;
-const MAX_ANIMATION_DELAY = 800; // Cap delays to prevent slow animations
 
 // Type for level data from query
 type LevelWithProgress = {
@@ -66,58 +69,8 @@ function seededRandom(seed: number): number {
   return x - Math.floor(x);
 }
 
-// Floating candy decoration component (removed unused delay prop)
-function FloatingCandy({
-  x,
-  y,
-  size,
-  color,
-  shouldAnimate = false,
-}: {
-  x: number;
-  y: number;
-  size: number;
-  color: string;
-  shouldAnimate?: boolean;
-}) {
-  const candyContent = (
-    <View
-      style={[
-        styles.candyBall,
-        { width: size, height: size, backgroundColor: color },
-      ]}
-    >
-      <View
-        style={[
-          styles.candyShine,
-          { width: size * 0.35, height: size * 0.2 },
-        ]}
-      />
-    </View>
-  );
-
-  if (shouldAnimate) {
-    return (
-      <MotiView
-        from={{ translateY: 0 }}
-        animate={{ translateY: [-6, 6, -6] }}
-        transition={{ type: 'timing', duration: 3000, loop: true }}
-        style={[styles.candyDecor, { left: x, top: y }]}
-      >
-        {candyContent}
-      </MotiView>
-    );
-  }
-
-  return (
-    <View style={[styles.candyDecor, { left: x, top: y }]}>
-      {candyContent}
-    </View>
-  );
-}
-
 // Glowing orb waypoint between nodes
-function GlowingOrb({
+const GlowingOrb = memo(function GlowingOrb({
   x,
   y,
   delay,
@@ -135,303 +88,196 @@ function GlowingOrb({
       transition={{
         type: "timing",
         duration: 400,
-        delay: Math.min(delay * 80, MAX_ANIMATION_DELAY),
+        delay: Math.min(delay, 800),
       }}
       style={[styles.orbContainer, { left: x - 12, top: y - 12 }]}
     >
-      {/* Static glow ring */}
       <View style={[styles.orbGlowRing, { backgroundColor: color }]} />
-      {/* Inner orb */}
       <View style={[styles.orbCore, { backgroundColor: color }]}>
         <View style={styles.orbShine} />
       </View>
-      {/* Static sparkle */}
       <View style={styles.orbSparkle}>
         <Text style={styles.sparkleText}>✦</Text>
       </View>
     </MotiView>
   );
-}
+});
 
-// Magical path with fairy dust trail
-function MagicalPath({
-  height,
-  levels,
+// Path Segment rendered within each list item
+const PathSegment = memo(function PathSegment({
+  isLeft,
   screenWidth,
+  state,
+  nextState,
 }: {
-  height: number;
-  levels: LevelWithProgress[];
+  isLeft: boolean;
   screenWidth: number;
+  state: "locked" | "unlocked" | "completed" | "coming_soon";
+  nextState?: "locked" | "unlocked" | "completed" | "coming_soon";
 }) {
-  const levelCount = levels.length;
-  
-  // Generate path data with connected orbs as waypoints
-  const pathData = useMemo(() => {
-    const magicColors = [
-      COLORS.primary,
-      COLORS.accent,
-      COLORS.accentGold,
-      COLORS.rainbow4,
-      COLORS.rainbow5,
-    ];
-    
-    const grayColor = '#A8A8A8';
-    
-    const orbPositions: Array<{ 
-      x: number; 
-      y: number; 
-      delay: number; 
-      color: string; 
-      isLocked: boolean;
-      levelId: string;
-    }> = [];
-    
-    // Generate orb positions at each level position with bounds checking
-    for (let i = 0; i < levelCount; i++) {
-      const level = levels[i];
-      if (!level) continue; // Bounds safety check
-      
-      const y = PATH_START_Y + i * LEVEL_SPACING;
-      const isLeft = i % 2 === 0;
-      const nodeX = isLeft 
-        ? screenWidth * 0.25
-        : screenWidth * 0.75;
-      
-      const isLocked = level.state === 'locked' || level.state === 'coming_soon';
-      
-      orbPositions.push({
-        x: nodeX,
-        y: y,
-        delay: i,
-        color: isLocked ? grayColor : magicColors[i % magicColors.length],
-        isLocked,
-        levelId: level._id,
-      });
-    }
-    
-    // Generate paths with smooth transition between unlocked and locked
-    let unlockedPath = '';
-    let lockedPath = '';
-    
-    if (orbPositions.length > 0) {
-      // Find the transition point (first locked level)
-      let transitionIndex = orbPositions.findIndex(orb => orb.isLocked);
-      if (transitionIndex === -1) transitionIndex = orbPositions.length;
-      
-      // Build unlocked path
-      for (let i = 0; i < transitionIndex; i++) {
-        const curr = orbPositions[i];
-        if (i === 0) {
-          unlockedPath = `M ${curr.x} ${curr.y}`;
-        } else {
-          const prev = orbPositions[i - 1];
-          const midY = (prev.y + curr.y) / 2;
-          unlockedPath += ` C ${prev.x} ${midY}, ${curr.x} ${midY}, ${curr.x} ${curr.y}`;
-        }
-      }
-      
-      // Build locked path - starts from the last unlocked position for smooth connection
-      if (transitionIndex < orbPositions.length) {
-        const startOrb = transitionIndex > 0 
-          ? orbPositions[transitionIndex - 1] 
-          : orbPositions[transitionIndex];
-        
-        lockedPath = `M ${startOrb.x} ${startOrb.y}`;
-        
-        for (let i = transitionIndex; i < orbPositions.length; i++) {
-          const prev = i === transitionIndex && transitionIndex > 0
-            ? orbPositions[transitionIndex - 1]
-            : orbPositions[i - 1];
-          const curr = orbPositions[i];
-          const midY = (prev.y + curr.y) / 2;
-          lockedPath += ` C ${prev.x} ${midY}, ${curr.x} ${midY}, ${curr.x} ${curr.y}`;
-        }
-      }
-    }
-    
-    return {
-      unlockedPath,
-      lockedPath,
-      orbPositions,
-    };
-  }, [levelCount, levels, screenWidth]);
+  const startX = isLeft ? screenWidth * 0.25 : screenWidth * 0.75;
+  const endX = isLeft ? screenWidth * 0.75 : screenWidth * 0.25;
+  const startY = NODE_SIZE / 2; // Start from center of node
+  const endY = LEVEL_SPACING + NODE_SIZE / 2; // End at center of next node
 
+  // Bezier curve
+  const midY = (startY + endY) / 2;
+  const pathD = `M ${startX} ${startY} C ${startX} ${midY}, ${endX} ${midY}, ${endX} ${endY}`;
+  
+  // Decide colors based on transition
+  const isLockedTransition = state === 'locked' || nextState === 'locked';
+  const magicGradientUrl = "url(#connectorGlow)";
+  
   return (
-    <View style={styles.svgPath}>
-      {/* SVG path lines */}
-      <Svg width={screenWidth} height={height}>
+    <View style={[StyleSheet.absoluteFill, { zIndex: -1 }]}>
+      <Svg width={screenWidth} height={LEVEL_SPACING + NODE_SIZE}>
         <Defs>
-          {/* Magical gradient for main path */}
-          <LinearGradient id="magicGradient" x1="0" y1="1" x2="0" y2="0">
-            <Stop offset="0" stopColor={COLORS.primary} stopOpacity="0.8" />
-            <Stop offset="0.5" stopColor={COLORS.accent} stopOpacity="0.9" />
-            <Stop offset="1" stopColor={COLORS.accentGold} stopOpacity="0.8" />
-          </LinearGradient>
-          {/* Fairy dust glow */}
-          <LinearGradient id="dustGlow" x1="0" y1="0" x2="1" y2="0">
-            <Stop offset="0" stopColor={COLORS.accentGold} stopOpacity="0.6" />
-            <Stop offset="0.5" stopColor="#FFFFFF" stopOpacity="0.8" />
-            <Stop offset="1" stopColor={COLORS.accentGold} stopOpacity="0.6" />
-          </LinearGradient>
-          {/* Connector glow gradient */}
-          <LinearGradient id="connectorGlow" x1="0" y1="1" x2="0" y2="0">
+           {/* Re-define gradients here or better yet, make them global/shared if possible. 
+               For list items, re-defining in a small reusable component is okay but slightly verbose. 
+               To optimize, we could put Defs at the top of FlashList if SVG context was shared, but it's not.
+           */}
+          <LinearGradient id="connectorGlow" x1="0" y1="0" x2="0" y2="1">
             <Stop offset="0" stopColor={COLORS.primary} stopOpacity="0.9" />
-            <Stop offset="0.3" stopColor={COLORS.rainbow4} stopOpacity="0.8" />
-            <Stop offset="0.6" stopColor={COLORS.accent} stopOpacity="0.9" />
+            <Stop offset="0.5" stopColor={COLORS.accent} stopOpacity="0.9" />
             <Stop offset="1" stopColor={COLORS.accentGold} stopOpacity="0.9" />
           </LinearGradient>
         </Defs>
-        
-        {/* UNLOCKED PATH - Colorful gradient */}
-        {pathData.unlockedPath && (
+
+        {!isLockedTransition ? (
           <>
-            {/* Outer glow layer for unlocked */}
             <Path
-              d={pathData.unlockedPath}
+              d={pathD}
               stroke={COLORS.primaryLight}
               strokeWidth={24}
               strokeLinecap="round"
-              strokeLinejoin="round"
               fill="none"
               opacity={0.15}
             />
-            
-            {/* Middle glow layer for unlocked */}
             <Path
-              d={pathData.unlockedPath}
+              d={pathD}
               stroke={COLORS.accent}
               strokeWidth={14}
               strokeLinecap="round"
-              strokeLinejoin="round"
               fill="none"
               opacity={0.25}
             />
-            
-            {/* Main unlocked path - colorful */}
             <Path
-              d={pathData.unlockedPath}
-              stroke="url(#connectorGlow)"
+              d={pathD}
+              stroke={magicGradientUrl}
               strokeWidth={6}
               strokeLinecap="round"
-              strokeLinejoin="round"
               fill="none"
             />
-            
-            {/* Bright core line for unlocked */}
             <Path
-              d={pathData.unlockedPath}
+              d={pathD}
               stroke="#FFFFFF"
               strokeWidth={2}
               strokeLinecap="round"
-              strokeLinejoin="round"
               fill="none"
               opacity={0.7}
             />
           </>
-        )}
-        
-        {/* LOCKED PATH - Gray color */}
-        {pathData.lockedPath && (
+        ) : (
           <>
-            {/* Outer glow layer for locked - subtle gray */}
-            <Path
-              d={pathData.lockedPath}
+             <Path
+              d={pathD}
               stroke="#D0D0D0"
               strokeWidth={20}
               strokeLinecap="round"
-              strokeLinejoin="round"
               fill="none"
               opacity={0.1}
             />
-            
-            {/* Main locked path - gray */}
             <Path
-              d={pathData.lockedPath}
+              d={pathD}
               stroke="#B8B8B8"
               strokeWidth={6}
               strokeLinecap="round"
-              strokeLinejoin="round"
               fill="none"
               opacity={0.6}
             />
-            
-            {/* Dashed overlay for locked feeling */}
-            <Path
-              d={pathData.lockedPath}
+             <Path
+              d={pathD}
               stroke="#FFFFFF"
               strokeWidth={2}
               strokeLinecap="round"
-              strokeLinejoin="round"
               fill="none"
               opacity={0.3}
               strokeDasharray="8,8"
             />
           </>
         )}
-        
-        {/* Orb glow circles in SVG */}
-        {pathData.orbPositions.map((orb) => (
-          <Circle
-            key={`orb-glow-${orb.levelId}`}
-            cx={orb.x}
-            cy={orb.y}
-            r={12}
-            fill={orb.color}
-            opacity={orb.isLocked ? 0.3 : 0.5}
-          />
-        ))}
       </Svg>
-      
-      {/* Glowing orb waypoints */}
-      {pathData.orbPositions.map((orb) => (
-        <GlowingOrb
-          key={`orb-${orb.levelId}`}
-          x={orb.x}
-          y={orb.y}
-          delay={orb.delay}
-          color={orb.color}
-        />
-      ))}
     </View>
   );
-}
+});
 
-// Generate random candy positions for decoration
-const CANDY_COLORS = [
-  COLORS.rainbow1,
-  COLORS.rainbow2,
-  COLORS.rainbow3,
-  COLORS.rainbow4,
-  COLORS.rainbow5,
-  COLORS.rainbow6,
-];
+// Single Level Item Component
+const LevelListItem = memo(function LevelListItem({
+  level,
+  index,
+  totalLevels,
+  screenWidth,
+  nextLevel,
+  onPress,
+}: {
+  level: LevelWithProgress;
+  index: number;
+  totalLevels: number;
+  screenWidth: number;
+  nextLevel?: LevelWithProgress;
+  onPress: (level: LevelWithProgress) => void;
+}) {
+  const isLeft = index % 2 === 0;
+  
+  // Calculate orb position (midway on the path)
+  // Approximate midpoint of the Bezier curve is roughly center of screen width, mid-height
+  const orbX = screenWidth / 2; 
+  const orbY = LEVEL_SPACING * 0.65; // Slightly lower than center looks better visually
 
-function generateCandyDecorations(levelCount: number, screenWidth: number) {
-  const decorations = [];
-  const totalHeight = levelCount * LEVEL_SPACING + 100;
-  const candyCount = Math.max(levelCount * 2, 1); // Prevent division by zero
-  const spacingY = totalHeight / candyCount;
+  return (
+    <View style={{ height: LEVEL_SPACING, justifyContent: 'flex-start' }}>
+      {/* Path connecting to NEXT level (if exists) */}
+      {index < totalLevels - 1 && (
+        <PathSegment
+            isLeft={isLeft}
+            screenWidth={screenWidth}
+            state={level.state}
+            nextState={nextLevel?.state}
+        />
+      )}
+      
+      {/* Animated Level Node */}
+      <MotiView
+        from={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ type: 'timing', duration: 500, delay: 100 }}
+        style={{ zIndex: 10 }}
+      >
+        <LevelNode
+            levelNumber={level.levelNumber}
+            name={level.name}
+            state={level.state}
+            theme={level.theme}
+            progress={level.progress ?? undefined}
+            totalDifficulties={level.difficulties.length}
+            onPress={() => onPress(level)}
+            isLeft={isLeft}
+        />
+      </MotiView>
+      
+      {/* Orb decoration halfway to next node */}
+      {index < totalLevels - 1 && (
+        <GlowingOrb
+            x={orbX}
+            y={orbY}
+            delay={200}
+            color={level.state !== 'locked' ? COLORS.accentGold : '#A8A8A8'}
+        />
+      )}
+    </View>
+  );
+});
 
-  for (let i = 0; i < candyCount; i++) {
-    // Use seeded pseudo-random for consistent positions
-    const seed = (i + 1) * 0.618033988749895;
-    const randomX = seededRandom(seed * 1000) * 40;
-    const randomY = seededRandom(seed * 500) * spacingY * 0.4;
-    const randomSize = 12 + seededRandom(seed * 100) * 10;
-    
-    decorations.push({
-      id: `candy-${i}`,
-      x: i % 2 === 0
-        ? 20 + randomX
-        : screenWidth - 60 - randomX,
-      y: 60 + i * spacingY + randomY,
-      size: randomSize,
-      color: CANDY_COLORS[i % CANDY_COLORS.length],
-      animationDuration: 2500 + seededRandom(seed * 200) * 1000,
-    });
-  }
-  return decorations;
-}
 
 export default function LevelPath() {
   const { token } = useChildAuth();
@@ -456,15 +302,20 @@ export default function LevelPath() {
     [safePush],
   );
 
-  const candyDecorations = useMemo(
-    () => generateCandyDecorations(levels?.length || 5, screenWidth),
-    [levels?.length, screenWidth],
-  );
+  const renderItem: ListRenderItem<LevelWithProgress> = useCallback(({ item, index }) => {
+    return (
+      <LevelListItem 
+        level={item}
+        index={index}
+        totalLevels={levels?.length || 0}
+        screenWidth={screenWidth}
+        nextLevel={levels?.[index + 1]}
+        onPress={handleLevelPress}
+      />
+    );
+  }, [levels, screenWidth, handleLevelPress]);
 
-  const pathHeight = useMemo(
-    () => (levels?.length || 5) * LEVEL_SPACING + 100,
-    [levels?.length],
-  );
+  const keyExtractor = useCallback((item: LevelWithProgress) => item._id, []);
 
   if (!levels) {
     return (
@@ -489,107 +340,31 @@ export default function LevelPath() {
     );
   }
 
+  // Fix for missing estimatedItemSize in definitions
+  const SafeFlashList = FlashList as unknown as React.ComponentType<FlashListProps<LevelWithProgress> & { estimatedItemSize: number }>;
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* Magical fairy dust path */}
-      <MagicalPath 
-        height={pathHeight} 
-        levels={levels}
-        screenWidth={screenWidth}
+    <View style={styles.container}>
+      <SafeFlashList
+        data={levels}
+        renderItem={renderItem}
+        keyExtractor={keyExtractor}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        estimatedItemSize={LEVEL_SPACING} 
+        ListFooterComponent={<View style={styles.bottomPadding} />}
       />
-
-      {/* Floating candy decorations - continuous looping animation */}
-      {candyDecorations.map((candy) => (
-        <MotiView
-          key={candy.id}
-          from={{ translateY: 0 }}
-          animate={{ translateY: [-5, 5, -5] }}
-          transition={{ 
-            type: 'timing', 
-            duration: candy.animationDuration || 2500,
-            loop: true,
-          }}
-          style={{ opacity: 0.85 }}
-        >
-          <FloatingCandy
-            x={candy.x}
-            y={candy.y}
-            size={candy.size}
-            color={candy.color}
-            shouldAnimate={false}
-          />
-        </MotiView>
-      ))}
-
-      {/* Level nodes - top to bottom order with capped staggered delays */}
-      {levels.map((level, index) => (
-        <MotiView
-          key={level._id}
-          from={{ opacity: 0, translateY: 40, translateX: index % 2 === 0 ? -20 : 20 }}
-          animate={{ opacity: 1, translateY: 0, translateX: 0 }}
-          transition={{ 
-            type: 'timing', 
-            duration: 350,
-            delay: Math.min(100 + (index * 80), MAX_ANIMATION_DELAY),
-          }}
-        >
-          <LevelNode
-            levelNumber={level.levelNumber}
-            name={level.name}
-            state={level.state}
-            theme={level.theme}
-            progress={level.progress ?? undefined}
-            totalDifficulties={level.difficulties.length}
-            onPress={() => handleLevelPress(level)}
-            isLeft={index % 2 === 0}
-          />
-        </MotiView>
-      ))}
-
-      {/* Bottom padding */}
-      <View style={styles.bottomPadding} />
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flex: 1, 
+    minHeight: 1, // Ensure FlashList has size
   },
   content: {
     paddingTop: SPACING.lg,
-    position: "relative",
-  },
-  svgPath: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-  },
-  candyDecor: {
-    position: "absolute",
-    zIndex: 0,
-  },
-  candyBall: {
-    borderRadius: 999,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  candyShine: {
-    position: "absolute",
-    top: 3,
-    left: 4,
-    backgroundColor: "rgba(255, 255, 255, 0.6)",
-    borderRadius: 999,
-    transform: [{ rotate: "-30deg" }],
   },
   loadingContainer: {
     flex: 1,

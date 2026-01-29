@@ -25,6 +25,7 @@
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
     "@react-native-community/slider": "^5.0.1",
+    "@shopify/flash-list": "2.0.2",
     "@types/fast-levenshtein": "^0.0.4",
     "babel-preset-expo": "^54.0.9",
     "compromise": "^14.14.5",
