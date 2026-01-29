@@ -82,14 +82,7 @@ const GlowingOrb = memo(function GlowingOrb({
   color: string;
 }) {
   return (
-    <MotiView
-      from={{ opacity: 0, scale: 0 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{
-        type: "timing",
-        duration: 400,
-        delay: Math.min(delay, 800),
-      }}
+    <View
       style={[styles.orbContainer, { left: x - 12, top: y - 12 }]}
     >
       <View style={[styles.orbGlowRing, { backgroundColor: color }]} />
@@ -99,7 +92,7 @@ const GlowingOrb = memo(function GlowingOrb({
       <View style={styles.orbSparkle}>
         <Text style={styles.sparkleText}>✦</Text>
       </View>
-    </MotiView>
+    </View>
   );
 });
 
@@ -131,80 +124,26 @@ const PathSegment = memo(function PathSegment({
   return (
     <View style={[StyleSheet.absoluteFill, { zIndex: -1 }]}>
       <Svg width={screenWidth} height={LEVEL_SPACING + NODE_SIZE}>
-        <Defs>
-           {/* Re-define gradients here or better yet, make them global/shared if possible. 
-               For list items, re-defining in a small reusable component is okay but slightly verbose. 
-               To optimize, we could put Defs at the top of FlashList if SVG context was shared, but it's not.
-           */}
-          <LinearGradient id="connectorGlow" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={COLORS.primary} stopOpacity="0.9" />
-            <Stop offset="0.5" stopColor={COLORS.accent} stopOpacity="0.9" />
-            <Stop offset="1" stopColor={COLORS.accentGold} stopOpacity="0.9" />
-          </LinearGradient>
-        </Defs>
-
+        {/* Simplified Path - Single stroke instead of multiple layers/gradients */}
         {!isLockedTransition ? (
-          <>
-            <Path
-              d={pathD}
-              stroke={COLORS.primaryLight}
-              strokeWidth={24}
-              strokeLinecap="round"
-              fill="none"
-              opacity={0.15}
-            />
-            <Path
-              d={pathD}
-              stroke={COLORS.accent}
-              strokeWidth={14}
-              strokeLinecap="round"
-              fill="none"
-              opacity={0.25}
-            />
-            <Path
-              d={pathD}
-              stroke={magicGradientUrl}
-              strokeWidth={6}
-              strokeLinecap="round"
-              fill="none"
-            />
-            <Path
-              d={pathD}
-              stroke="#FFFFFF"
-              strokeWidth={2}
-              strokeLinecap="round"
-              fill="none"
-              opacity={0.7}
-            />
-          </>
+          <Path
+            d={pathD}
+            stroke={COLORS.primaryLight}
+            strokeWidth={8}
+            strokeLinecap="round"
+            fill="none"
+            opacity={0.3}
+          />
         ) : (
-          <>
-             <Path
-              d={pathD}
-              stroke="#D0D0D0"
-              strokeWidth={20}
-              strokeLinecap="round"
-              fill="none"
-              opacity={0.1}
-            />
-            <Path
-              d={pathD}
-              stroke="#B8B8B8"
-              strokeWidth={6}
-              strokeLinecap="round"
-              fill="none"
-              opacity={0.6}
-            />
-             <Path
-              d={pathD}
-              stroke="#FFFFFF"
-              strokeWidth={2}
-              strokeLinecap="round"
-              fill="none"
-              opacity={0.3}
-              strokeDasharray="8,8"
-            />
-          </>
+          <Path
+            d={pathD}
+            stroke="#D0D0D0"
+            strokeWidth={8}
+            strokeLinecap="round"
+            fill="none"
+            opacity={0.3}
+            strokeDasharray="8,8"
+          />
         )}
       </Svg>
     </View>
@@ -246,11 +185,8 @@ const LevelListItem = memo(function LevelListItem({
         />
       )}
       
-      {/* Animated Level Node */}
-      <MotiView
-        from={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ type: 'timing', duration: 500, delay: 100 }}
+      {/* Animated Level Node - Static View for performance */}
+      <View
         style={{ zIndex: 10 }}
       >
         <LevelNode
@@ -263,7 +199,7 @@ const LevelListItem = memo(function LevelListItem({
             onPress={() => onPress(level)}
             isLeft={isLeft}
         />
-      </MotiView>
+      </View>
       
       {/* Orb decoration halfway to next node */}
       {index < totalLevels - 1 && (
@@ -352,6 +288,7 @@ export default function LevelPath() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         estimatedItemSize={LEVEL_SPACING} 
+        drawDistance={1000}
         ListFooterComponent={<View style={styles.bottomPadding} />}
       />
     </View>
