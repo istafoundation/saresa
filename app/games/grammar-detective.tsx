@@ -62,6 +62,7 @@ export default function GrammarDetectiveScreen() {
   const shuffledQuestionIds = useGrammarDetectiveStore(
     (s) => s.shuffledQuestionIds
   );
+  const syncedSession = useGrammarDetectiveStore((s) => s.syncedSession);
 
   // Actions
   const startGame = useGrammarDetectiveStore((s) => s.startGame);
@@ -72,9 +73,12 @@ export default function GrammarDetectiveScreen() {
   const nextQuestion = useGrammarDetectiveStore((s) => s.nextQuestion);
   const resetGame = useGrammarDetectiveStore((s) => s.resetGame);
   const syncFromConvex = useGrammarDetectiveStore((s) => s.syncFromConvex);
+  const updateSyncedSession = useGrammarDetectiveStore(
+    (s) => s.updateSyncedSession
+  );
 
-  // Track what we've already synced to avoid duplicate calls
-  const lastSyncedRef = useRef({ answered: 0, correct: 0, xp: 0 });
+  // Mutex lock for sync to prevent race conditions
+  const isSyncingRef = useRef(false);
 
   // Memoize content IDs for dependency tracking
   const contentIds = useMemo(
@@ -100,104 +104,127 @@ export default function GrammarDetectiveScreen() {
     return Math.round((stats.totalCorrect / stats.totalAnswered) * 100);
   }, [stats.totalAnswered, stats.totalCorrect]);
 
-  // Sync from Convex on mount
+  // Sync from Convex on mount - but ONLY after we have questions loaded
+  // This prevents race condition where startGame() resets index to 0 after sync
+  // We use a ref to ensure we only sync ONCE when the game loads, then let local state take over
+  const hasSyncedRef = useRef(false);
+  
   useEffect(() => {
-    if (serverProgress) {
+    if (!hasSyncedRef.current && serverProgress && shuffledQuestionIds.length > 0) {
+      if (__DEV__) console.log("[GrammarDetective] Initial sync from Convex", serverProgress);
       syncFromConvex(serverProgress);
+      hasSyncedRef.current = true;
     }
-  }, [serverProgress, syncFromConvex]);
+  }, [serverProgress, syncFromConvex, shuffledQuestionIds.length > 0]);
 
   // Start or restart game when content changes
   useEffect(() => {
     if (!allQuestions || allQuestions.length === 0) return;
 
-    const questionIdSet = new Set(allQuestions.map((q: GDQuestion) => q.id));
-    const idsMatch =
-      shuffledQuestionIds.length > 0 &&
-      shuffledQuestionIds.every((id) => questionIdSet.has(id));
+    // If we haven't started yet, start the game
+    if (shuffledQuestionIds.length === 0) {
+      startGame(allQuestions as GDQuestion[]);
+      return;
+    }
 
-    if (!idsMatch) {
-      if (__DEV__)
-        console.log("[GrammarDetective] Content changed, restarting game");
+    const questionIdSet = new Set(allQuestions.map((q: GDQuestion) => q.id));
+    
+    // RELAXED CHECK: Only restart if the CURRENT question is no longer authentic/valid.
+    // Previously we checked if ANY shuffled ID was missing, which caused restarts if future content changed.
+    const currentId = shuffledQuestionIds[currentQuestionIndex];
+    if (currentId && !questionIdSet.has(currentId)) {
+      if (__DEV__) console.log("[GrammarDetective] Current question invalid/missing, restarting game");
       startGame(allQuestions as GDQuestion[]);
     }
-  }, [contentIds, allQuestions, shuffledQuestionIds, startGame]);
-
-
+  }, [contentIds, allQuestions, shuffledQuestionIds, startGame, currentQuestionIndex]);
+  
+  // Keep track of latest stats in a ref to use in cleanup/callbacks without triggering re-renders
+  const latestStatsRef = useRef({ sessionAnswered, sessionCorrect, sessionXP, currentQuestionIndex, syncedSession });
+  
+  useEffect(() => {
+    latestStatsRef.current = { sessionAnswered, sessionCorrect, sessionXP, currentQuestionIndex, syncedSession };
+  }, [sessionAnswered, sessionCorrect, sessionXP, currentQuestionIndex, syncedSession]);
 
   // OPTIMIZATION: Sync stats to Convex only when exiting or every 1 minute
   // This replaces per-answer syncing, reducing calls from ~800/hr to ~60/hr max
+  // Refactored to use refs so it doesn't need to be in the dependency array of effects
   const syncStatsToConvex = useCallback(async () => {
     if (!token) return;
+    if (isSyncingRef.current) return; // Prevent concurrent syncs
     
+    // Read from ref to get latest values without state dependencies
+    const currentStats = latestStatsRef.current;
+    
+    // Calculate delta based on PERSISTED synced state
     const unsynced = {
-      answered: sessionAnswered - lastSyncedRef.current.answered,
-      correct: sessionCorrect - lastSyncedRef.current.correct,
-      xp: sessionXP - lastSyncedRef.current.xp,
+      answered: currentStats.sessionAnswered - currentStats.syncedSession.answered,
+      correct: currentStats.sessionCorrect - currentStats.syncedSession.correct,
+      xp: currentStats.sessionXP - currentStats.syncedSession.xp,
     };
     
     if (unsynced.answered > 0) {
+      isSyncingRef.current = true;
       try {
         await updateStats({
           token,
           questionsAnswered: unsynced.answered,
           correctAnswers: unsynced.correct,
           xpEarned: unsynced.xp,
-          currentQuestionIndex: currentQuestionIndex,
+          currentQuestionIndex: currentStats.currentQuestionIndex,
         });
         if (unsynced.xp > 0) {
           await addXP(unsynced.xp);
         }
-        lastSyncedRef.current = { answered: sessionAnswered, correct: sessionCorrect, xp: sessionXP };
+        
+        // Update the STORE with the new synced state (persisted)
+        updateSyncedSession({ 
+          answered: currentStats.sessionAnswered, 
+          correct: currentStats.sessionCorrect, 
+          xp: currentStats.sessionXP 
+        });
+        
+        if (__DEV__) console.log("[GrammarDetective] Synced successfully:", unsynced);
       } catch (error) {
         if (__DEV__) console.error("[GrammarDetective] Sync error:", error);
+      } finally {
+        isSyncingRef.current = false;
       }
     }
-  }, [token, sessionAnswered, sessionCorrect, sessionXP, currentQuestionIndex, updateStats, addXP]);
+  }, [token, updateStats, addXP, updateSyncedSession]);
 
   // Sync on component unmount (catches ALL exit methods including Android back)
+  // Use a ref to store the latest sync function preventing the effect from re-running
+  const syncRef = useRef(syncStatsToConvex);
+  useEffect(() => {
+    syncRef.current = syncStatsToConvex;
+  });
+
   useEffect(() => {
     return () => {
-      // Fire sync on unmount - use the latest values via refs
-      const unsynced = {
-        answered: sessionAnswered - lastSyncedRef.current.answered,
-        correct: sessionCorrect - lastSyncedRef.current.correct,
-        xp: sessionXP - lastSyncedRef.current.xp,
-      };
-      if (unsynced.answered > 0 && token) {
-        updateStats({
-          token,
-          questionsAnswered: unsynced.answered,
-          correctAnswers: unsynced.correct,
-          xpEarned: unsynced.xp,
-          currentQuestionIndex: currentQuestionIndex,
-        });
-        if (unsynced.xp > 0) {
-          addXP(unsynced.xp);
-        }
-      }
+      // Fire sync on unmount using the latest ref
+      syncRef.current();
     };
-  }, [token, sessionAnswered, sessionCorrect, sessionXP, currentQuestionIndex, updateStats, addXP]);
+  }, []); // Empty dependency array = ONLY run on mount/unmount
 
   // Background safety sync every 1 minute (crash protection)
   useEffect(() => {
     const interval = setInterval(() => {
-      syncStatsToConvex();
+      syncRef.current();
     }, 60000); // 1 minute
 
     return () => clearInterval(interval);
-  }, [syncStatsToConvex]);
+  }, []);
 
   // Sync immediately when app goes to background (home button pressed)
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState === 'background' || nextAppState === 'inactive') {
-        syncStatsToConvex();
+        syncRef.current();
       }
     });
 
     return () => subscription.remove();
-  }, [syncStatsToConvex]);
+  }, []);
 
   const handleWordPress = useCallback(
     (index: number) => {
@@ -247,8 +274,9 @@ export default function GrammarDetectiveScreen() {
     safeBack();
   }, [triggerTap, resetGame, safeBack]);
 
-  // Loading state - only show if we have no content at all
-  if (!allQuestions || allQuestions.length === 0) {
+  // Loading state - show if we have no content OR if we are using fallback content
+  // User requested "no fallback data instead shows loading" to prevent random question flash
+  if (!allQuestions || allQuestions.length === 0 || questionsStatus === 'fallback') {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>

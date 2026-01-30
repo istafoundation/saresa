@@ -1,5 +1,6 @@
 // User actions hook - Wraps Convex mutations for easy use in components
 // Updated with comprehensive error handling and logging
+import { useMemo } from 'react';
 import { useMutation } from 'convex/react';
 import { api } from '../convex/_generated/api';
 import { useChildAuth } from './childAuth';
@@ -34,7 +35,7 @@ export function useUserActions() {
     return token;
   };
 
-  return {
+  return useMemo(() => ({
     addXP: async (amount: number): Promise<{ success: boolean; newXP?: number }> => {
       logSync('addXP', { amount });
       const authToken = getAuthToken();
@@ -138,7 +139,7 @@ export function useUserActions() {
         return false;
       }
     },
-  };
+  }), [token, addXPMutation, updateShardsMutation, unlockWeaponMutation, unlockArtifactMutation, addWeaponDuplicateMutation, syncProgressionMutation]);
 }
 
 // Game stats actions

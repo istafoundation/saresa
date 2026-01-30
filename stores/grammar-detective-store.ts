@@ -47,6 +47,13 @@ export interface GrammarDetectiveState {
     explanation: string;
   } | null;
   
+  // Persisted localized session sync state
+  syncedSession: {
+    answered: number;
+    correct: number;
+    xp: number;
+  };
+  
   // Actions
   startGame: (questions: GDQuestion[]) => void;
   toggleWordSelection: (index: number) => void;
@@ -54,6 +61,7 @@ export interface GrammarDetectiveState {
   nextQuestion: () => void;
   resetGame: () => void;
   syncFromConvex: (serverStats: { questionsAnswered: number; correctAnswers: number; totalXPEarned: number; currentQuestionIndex: number }) => void;
+  updateSyncedSession: (synced: { answered: number; correct: number; xp: number }) => void;
 }
 
 // Shuffle array using Fisher-Yates
@@ -85,12 +93,19 @@ export const useGrammarDetectiveStore = create<GrammarDetectiveState>()(
       sessionAnswered: 0,
       sessionCorrect: 0,
       sessionXP: 0,
+      syncedSession: {
+        answered: 0,
+        correct: 0,
+        xp: 0,
+      },
       stats: {
         totalAnswered: 0,
         totalCorrect: 0,
         totalXPEarned: 0,
       },
       lastResult: null,
+
+
 
       startGame: (questions) => {
         const { shuffledQuestionIds, currentQuestionIndex } = get();
@@ -111,6 +126,7 @@ export const useGrammarDetectiveStore = create<GrammarDetectiveState>()(
               sessionAnswered: 0,
               sessionCorrect: 0,
               sessionXP: 0,
+              syncedSession: { answered: 0, correct: 0, xp: 0 },
             });
             return;
           }
@@ -127,6 +143,7 @@ export const useGrammarDetectiveStore = create<GrammarDetectiveState>()(
           sessionAnswered: 0,
           sessionCorrect: 0,
           sessionXP: 0,
+          syncedSession: { answered: 0, correct: 0, xp: 0 },
         });
       },
 
@@ -190,6 +207,7 @@ export const useGrammarDetectiveStore = create<GrammarDetectiveState>()(
           sessionAnswered: 0,
           sessionCorrect: 0,
           sessionXP: 0,
+          syncedSession: { answered: 0, correct: 0, xp: 0 },
         });
       },
 
@@ -209,15 +227,23 @@ export const useGrammarDetectiveStore = create<GrammarDetectiveState>()(
           },
         });
       },
+
+      updateSyncedSession: (synced) => {
+        set({ syncedSession: synced });
+      },
     }),
     {
       name: 'grammar-detective-storage',
       storage: createJSONStorage(() => zustandStorage),
-      // Persist game progress and shuffled order
+      // Persist game progress and shuffled order AND synced state
       partialize: (state) => ({
         currentQuestionIndex: state.currentQuestionIndex,
         shuffledQuestionIds: state.shuffledQuestionIds,
         stats: state.stats,
+        sessionAnswered: state.sessionAnswered,
+        sessionCorrect: state.sessionCorrect,
+        sessionXP: state.sessionXP,
+        syncedSession: state.syncedSession,
       }),
     }
   )

@@ -5,9 +5,9 @@
   "scripts": {
     "start": "env-cmd -f .env.development expo start",
     "android": "cross-env APP_VARIANT=dev env-cmd -f .env.development expo run:android",
-    "android:prod": "env-cmd -f .env.production expo run:android",
+    "android:prod": "env-cmd -f .env.production cross-env EXPO_NO_DOTENV=1 expo run:android",
     "ios": "cross-env APP_VARIANT=dev env-cmd -f .env.development expo run:ios",
-    "ios:prod": "env-cmd -f .env.production expo run:ios",
+    "ios:prod": "env-cmd -f .env.production cross-env EXPO_NO_DOTENV=1 expo run:ios",
     "web": "env-cmd -f .env.development expo start --web",
     "version:patch": "npm version patch --no-git-tag-version && node ./scripts/sync-version.js",
     "version:minor": "npm version minor --no-git-tag-version && node ./scripts/sync-version.js",
