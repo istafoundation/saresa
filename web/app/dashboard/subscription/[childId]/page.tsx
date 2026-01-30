@@ -22,6 +22,7 @@ const PLAN = {
   price: 351,
   discountCode: "ISTA51",
   discountAmount: 51,
+  offerId: "offer_S9ySg0lMzkgUNP",
   features: [
     "Full access to all learning content",
     "Comprehensive English curriculum",
@@ -39,6 +40,7 @@ export default function SubscriptionPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [razorpayLoaded, setRazorpayLoaded] = useState(false);
+  const [couponCode, setCouponCode] = useState("");
   
   const myChildren = useQuery(api.parents.getMyChildren);
   const createSubscription = useAction(api.subscriptionActions.createSubscription);
@@ -58,7 +60,7 @@ export default function SubscriptionPage() {
       });
       
       // Open Razorpay Checkout instead of redirecting
-      const options = {
+      const options: any = {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
         subscription_id: result.subscriptionId,
         name: "Saresa Learning",
@@ -85,6 +87,11 @@ export default function SubscriptionPage() {
           note_to_user: `Use code ${PLAN.discountCode} for ₹${PLAN.discountAmount} off!`
         }
       };
+
+      // Apply offer if coupon matches
+      if (couponCode === PLAN.discountCode) {
+        options.offer_id = PLAN.offerId;
+      }
       
       const razorpay = new window.Razorpay(options);
       razorpay.on("payment.failed", function(response: any) {
@@ -192,32 +199,44 @@ export default function SubscriptionPage() {
             )}
             
             {/* Subscribe Button */}
-            <button
-              onClick={handleSubscribe}
-              disabled={isLoading || !razorpayLoaded}
-              className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl font-bold text-lg transition-all ${
-                !isLoading && razorpayLoaded
-                  ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg shadow-emerald-500/30 hover:-translate-y-0.5"
-                  : "bg-slate-200 text-slate-400 cursor-not-allowed"
-              }`}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Processing...
-                </>
-              ) : !razorpayLoaded ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Loading Payment...
-                </>
-              ) : (
-                <>
-                  <Zap className="w-5 h-5" />
-                  Subscribe Now
-                </>
-              )}
-            </button>
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Enter Coupon Code"
+                  className="flex-1 px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-emerald-500 focus:outline-hidden text-lg uppercase placeholder:normal-case transition-colors"
+                  value={couponCode}
+                  onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                />
+              </div>
+
+              <button
+                onClick={handleSubscribe}
+                disabled={isLoading || !razorpayLoaded}
+                className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl font-bold text-lg transition-all ${
+                  !isLoading && razorpayLoaded
+                    ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg shadow-emerald-500/30 hover:-translate-y-0.5"
+                    : "bg-slate-200 text-slate-400 cursor-not-allowed"
+                }`}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Processing...
+                  </>
+                ) : !razorpayLoaded ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Loading Payment...
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-5 h-5" />
+                    Subscribe Now
+                  </>
+                )}
+              </button>
+            </div>
             
             <p className="text-center text-xs text-slate-400 mt-4">
               Secure payment via Razorpay. Cancel anytime.
