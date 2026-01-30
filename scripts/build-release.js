@@ -9,7 +9,7 @@ const packageJson = require(path.join(root, "package.json"));
 const version = packageJson.version;
 
 // App name for APK file naming
-const APK_NAME = "saresa";
+const APK_NAME = "ista-english";
 
 const apkSourceDir = path.join(
   root,

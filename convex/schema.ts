@@ -18,14 +18,8 @@ export default defineSchema({
     password: v.string(), // Parent-chosen (plaintext for parent visibility)
     name: v.string(), // Child's display name
     role: v.string(), // "user" (future: "admin", "premium")
-    // Learning level group - determines which question sets are shown
-    group: v.optional(
-      v.union(
-        v.literal("A"), // Class 1-4 (Sets 1, 3, 5)
-        v.literal("B"), // Class 5-8 (Sets 1, 2, 3) - default
-        v.literal("C"), // Class 9-10 (Sets 1, 2, 4)
-      ),
-    ),
+    // DEPRECATED: group field no longer used (kept for backward compatibility)
+    group: v.optional(v.string()),
     createdAt: v.number(),
     lastLoginAt: v.optional(v.number()),
   })
@@ -306,9 +300,9 @@ export default defineSchema({
     razorpayPlanId: v.string(),
     razorpayCustomerId: v.optional(v.string()),
 
-    // Plan details
-    planGroup: v.union(v.literal("A"), v.literal("B"), v.literal("C")),
-    amount: v.number(), // in paise (8900, 12900, 18900)
+    // Plan details (single plan now - planGroup kept for backward compatibility)
+    planGroup: v.optional(v.string()), // DEPRECATED: was A/B/C, now optional
+    amount: v.number(), // in paise (35100 for single plan)
 
     // Status
     status: v.union(

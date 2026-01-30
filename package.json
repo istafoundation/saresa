@@ -1,5 +1,5 @@
 {
-  "name": "saresa",
+  "name": "ista-english",
   "version": "1.0.65",
   "main": "expo-router/entry",
   "scripts": {
@@ -20,7 +20,8 @@
     "build:release:minor": "env-cmd -f .env.production npm run version:minor && node ./scripts/build-release.js",
     "build:release:major": "env-cmd -f .env.production npm run version:major && node ./scripts/build-release.js",
     "sync:content": "node ./scripts/sync-content.js",
-    "sync:full": "node ./scripts/sync-full.js"
+    "sync:full": "node ./scripts/sync-full.js",
+    "convex:dev": "node ./scripts/convex-dev.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

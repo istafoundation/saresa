@@ -114,7 +114,6 @@ export const storeSubscription = internalMutation({
     razorpaySubscriptionId: v.string(),
     razorpayPlanId: v.string(),
     razorpayCustomerId: v.optional(v.string()),
-    planGroup: v.union(v.literal("A"), v.literal("B"), v.literal("C")),
     amount: v.number(),
     status: v.string(),
   },
@@ -126,22 +125,11 @@ export const storeSubscription = internalMutation({
       razorpaySubscriptionId: args.razorpaySubscriptionId,
       razorpayPlanId: args.razorpayPlanId,
       razorpayCustomerId: args.razorpayCustomerId,
-      planGroup: args.planGroup,
       amount: args.amount,
       status: args.status as "created" | "authenticated" | "active" | "pending" | "halted" | "cancelled" | "completed" | "expired",
       createdAt: now,
       updatedAt: now,
     });
-    
-    // Immediately sync child's group to match the subscription plan
-    // This ensures the group is correct even before webhook confirms activation
-    const child = await ctx.db.get(args.childId);
-    if (child && child.group !== args.planGroup) {
-      console.log(`Syncing child ${args.childId} group from ${child.group} to ${args.planGroup} on subscription creation`);
-      await ctx.db.patch(args.childId, {
-        group: args.planGroup,
-      });
-    }
   },
 });
 
@@ -186,19 +174,6 @@ export const updateSubscriptionByRazorpayId = internalMutation({
       currentPeriodEnd: args.currentPeriodEnd,
       updatedAt: Date.now(),
     });
-    
-    // IMPORTANT: When subscription becomes active or authenticated, sync child's group to match the subscription plan
-    // This ensures the child gets content appropriate for their subscription tier
-    // Both "active" and "authenticated" are considered valid subscription states (per line 29)
-    if ((args.status === "active" || args.status === "authenticated") && subscription.planGroup) {
-      const child = await ctx.db.get(subscription.childId);
-      if (child && child.group !== subscription.planGroup) {
-        console.log(`Syncing child ${subscription.childId} group from ${child.group} to ${subscription.planGroup} (status: ${args.status})`);
-        await ctx.db.patch(subscription.childId, {
-          group: subscription.planGroup,
-        });
-      }
-    }
   },
 });
 
@@ -268,36 +243,5 @@ export const getActiveSubscription = internalQuery({
         )
       )
       .first();
-  },
-});
-
-// One-time sync: Update all children's groups from their active subscriptions
-// Run this from Convex dashboard to fix existing data
-export const syncAllGroupsFromSubscriptions = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    // Get all active/authenticated subscriptions
-    const subscriptions = await ctx.db
-      .query("subscriptions")
-      .filter((q) => 
-        q.or(
-          q.eq(q.field("status"), "active"),
-          q.eq(q.field("status"), "authenticated")
-        )
-      )
-      .collect();
-    
-    let synced = 0;
-    for (const sub of subscriptions) {
-      const child = await ctx.db.get(sub.childId);
-      if (child && child.group !== sub.planGroup) {
-        console.log(`Syncing child ${sub.childId}: ${child.group} -> ${sub.planGroup}`);
-        await ctx.db.patch(sub.childId, { group: sub.planGroup });
-        synced++;
-      }
-    }
-    
-    console.log(`Synced ${synced} children's groups from subscriptions`);
-    return { synced, total: subscriptions.length };
   },
 });

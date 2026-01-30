@@ -136,16 +136,15 @@ export function useWordleContent(): ContentResult<typeof FALLBACK_WORDLE> {
 
 /**
  * Hook for Word Finder word sets (Easy mode)
- * OPTIMIZED: Uses group-filtered query + single combined query
+ * All content now available to all users
  */
 export function useWordFinderSets(): ContentResult<typeof FALLBACK_WORD_SETS> {
   const { token } = useChildAuth();
-  const userGroup = useUserStore((s) => s.group);
   
-  // Use group-filtered query for level-based content
+  // All content now available without group filtering
   const serverData = useQuery(
-    api.content.getGroupFilteredContentWithVersion,
-    token ? { gameId: 'word-finder', type: 'word_set', userGroup } : 'skip'
+    api.content.getGameContentWithVersion,
+    token ? { gameId: 'word-finder', type: 'word_set' } : 'skip'
   );
 
   const [cachedData, setCachedData] = useState<typeof FALLBACK_WORD_SETS | null>(null);
@@ -200,16 +199,15 @@ export function useWordFinderSets(): ContentResult<typeof FALLBACK_WORD_SETS> {
 
 /**
  * Hook for Word Finder hard questions (Hard mode)
- * OPTIMIZED: Uses group-filtered query + single combined query
+ * All content now available to all users
  */
 export function useWordFinderHardQuestions(): ContentResult<typeof FALLBACK_HARD_QUESTIONS> {
   const { token } = useChildAuth();
-  const userGroup = useUserStore((s) => s.group);
   
-  // Use group-filtered query for level-based content
+  // All content now available without group filtering
   const serverData = useQuery(
-    api.content.getGroupFilteredContentWithVersion,
-    token ? { gameId: 'word-finder', type: 'hard_question', userGroup } : 'skip'
+    api.content.getGameContentWithVersion,
+    token ? { gameId: 'word-finder', type: 'hard_question' } : 'skip'
   );
 
   const [cachedData, setCachedData] = useState<typeof FALLBACK_HARD_QUESTIONS | null>(null);
@@ -264,16 +262,15 @@ export function useWordFinderHardQuestions(): ContentResult<typeof FALLBACK_HARD
 
 /**
  * Hook for English Insane (GK) questions
- * OPTIMIZED: Uses group-filtered query + single combined query
+ * All content now available to all users
  */
 export function useEnglishInsaneQuestions(): ContentResult<typeof FALLBACK_GK_QUESTIONS> {
   const { token } = useChildAuth();
-  const userGroup = useUserStore((s) => s.group);
   
-  // Use group-filtered query for level-based content
+  // All content now available without group filtering
   const serverData = useQuery(
-    api.content.getGroupFilteredContentWithVersion,
-    token ? { gameId: 'english-insane', type: 'gk_question', userGroup } : 'skip'
+    api.content.getGameContentWithVersion,
+    token ? { gameId: 'english-insane', type: 'gk_question' } : 'skip'
   );
 
   const [cachedData, setCachedData] = useState<typeof FALLBACK_GK_QUESTIONS | null>(null);

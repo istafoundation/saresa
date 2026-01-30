@@ -263,13 +263,11 @@ export const checkUsernameAvailable = query({
   },
 });
 
-// Add a new child
 export const addChild = mutation({
   args: {
     name: v.string(),
     username: v.string(),
     password: v.string(),
-    group: v.optional(v.union(v.literal("A"), v.literal("B"), v.literal("C"))),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -309,14 +307,13 @@ export const addChild = mutation({
       throw new ConvexError("Password must be at least 6 characters");
     }
 
-    // Create child with optional group (defaults to B if not specified)
+    // Create child
     const childId = await ctx.db.insert("children", {
       parentId: parent._id,
       username,
       password: args.password, // Stored as plaintext for parent visibility
       name: args.name.trim(),
       role: "user",
-      group: args.group || "B", // Default to Group B (Class 5-8)
       createdAt: Date.now(),
     });
 
@@ -399,8 +396,6 @@ export const getMyChildren = query({
           username: child.username,
           password: child.password, // Parent can always see
           role: child.role,
-          // Subscription is the SINGLE SOURCE OF TRUTH for group
-          group: subscription?.planGroup || "B",
           createdAt: child.createdAt,
           lastLoginAt: child.lastLoginAt,
           // Stats from user data
@@ -417,7 +412,6 @@ export const getMyChildren = query({
           lastLoginDate: userData?.lastLoginDate, // For activity calculations
           // Subscription status
           subscriptionStatus: subscription?.status || "none",
-          subscriptionPlanGroup: subscription?.planGroup,
           activatedTill: subscription?.currentPeriodEnd,
           isSubscriptionActive,
         };
@@ -569,7 +563,7 @@ export const getChildStats = query({
       .withIndex("by_child_id", (q) => q.eq("childId", args.childId))
       .first();
 
-    // Get active subscription for group (source of truth)
+    // Get subscription for status display
     const subscription = await ctx.db
       .query("subscriptions")
       .withIndex("by_child", (q) => q.eq("childId", args.childId))
@@ -580,16 +574,12 @@ export const getChildStats = query({
         )
       )
       .first();
-    
-    // Subscription is the SINGLE SOURCE OF TRUTH for group
-    const effectiveGroup = subscription?.planGroup || "B";
 
     if (!userData) {
       return {
         child: {
           name: child.name,
           username: child.username,
-          group: effectiveGroup,
           createdAt: child.createdAt,
           lastLoginAt: child.lastLoginAt,
         },
@@ -601,7 +591,6 @@ export const getChildStats = query({
       child: {
         name: child.name,
         username: child.username,
-        group: effectiveGroup,
         createdAt: child.createdAt,
         lastLoginAt: child.lastLoginAt,
       },
@@ -819,33 +808,5 @@ export const updateChildName = mutation({
     }
 
     return { success: true, name: trimmedName };
-  },
-});
-
-// Update child's learning level group (A/B/C)
-export const updateChildGroup = mutation({
-  args: {
-    childId: v.id("children"),
-    group: v.union(v.literal("A"), v.literal("B"), v.literal("C")),
-  },
-  handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new ConvexError("Not authenticated");
-
-    const parent = await ctx.db
-      .query("parents")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-      .first();
-
-    if (!parent) throw new ConvexError("Parent not found");
-
-    const child = await ctx.db.get(args.childId);
-    if (!child || child.parentId !== parent._id) {
-      throw new ConvexError("Child not found");
-    }
-
-    await ctx.db.patch(args.childId, { group: args.group });
-
-    return { success: true, group: args.group };
   },
 });

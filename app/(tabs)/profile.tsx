@@ -17,7 +17,7 @@ export default function ProfileScreen() {
   const { logout } = useChildAuth();
   
   const { 
-    name, mascot, xp, streak, group, unlockedArtifacts, unlockedWeapons, 
+    name, mascot, xp, streak, unlockedArtifacts, unlockedWeapons, 
     soundEnabled, musicEnabled, sfxVolume, musicVolume,
     setSoundEnabled, setMusicEnabled, setSfxVolume, setMusicVolume,
     // Now reading game stats from Convex-synced data!
@@ -76,14 +76,6 @@ export default function ProfileScreen() {
             
             <View style={styles.levelBadge}>
               <Text style={styles.levelBadgeText}>Level {levelInfo.level}</Text>
-            </View>
-            
-            {/* Learning Level Group Badge */}
-            <View style={styles.groupBadge}>
-              <Ionicons name="school-outline" size={14} color={COLORS.text} style={{ marginRight: 4 }} />
-              <Text style={styles.groupBadgeText}>
-                Group {group} ({group === 'A' ? 'Class 1-4' : group === 'C' ? 'Class 9-10' : 'Class 5-8'})
-              </Text>
             </View>
             
             {/* Subscription Status Badge */}
@@ -476,20 +468,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: COLORS.accentGold,
-  },
-  groupBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.text + '20',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs,
-    borderRadius: BORDER_RADIUS.full,
-    marginTop: SPACING.sm,
-  },
-  groupBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.text,
   },
   statsGrid: {
     flexDirection: 'row',

@@ -6,14 +6,14 @@ const IS_DEV = process.env.APP_VARIANT === 'dev';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: IS_DEV ? "Saresa Dev" : "Saresa",
-  slug: "saresa",
+  name: IS_DEV ? "ISTA English Dev" : "ISTA English",
+  slug: "ista-english",
   version: IS_DEV ? `${pkg.version}-dev` : pkg.version,
   orientation: "portrait",
   icon: "./assets/icon.png",
   userInterfaceStyle: "dark",
   newArchEnabled: true,
-  scheme: "saresa",
+  scheme: "ista-english",
   splash: {
     image: "./assets/splash-icon.png",
     resizeMode: "contain",
@@ -21,14 +21,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   ios: {
     supportsTablet: true,
-    bundleIdentifier: IS_DEV ? "in.istafoundation.saresa.dev" : "in.istafoundation.saresa"
+    bundleIdentifier: IS_DEV ? "in.istafoundation.english.dev" : "in.istafoundation.english"
   },
   android: {
     adaptiveIcon: {
       foregroundImage: "./assets/adaptive-icon.png",
       backgroundColor: "#1A0A2E"
     },
-    package: IS_DEV ? "in.istafoundation.saresa.dev" : "in.istafoundation.saresa",
+    package: IS_DEV ? "in.istafoundation.english.dev" : "in.istafoundation.english",
     versionCode: versionCode.android.versionCode,
     permissions: [
       "android.permission.RECORD_AUDIO"

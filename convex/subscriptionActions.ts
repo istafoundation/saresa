@@ -1,19 +1,18 @@
 "use node";
 // Razorpay Actions (Node.js Runtime)
 // This file contains actions that use the Razorpay SDK which requires Node.js
+// Single plan at ₹351/month - discount code ISTA51 for ₹51 off
 
 import { v, ConvexError } from "convex/values";
 import { action } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { RAZORPAY_PLANS, getPlanByGroup } from "./lib/razorpay";
+import { RAZORPAY_PLAN, getPlan } from "./lib/razorpay";
 import Razorpay from "razorpay";
-import type { Id } from "./_generated/dataModel";
 
 // Return type for subscription creation
 interface SubscriptionResult {
   subscriptionId: string;
   shortUrl: string;
-  planGroup: "A" | "B" | "C";
   amount: number;
 }
 
@@ -29,7 +28,6 @@ function getRazorpayInstance(): Razorpay {
 export const createSubscription = action({
   args: {
     childId: v.id("children"),
-    planGroup: v.union(v.literal("A"), v.literal("B"), v.literal("C")),
     callbackUrl: v.optional(v.string()), // URL to redirect after payment
   },
   handler: async (ctx, args): Promise<SubscriptionResult> => {
@@ -55,8 +53,8 @@ export const createSubscription = action({
       throw new ConvexError("Child not found or unauthorized");
     }
     
-    // Get plan details
-    const plan = getPlanByGroup(args.planGroup);
+    // Get plan details (single plan now)
+    const plan = getPlan();
     
     // Create Razorpay subscription
     const razorpay = getRazorpayInstance();
@@ -86,7 +84,6 @@ export const createSubscription = action({
       notes: {
         childId: args.childId,
         parentId: parent._id,
-        planGroup: args.planGroup,
       },
     };
     
@@ -106,7 +103,6 @@ export const createSubscription = action({
       razorpaySubscriptionId: subscription.id,
       razorpayPlanId: plan.planId,
       razorpayCustomerId: customerId,
-      planGroup: args.planGroup,
       amount: plan.amount,
       status: "created",
     });
@@ -115,7 +111,6 @@ export const createSubscription = action({
     return {
       subscriptionId: subscription.id,
       shortUrl: subscription.short_url,
-      planGroup: args.planGroup,
       amount: plan.amount,
     };
   },
@@ -150,91 +145,5 @@ export const cancelSubscription = action({
     });
     
     return { success: true };
-  },
-});
-
-// Change plan (cancel old + create new)
-export const changePlan = action({
-  args: {
-    childId: v.id("children"),
-    newPlanGroup: v.union(v.literal("A"), v.literal("B"), v.literal("C")),
-  },
-  handler: async (ctx, args): Promise<SubscriptionResult> => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new ConvexError("Not authenticated");
-    }
-    
-    // Check for existing active subscription and cancel it
-    const existingSubscription = await ctx.runQuery(internal.subscriptions.getActiveSubscription, {
-      childId: args.childId,
-    });
-    
-    if (existingSubscription) {
-      // Cancel on Razorpay
-      const razorpay = getRazorpayInstance();
-      try {
-        await razorpay.subscriptions.cancel(existingSubscription.razorpaySubscriptionId);
-      } catch (error) {
-        console.error("Failed to cancel existing subscription:", error);
-      }
-      
-      // Update status in database
-      await ctx.runMutation(internal.subscriptions.updateSubscriptionStatus, {
-        subscriptionId: existingSubscription._id,
-        status: "cancelled",
-      });
-    }
-    
-    // Create new subscription
-    const parent = await ctx.runQuery(internal.subscriptions.getParentByClerkId, {
-      clerkId: identity.subject,
-    });
-    
-    if (!parent) {
-      throw new ConvexError("Parent not found");
-    }
-    
-    const child = await ctx.runQuery(internal.subscriptions.getChildById, {
-      childId: args.childId,
-    });
-    
-    if (!child || child.parentId !== parent._id) {
-      throw new ConvexError("Child not found or unauthorized");
-    }
-    
-    // Get plan details
-    const plan = getPlanByGroup(args.newPlanGroup);
-    
-    // Create Razorpay subscription
-    const razorpay = getRazorpayInstance();
-    const subscription = await razorpay.subscriptions.create({
-      plan_id: plan.planId,
-      customer_notify: 1,
-      total_count: 12,
-      notes: {
-        childId: args.childId,
-        parentId: parent._id,
-        planGroup: args.newPlanGroup,
-      },
-    });
-    
-    // Store subscription in database
-    await ctx.runMutation(internal.subscriptions.storeSubscription, {
-      childId: args.childId,
-      parentId: parent._id,
-      razorpaySubscriptionId: subscription.id,
-      razorpayPlanId: plan.planId,
-      planGroup: args.newPlanGroup,
-      amount: plan.amount,
-      status: "created",
-    });
-    
-    return {
-      subscriptionId: subscription.id,
-      shortUrl: subscription.short_url,
-      planGroup: args.newPlanGroup,
-      amount: plan.amount,
-    };
   },
 });

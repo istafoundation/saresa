@@ -1,50 +1,86 @@
+#!/usr/bin/env node
+/**
+ * Full Sync Script (Prod -> Dev)
+ * WARNING: This will completely replace ALL data in Dev with Production data.
+ * Cross-platform compatible (Windows, Mac, Linux).
+ * 
+ * Uses --url flag to explicitly target specific deployments.
+ */
+const { execSync } = require('child_process');
 const fs = require('fs');
+const path = require('path');
 
-async function run() {
-  console.log("🔄 Starting FULL Sync (Prod -> Dev)...");
-  console.log("⚠️  WARNING: This will preserve NOTHING in Dev. It will be a mirror of Prod.");
-
-  const prodEnv = fs.readFileSync('.env.production', 'utf8');
-  const prodDeploymentMatch = prodEnv.match(/CONVEX_DEPLOYMENT=(.+)/);
-  if (!prodDeploymentMatch) {
-    console.error("❌ .env.production missing CONVEX_DEPLOYMENT");
-    process.exit(1);
-  }
-  let prodDeployment = prodDeploymentMatch[1].split('#')[0].trim();
-  if (prodDeployment.includes(':')) prodDeployment = prodDeployment.split(':')[1];
-
-  const devEnv = fs.readFileSync('.env.development', 'utf8');
-  const devDeploymentMatch = devEnv.match(/CONVEX_DEPLOYMENT=(.+)/);
-  if (!devDeploymentMatch) {
-    console.error("❌ .env.development missing CONVEX_DEPLOYMENT");
-    process.exit(1);
-  }
-  let devDeployment = devDeploymentMatch[1].split('#')[0].trim();
-  if (devDeployment.includes(':')) devDeployment = devDeployment.split(':')[1];
-
-  // Create temp dir (clean up previous if exists)
-  if (fs.existsSync('temp_sync')) {
-    fs.rmSync('temp_sync', { recursive: true, force: true });
-  }
-  fs.mkdirSync('temp_sync');
-
-  // 1. Export ALL
-  console.log("📦 Exporting ALL data from Production...");
-  try {
-     require('child_process').execSync(`npx convex export --deployment-name ${prodDeployment} --path temp_sync/full_snapshot.zip`, { stdio: 'inherit' });
-  } catch (e) {
-      process.exit(1);
-  }
-
-  // 2. Import ALL (Replace)
-  console.log("📥 Importing to Dev (Wipe and Replace)...");
-  try {
-      require('child_process').execSync(`npx convex import --deployment-name ${devDeployment} temp_sync/full_snapshot.zip --replace`, { stdio: 'inherit' });
-  } catch (e) {
-      process.exit(1);
-  }
-
-  console.log("🎉 Full Sync Complete!");
+function loadFromEnv(envFile, key) {
+  const envContent = fs.readFileSync(envFile, 'utf8');
+  const regex = new RegExp(`${key}=(.+)`);
+  const match = envContent.match(regex);
+  if (!match) return null;
+  return match[1].split('#')[0].trim();
 }
 
-run();
+async function run() {
+  console.log("");
+  console.log("🔄 Starting FULL Sync (Prod -> Dev)...");
+  console.log("⚠️  WARNING: This will COMPLETELY REPLACE all data in Dev with Production data.");
+  console.log("");
+
+  // Load URLs directly from env files
+  const prodUrl = loadFromEnv('.env.production', 'EXPO_PUBLIC_CONVEX_URL');
+  const devUrl = loadFromEnv('.env.development', 'EXPO_PUBLIC_CONVEX_URL');
+  
+  if (!prodUrl) {
+    console.error("❌ Could not find EXPO_PUBLIC_CONVEX_URL in .env.production");
+    process.exit(1);
+  }
+  console.log(`   Source (Prod): ${prodUrl}`);
+
+  if (!devUrl) {
+    console.error("❌ Could not find EXPO_PUBLIC_CONVEX_URL in .env.development");
+    process.exit(1);
+  }
+  console.log(`   Target (Dev):  ${devUrl}`);
+  console.log("");
+
+  // Create temp dir
+  const tempDir = path.resolve('temp_sync');
+  if (fs.existsSync(tempDir)) {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+  fs.mkdirSync(tempDir);
+
+  try {
+    // 1. Export ALL from Production using --url flag
+    console.log("📦 Exporting ALL data from Production...");
+    const snapshotPath = path.join(tempDir, 'full_snapshot.zip');
+    execSync(`npx convex export --url "${prodUrl}" --path "${snapshotPath}"`, { 
+      stdio: 'inherit',
+      shell: true
+    });
+    console.log("");
+
+    // 2. Import ALL to Dev (Replace) using --url flag
+    console.log("📥 Importing to Dev (Wipe and Replace)...");
+    execSync(`npx convex import --url "${devUrl}" "${snapshotPath}" --replace -y`, { 
+      stdio: 'inherit',
+      shell: true
+    });
+
+    console.log("");
+    console.log("🎉 Full Sync Complete!");
+    console.log("");
+    
+  } finally {
+    if (fs.existsSync(tempDir)) {
+      try {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      } catch (e) { 
+        console.warn("⚠️  Could not clean up temp_sync"); 
+      }
+    }
+  }
+}
+
+run().catch(err => {
+  console.error("❌ Sync failed:", err.message);
+  process.exit(1);
+});

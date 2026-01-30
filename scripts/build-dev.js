@@ -9,7 +9,7 @@ const packageJson = require(path.join(root, "package.json"));
 const version = packageJson.version;
 
 // App name for APK file naming
-const APK_NAME_PREFIX = "saresa-dev";
+const APK_NAME_PREFIX = "ista-english-dev";
 
 // Debug APK location (Standard Gradle output)
 const apkSourceDir = path.join(
@@ -26,7 +26,7 @@ const buildsDir = path.join(root, "builds");
 const outputFile = path.join(buildsDir, `${APK_NAME_PREFIX}-v${version}.apk`);
 
 console.log("");
-console.log(`🚀 Building Saresa DEV APK`);
+console.log(`🚀 Building ISTA English DEV APK`);
 console.log(`   Version: ${version}-dev`);
 console.log("");
 
