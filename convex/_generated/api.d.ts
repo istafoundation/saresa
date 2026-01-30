@@ -12,6 +12,8 @@ import type * as admin from "../admin.js";
 import type * as childAuth from "../childAuth.js";
 import type * as content from "../content.js";
 import type * as contentMigration from "../contentMigration.js";
+import type * as couponActions from "../couponActions.js";
+import type * as coupons from "../coupons.js";
 import type * as crons from "../crons.js";
 import type * as gameStats from "../gameStats.js";
 import type * as http from "../http.js";
@@ -39,6 +41,8 @@ declare const fullApi: ApiFromModules<{
   childAuth: typeof childAuth;
   content: typeof content;
   contentMigration: typeof contentMigration;
+  couponActions: typeof couponActions;
+  coupons: typeof coupons;
   crons: typeof crons;
   gameStats: typeof gameStats;
   http: typeof http;

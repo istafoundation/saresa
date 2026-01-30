@@ -319,6 +319,8 @@ export default defineSchema({
     // Dates
     currentPeriodStart: v.optional(v.number()),
     currentPeriodEnd: v.optional(v.number()), // "Activated till" date
+    
+    couponCode: v.optional(v.string()), // Coupon used for this subscription
 
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -326,6 +328,31 @@ export default defineSchema({
     .index("by_child", ["childId"])
     .index("by_parent", ["parentId"])
     .index("by_razorpay_id", ["razorpaySubscriptionId"]),
+
+  // ============================================
+  // COUPON MANAGEMENT
+  // ============================================
+
+  coupons: defineTable({
+    code: v.string(), // "ISTA51"
+    razorpayOfferId: v.optional(v.string()), // Linked Razorpay Offer ID
+    discountType: v.union(v.literal("flat"), v.literal("percentage")), // "flat" by default
+    discountAmount: v.number(), // Amount in paise (e.g., 30000 for ₹300 off)
+    description: v.optional(v.string()),
+
+    // Status
+    isActive: v.boolean(),
+    
+    // Usage Limits
+    expiryDate: v.optional(v.number()), // Timestamp
+    maxTotalUses: v.optional(v.number()), // Max total global uses
+    usageCount: v.number(), // Current total uses
+
+    createdAt: v.number(),
+    createdBy: v.optional(v.id("parents")),
+  })
+    .index("by_code", ["code"])
+    .index("by_active", ["isActive"]),
 
   // Payment history for subscriptions
   subscriptionPayments: defineTable({

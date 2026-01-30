@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useAction } from "convex/react";
+import { useQuery, useAction, useConvex } from "convex/react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
@@ -44,10 +44,45 @@ export default function SubscriptionPage() {
   const [isCouponApplied, setIsCouponApplied] = useState(false);
   const [couponError, setCouponError] = useState<string | null>(null);
   
+  // New state for dynamic coupons
+  const [validationLoading, setValidationLoading] = useState(false);
+  const [verifiedCoupon, setVerifiedCoupon] = useState<{
+    code: string;
+    discountAmount: number;
+    discountType: "flat" | "percentage";
+    razorpayOfferId?: string;
+  } | null>(null);
+
+  const convex = useConvex();
   const myChildren = useQuery(api.parents.getMyChildren);
   const createSubscription = useAction(api.subscriptionActions.createSubscription);
   
   const child = myChildren?.find(c => c._id === childId);
+  
+  const handleApplyCoupon = async () => {
+    if (!couponCode) return;
+    
+    setValidationLoading(true);
+    setCouponError(null);
+    
+    try {
+      const result = await convex.query(api.coupons.validateCoupon, { code: couponCode });
+      
+      if (result.valid && result.coupon) {
+        setVerifiedCoupon(result.coupon);
+        setIsCouponApplied(true);
+      } else {
+        setCouponError(result.error || "Invalid coupon code");
+        setIsCouponApplied(false);
+        setVerifiedCoupon(null);
+      }
+    } catch (err) {
+      console.error("Coupon validation error:", err);
+      setCouponError("Failed to validate coupon");
+    } finally {
+      setValidationLoading(false);
+    }
+  };
   
   const handleSubscribe = async () => {
     if (!childId || !razorpayLoaded) return;
@@ -58,8 +93,10 @@ export default function SubscriptionPage() {
     try {
       const result = await createSubscription({
         childId,
-        // Pass offerId if coupon is applied to lock in the discount on backend
-        offerId: isCouponApplied ? PLAN.offerId : undefined,
+        // Pass couponCode if applied
+        couponCode: isCouponApplied && verifiedCoupon ? verifiedCoupon.code : undefined,
+        // Also pass offerId if available from coupon (legacy support or double insurance)
+        offerId: isCouponApplied && verifiedCoupon?.razorpayOfferId ? verifiedCoupon.razorpayOfferId : undefined,
       });
       
       // Open Razorpay Checkout instead of redirecting
@@ -87,7 +124,9 @@ export default function SubscriptionPage() {
           color: "#10B981",
         },
         notes: {
-          note_to_user: `Use code ${PLAN.discountCode} for ₹${PLAN.discountAmount} off!`
+          note_to_user: isCouponApplied && verifiedCoupon 
+            ? `Code ${verifiedCoupon.code} applied`
+            : "Monthly Subscription"
         }
       };
 
@@ -164,10 +203,15 @@ export default function SubscriptionPage() {
             {/* Price Section */}
             <div className="text-center mb-8">
                 <div className="flex items-center justify-center gap-2 mb-2">
-                    {isCouponApplied ? (
+                    {isCouponApplied && verifiedCoupon ? (
                       <>
                         <span className="text-2xl text-slate-400 line-through">₹{PLAN.price}</span>
-                        <span className="text-4xl font-bold text-emerald-600">₹{PLAN.price - PLAN.discountAmount}</span>
+                        <span className="text-4xl font-bold text-emerald-600">
+                            {verifiedCoupon.discountType === 'flat' 
+                                ? `₹${Math.max(0, PLAN.price - (verifiedCoupon.discountAmount / 100))}`
+                                : `₹${Math.max(0, PLAN.price - (PLAN.price * (verifiedCoupon.discountAmount / 100)))}` // Assuming percentage is stored as number e.g. 50 for 50%
+                            }
+                        </span>
                       </>
                     ) : (
                       <span className="text-4xl font-bold text-slate-900">₹{PLAN.price}</span>
@@ -175,11 +219,11 @@ export default function SubscriptionPage() {
                     <span className="text-slate-500 font-medium">/month</span>
                 </div>
                 
-                {/* Discount Banner */}
+                {/* Discount Banner - Static for now or we can make it dynamic if we had a list of 'promoted' coupons */}
                 <div className="inline-block bg-amber-100 border border-amber-200 rounded-lg px-4 py-2 mt-2">
                     <p className="text-amber-800 text-sm font-semibold flex items-center gap-2">
                         <Star className="w-4 h-4 fill-amber-500 text-amber-500" />
-                        Use code <span className="font-mono bg-white px-2 py-0.5 rounded border border-amber-300 select-all">{PLAN.discountCode}</span> for ₹{PLAN.discountAmount} OFF!
+                        Use code <span className="font-mono bg-white px-2 py-0.5 rounded border border-amber-300 select-all">ISTA51</span> for ₹51 OFF!
                     </p>
                 </div>
             </div>
@@ -217,28 +261,31 @@ export default function SubscriptionPage() {
                       setCouponCode(e.target.value.toUpperCase());
                       setCouponError(null);
                       setIsCouponApplied(false);
+                      setVerifiedCoupon(null);
                     }}
-                    disabled={isCouponApplied}
+                    disabled={isCouponApplied || validationLoading}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            handleApplyCoupon();
+                        }
+                    }}
                   />
                   {isCouponApplied && (
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-600 flex items-center gap-1 font-medium text-sm">
                       <Check className="w-4 h-4" /> Applied
                     </div>
                   )}
+                  {validationLoading && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <Loader2 className="w-4 h-4 animate-spin text-emerald-500" />
+                    </div>
+                  )}
                 </div>
                 <button
-                  onClick={() => {
-                    if (couponCode === PLAN.discountCode) {
-                      setIsCouponApplied(true);
-                      setCouponError(null);
-                    } else {
-                      setCouponError("Invalid Coupon Code");
-                      setIsCouponApplied(false);
-                    }
-                  }}
-                  disabled={isCouponApplied || !couponCode}
+                  onClick={handleApplyCoupon}
+                  disabled={isCouponApplied || !couponCode || validationLoading}
                   className={`px-6 py-3 rounded-xl font-bold transition-colors ${
-                    isCouponApplied 
+                    isCouponApplied || !couponCode || validationLoading
                       ? "bg-slate-100 text-slate-400 cursor-not-allowed" 
                       : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
                   }`}

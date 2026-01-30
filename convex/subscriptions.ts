@@ -116,6 +116,7 @@ export const storeSubscription = internalMutation({
     razorpayCustomerId: v.optional(v.string()),
     amount: v.number(),
     status: v.string(),
+    couponCode: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -127,6 +128,7 @@ export const storeSubscription = internalMutation({
       razorpayCustomerId: args.razorpayCustomerId,
       amount: args.amount,
       status: args.status as "created" | "authenticated" | "active" | "pending" | "halted" | "cancelled" | "completed" | "expired",
+      couponCode: args.couponCode,
       createdAt: now,
       updatedAt: now,
     });

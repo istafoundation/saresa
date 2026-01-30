@@ -30,6 +30,7 @@ export const createSubscription = action({
     childId: v.id("children"),
     callbackUrl: v.optional(v.string()), // URL to redirect after payment
     offerId: v.optional(v.string()), // Optional offer ID for discounts
+    couponCode: v.optional(v.string()), // NEW: Coupon code support
   },
   handler: async (ctx, args): Promise<SubscriptionResult> => {
     const identity = await ctx.auth.getUserIdentity();
@@ -52,6 +53,42 @@ export const createSubscription = action({
     
     if (!child || child.parentId !== parent._id) {
       throw new ConvexError("Child not found or unauthorized");
+    }
+
+    // Resolve Coupon if provided
+    let appliedOfferId = args.offerId;
+    let finalAmount: number = getPlan().amount;
+    let appliedCouponCode = args.couponCode;
+
+    if (args.couponCode) {
+      const coupon = await ctx.runQuery(internal.coupons.getCouponInternal, {
+        code: args.couponCode,
+      });
+
+      if (!coupon) {
+        throw new ConvexError("Invalid coupon code");
+      }
+      if (!coupon.isActive) {
+        throw new ConvexError("Coupon is inactive");
+      }
+      if (coupon.expiryDate && Date.now() > coupon.expiryDate) {
+        throw new ConvexError("Coupon has expired");
+      }
+      if (coupon.maxTotalUses && coupon.usageCount >= coupon.maxTotalUses) {
+        throw new ConvexError("Coupon usage limit exceeded");
+      }
+
+      if (coupon.razorpayOfferId) {
+        appliedOfferId = coupon.razorpayOfferId;
+      }
+      
+      // Calculate amount for return value (assuming offer is valid)
+      // Note: Razorpay handles the actual charging, but we want to return expected amount
+      if (coupon.discountType === "flat") {
+          finalAmount = Math.max(0, finalAmount - coupon.discountAmount);
+      } else {
+           // Percentage logic if needed
+      }
     }
     
     // Get plan details (single plan now)
@@ -85,6 +122,7 @@ export const createSubscription = action({
       notes: {
         childId: args.childId,
         parentId: parent._id,
+        couponCode: appliedCouponCode,
       },
     };
     
@@ -96,8 +134,8 @@ export const createSubscription = action({
     }
 
     // Add offer_id if provided (for discounts)
-    if (args.offerId) {
-      subscriptionOptions.offer_id = args.offerId;
+    if (appliedOfferId) {
+      subscriptionOptions.offer_id = appliedOfferId;
     }
     
     let subscription;
@@ -107,6 +145,11 @@ export const createSubscription = action({
       console.error("Razorpay Subscription Create Error:", JSON.stringify(err, null, 2));
       throw new ConvexError(err.error?.description || err.message || "Failed to initiate subscription with payment provider");
     }
+
+    // Increment coupon usage if successful
+    if (appliedCouponCode) {
+        await ctx.runMutation(internal.coupons.incrementCouponUsage, { code: appliedCouponCode });
+    }
     
     // Store subscription in database
     await ctx.runMutation(internal.subscriptions.storeSubscription, {
@@ -115,15 +158,16 @@ export const createSubscription = action({
       razorpaySubscriptionId: subscription.id,
       razorpayPlanId: plan.planId,
       razorpayCustomerId: customerId,
-      amount: plan.amount,
+      amount: plan.amount, // Storing original amount or discounted? Usually original plan amount, but maybe tracked payment will show real amount
       status: "created",
+      couponCode: appliedCouponCode,
     });
     
     // Return subscription ID and short URL for checkout
     return {
       subscriptionId: subscription.id,
       shortUrl: subscription.short_url,
-      amount: plan.amount,
+      amount: finalAmount, 
     };
   },
 });

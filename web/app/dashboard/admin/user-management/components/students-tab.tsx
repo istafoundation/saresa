@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "convex/react";
-import { api } from "@convex/_generated/api";
-import { Search, User, Gamepad2, BookOpen, Puzzle, Brain, TrendingUp } from "lucide-react";
+import { useQuery, useAction } from "convex/react";
+import { api } from "../../../../../../convex/_generated/api";
+import { Search, User, Gamepad2, BookOpen, Puzzle, Brain, TrendingUp, CreditCard } from "lucide-react";
 import type { Id } from "@convex/_generated/dataModel";
 
 export function StudentsTab() {
@@ -21,6 +21,24 @@ export function StudentsTab() {
     api.parents.adminGetChildStats,
     selectedChildId ? { childId: selectedChildId } : "skip"
   );
+  
+  const cancelSubscription = useAction(api.subscriptionActions.cancelSubscription);
+  const [cancelLoading, setCancelLoading] = useState(false);
+
+  const handleCancelSubscription = async () => {
+    if (!selectedChildId || !confirm("Are you sure you want to cancel this subscription?")) return;
+    
+    setCancelLoading(true);
+    try {
+        await cancelSubscription({ childId: selectedChildId });
+        // Force refresh or just show success (query will auto-update if data changes)
+    } catch (err) {
+        console.error("Failed to cancel", err);
+        alert("Failed to cancel subscription");
+    } finally {
+        setCancelLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -115,6 +133,45 @@ export function StudentsTab() {
                   Parent: {childStats.parent.name} ({childStats.parent.email})
                 </p>
               </div>
+              
+              {/* Subscription Stats */}
+               <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-100">
+                 <div className="flex items-center justify-between">
+                   <div className="flex items-center gap-2 text-emerald-800 font-medium">
+                     <CreditCard className="w-4 h-4" />
+                     Subscription
+                   </div>
+                   <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                     childStats.subscription?.status === 'active' ? 'bg-emerald-200 text-emerald-800' : 
+                     childStats.subscription?.status === 'cancelled' ? 'bg-amber-200 text-amber-800' :
+                     'bg-slate-200 text-slate-600'
+                   }`}>
+                     {childStats.subscription?.status?.toUpperCase() || "NONE"}
+                   </span>
+                 </div>
+                 
+                 {childStats.subscription && (
+                   <div className="mt-2 space-y-1 text-sm text-emerald-700">
+                     <p>Plan: {childStats.subscription.plan}</p>
+                     {childStats.subscription.currentPeriodEnd && (
+                        <p>Expires: {new Date(childStats.subscription.currentPeriodEnd * 1000).toLocaleDateString()}</p>
+                     )}
+                     {childStats.subscription.couponCode && (
+                        <p>Coupon: <span className="font-mono bg-white px-1 rounded">{childStats.subscription.couponCode}</span></p>
+                     )}
+                     
+                     {(childStats.subscription.status === 'active' || childStats.subscription.status === 'authenticated') && (
+                       <button 
+                         onClick={handleCancelSubscription}
+                         disabled={cancelLoading}
+                         className="mt-2 w-full py-1 bg-white border border-rose-200 text-rose-600 rounded text-xs hover:bg-rose-50 font-medium transition-colors disabled:opacity-50"
+                       >
+                         {cancelLoading ? "Cancelling..." : "Cancel Subscription"}
+                       </button>
+                     )}
+                   </div>
+                 )}
+               </div>
 
               {!childStats.hasPlayed ? (
                 <div className="bg-amber-50 text-amber-700 p-4 rounded-lg text-sm">

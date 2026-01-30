@@ -179,6 +179,22 @@ export const adminGetChildStats = query({
 
     const childParent = await ctx.db.get(child.parentId);
     
+    // Get subscription details
+    const subscription = await ctx.db
+      .query("subscriptions")
+      .withIndex("by_child", (q) => q.eq("childId", args.childId))
+      .order("desc")
+      .first();
+
+    const subscriptionData = subscription ? {
+        status: subscription.status,
+        plan: "ISTA English", // hardcoded for now as per single plan
+        amount: subscription.amount,
+        createdAt: subscription.createdAt,
+        currentPeriodEnd: subscription.currentPeriodEnd,
+        couponCode: subscription.couponCode,
+    } : null;
+
     const userData = await ctx.db
       .query("users")
       .withIndex("by_child_id", (q) => q.eq("childId", args.childId))
@@ -197,6 +213,7 @@ export const adminGetChildStats = query({
           email: childParent?.email || "",
         },
         hasPlayed: false,
+        subscription: subscriptionData,
       };
     }
 
@@ -212,6 +229,7 @@ export const adminGetChildStats = query({
         email: childParent?.email || "",
       },
       hasPlayed: true,
+      subscription: subscriptionData,
       profile: {
         mascot: userData.mascot,
         xp: userData.xp,
