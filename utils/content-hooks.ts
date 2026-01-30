@@ -264,7 +264,7 @@ export function useWordFinderHardQuestions(): ContentResult<typeof FALLBACK_HARD
  * Hook for English Insane (GK) questions
  * All content now available to all users
  */
-export function useEnglishInsaneQuestions(): ContentResult<typeof FALLBACK_GK_QUESTIONS> {
+export function useEnglishInsaneQuestions(): ContentResult<any[]> {
   const { token } = useChildAuth();
   
   // All content now available without group filtering
@@ -289,9 +289,14 @@ export function useEnglishInsaneQuestions(): ContentResult<typeof FALLBACK_GK_QU
     if (serverData && serverData.content) {
       const transformedContent = serverData.content.map((c: any) => ({
         id: c._id,
-        ...c.data,
-      })) as typeof FALLBACK_GK_QUESTIONS;
-      setCachedData(transformedContent);
+        type: c.data.questionType || 'mcq',
+        question: c.data.question,
+        data: c.data,
+        // Keep correctIndex at top level for store compatibility until fully refactored? 
+        // optional: correctIndex: c.data.correctIndex
+      })) as any[]; // Type assertion to bypass strict checks for now or define fallback type better
+      
+      setCachedData(transformedContent as any);
       setStatus('fresh');
       setCachedContent(
         'english-insane',
@@ -307,10 +312,17 @@ export function useEnglishInsaneQuestions(): ContentResult<typeof FALLBACK_GK_QU
     if (serverData?.content && serverData.content.length > 0) {
       return serverData.content.map((c: any) => ({
         id: c._id,
-        ...c.data,
-      })) as typeof FALLBACK_GK_QUESTIONS;
+        type: c.data.questionType || 'mcq',
+        question: c.data.question,
+        data: c.data,
+      })) as any[];
     }
-    return FALLBACK_GK_QUESTIONS;
+    return FALLBACK_GK_QUESTIONS.map(q => ({
+        id: q.id,
+        type: 'mcq',
+        question: q.question,
+        data: q
+    }));
   }, [cachedData, serverData]);
 
   const refresh = useCallback(async () => {

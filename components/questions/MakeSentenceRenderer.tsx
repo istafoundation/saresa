@@ -14,6 +14,7 @@ interface MakeSentenceRendererProps {
   onAnswer: (isCorrect: boolean) => void;
   onFeedback?: (isCorrect: boolean) => void;
   disabled?: boolean;
+  showAnswer?: boolean;
 }
 
 export default function MakeSentenceRenderer({
@@ -22,6 +23,7 @@ export default function MakeSentenceRenderer({
   onAnswer,
   onFeedback,
   disabled = false,
+  showAnswer = false,
 }: MakeSentenceRendererProps) {
   const [sentence, setSentence] = useState('');
   const [error, setError] = useState<string | null>(null);

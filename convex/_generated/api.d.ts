@@ -25,6 +25,7 @@ import type * as lib_rateLimit from "../lib/rateLimit.js";
 import type * as lib_razorpay from "../lib/razorpay.js";
 import type * as migrations from "../migrations.js";
 import type * as parents from "../parents.js";
+import type * as settings from "../settings.js";
 import type * as spices from "../spices.js";
 import type * as subscriptionActions from "../subscriptionActions.js";
 import type * as subscriptions from "../subscriptions.js";
@@ -54,6 +55,7 @@ declare const fullApi: ApiFromModules<{
   "lib/razorpay": typeof lib_razorpay;
   migrations: typeof migrations;
   parents: typeof parents;
+  settings: typeof settings;
   spices: typeof spices;
   subscriptionActions: typeof subscriptionActions;
   subscriptions: typeof subscriptions;

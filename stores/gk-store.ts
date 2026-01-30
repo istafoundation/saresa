@@ -9,12 +9,11 @@ import { getISTDate } from '../utils/dates';
 // Types (self-contained - no external imports for data)
 export interface Question {
   id: string;
+  type: string;
   question: string;
-  options: string[];
-  correctIndex: number;
-  difficulty: 'easy' | 'medium' | 'hard';
-  category: string;
-  explanation: string;
+  data: any;
+  // Legacy/Flattened properties for easier access if needed, but 'data' is primary for Renderers
+  correctIndex?: number;
 }
 
 export type GameMode = 'practice' | 'competitive';
@@ -33,7 +32,7 @@ export interface GKState {
   quizState: QuizState;
   currentQuestionIndex: number;
   questions: Question[];
-  answers: (number | null)[];
+  results: (boolean | null)[];
   timePerQuestion: number[]; // seconds spent per question
   
   // Competitive tracking - local fast-check (Convex is source of truth)
@@ -44,7 +43,7 @@ export interface GKState {
   
   // Actions - now accept OTA content as parameters
   startQuiz: (mode: GameMode, allQuestions: Question[]) => boolean;
-  answerQuestion: (answerIndex: number) => { correct: boolean; correctIndex: number };
+  answerQuestion: (isCorrect: boolean) => void;
   nextQuestion: (allQuestions: Question[]) => void;
   finishQuiz: () => QuizResult;
   canPlayCompetitiveToday: () => boolean;
@@ -68,7 +67,7 @@ export const useGKStore = create<GKState>()(
       quizState: 'idle',
       currentQuestionIndex: 0,
       questions: [],
-      answers: [],
+      results: [],
       timePerQuestion: [],
       lastCompetitiveDate: null,
       questionStartTime: 0,
@@ -91,7 +90,7 @@ export const useGKStore = create<GKState>()(
           quizState: 'playing',
           currentQuestionIndex: 0,
           questions,
-          answers: new Array(questions.length).fill(null),
+          results: new Array(questions.length).fill(null),
           timePerQuestion: [],
           questionStartTime: Date.now(),
         });
@@ -99,27 +98,23 @@ export const useGKStore = create<GKState>()(
         return true;
       },
       
-      answerQuestion: (answerIndex) => {
-        const { currentQuestionIndex, questions, answers, timePerQuestion, questionStartTime } = get();
-        const question = questions[currentQuestionIndex];
-        const correct = answerIndex === question.correctIndex;
+      answerQuestion: (isCorrect) => {
+        const { currentQuestionIndex, results, timePerQuestion, questionStartTime } = get();
         
         // Calculate time spent
         const timeTaken = (Date.now() - questionStartTime) / 1000;
         const clampedTime = Math.min(timeTaken, TIME_LIMIT_SECONDS);
         
         // Update state
-        const newAnswers = [...answers];
-        newAnswers[currentQuestionIndex] = answerIndex;
+        const newResults = [...results];
+        newResults[currentQuestionIndex] = isCorrect;
         
         const newTimePerQuestion = [...timePerQuestion, clampedTime];
         
         set({
-          answers: newAnswers,
+          results: newResults,
           timePerQuestion: newTimePerQuestion,
         });
-        
-        return { correct, correctIndex: question.correctIndex };
       },
       
       // Next question - now accepts OTA questions for adding more in practice mode
@@ -131,7 +126,7 @@ export const useGKStore = create<GKState>()(
           const moreQuestions = getRandomQuestions(allQuestions, 5);
           set({
             questions: [...get().questions, ...moreQuestions],
-            answers: [...get().answers, ...new Array(moreQuestions.length).fill(null)],
+            results: [...get().results, ...new Array(moreQuestions.length).fill(null)],
             currentQuestionIndex: currentQuestionIndex + 1,
             questionStartTime: Date.now(),
           });
@@ -152,9 +147,9 @@ export const useGKStore = create<GKState>()(
       },
       
       finishQuiz: () => {
-        const { mode, questions, answers, timePerQuestion } = get();
+        const { mode, questions, results, timePerQuestion } = get();
         
-        const correct = answers.filter((a, i) => a === questions[i].correctIndex).length;
+        const correct = results.filter((isCorrect) => isCorrect === true).length;
         const total = questions.length;
         const averageTime = timePerQuestion.length > 0
           ? timePerQuestion.reduce((a, b) => a + b, 0) / timePerQuestion.length
@@ -189,7 +184,7 @@ export const useGKStore = create<GKState>()(
           quizState: 'idle',
           currentQuestionIndex: 0,
           questions: [],
-          answers: [],
+          results: [],
           timePerQuestion: [],
           questionStartTime: 0,
         });

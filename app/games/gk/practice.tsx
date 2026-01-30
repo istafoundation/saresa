@@ -16,6 +16,14 @@ import { useGameAudio } from '../../../utils/sound-manager';
 import { useTapFeedback } from '../../../utils/useTapFeedback';
 import Mascot from '../../../components/Mascot';
 import { useEnglishInsaneQuestions } from '../../../utils/content-hooks';
+import MCQRenderer from '../../../components/questions/MCQRenderer';
+import GridRenderer from '../../../components/questions/GridRenderer';
+import MapRenderer from '../../../components/questions/MapRenderer';
+import SelectRenderer from '../../../components/questions/SelectRenderer';
+import MatchRenderer from '../../../components/questions/MatchRenderer';
+import SpeakingRenderer from '../../../components/questions/SpeakingRenderer';
+import MakeSentenceRenderer from '../../../components/questions/MakeSentenceRenderer';
+import FillInBlanksRenderer from '../../../components/questions/FillInBlanksRenderer';
 
 export default function PracticeScreen() {
   const { safeBack } = useSafeNavigation();
@@ -38,10 +46,8 @@ export default function PracticeScreen() {
   // Sound effects
   const { playTap, playCorrect, playWrong } = useGameAudio();
 
-  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
-  const [correctIndex, setCorrectIndex] = useState(0);
   const { triggerTap, triggerHapticOnly } = useTapFeedback();
   
   // Track session stats locally for immediate UI feedback
@@ -155,25 +161,23 @@ export default function PracticeScreen() {
 
   const currentQuestion = questions[currentQuestionIndex];
 
-  const handleAnswer = async (index: number) => {
+  const handleAnswer = async (correct: boolean) => {
     if (showResult) return;
     
     triggerHapticOnly('medium');
-    setSelectedAnswer(index);
     
-    const result = answerQuestion(index);
-    setIsCorrect(result.correct);
-    setCorrectIndex(result.correctIndex);
+    answerQuestion(correct);
+    setIsCorrect(correct);
     setShowResult(true);
     
     // Update session stats for immediate UI feedback
     // OPTIMIZATION: Stats are synced to Convex on exit, not per-answer
     setSessionTotal(prev => prev + 1);
-    if (result.correct) {
+    if (correct) {
       setSessionCorrect(prev => prev + 1);
     }
     
-    if (result.correct) {
+    if (correct) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       playCorrect();
     } else {
@@ -184,7 +188,6 @@ export default function PracticeScreen() {
 
   const handleNext = () => {
     triggerTap();
-    setSelectedAnswer(null);
     setShowResult(false);
     nextQuestion(allQuestions as Question[]);
   };
@@ -240,79 +243,21 @@ export default function PracticeScreen() {
       </View>
 
       {/* Question */}
-      <MotiView
-        key={currentQuestionIndex}
-        from={{ opacity: 0, translateX: 50 }}
-        animate={{ opacity: 1, translateX: 0 }}
-        transition={{ type: 'spring' }}
-        style={styles.questionContainer}
-      >
-        <Text style={styles.questionText}>{currentQuestion.question}</Text>
-        
-        <View style={styles.optionsContainer}>
-          {currentQuestion.options.map((option, index) => {
-            const isSelected = selectedAnswer === index;
-            const isCorrectOption = index === correctIndex;
-            
-            let bgColor = COLORS.surface;
-            if (showResult) {
-              if (isCorrectOption) bgColor = COLORS.success + '40';
-              else if (isSelected) bgColor = COLORS.error + '40';
+      <View style={styles.questionContainer}>
+        {(() => {
+            switch (currentQuestion.type) {
+                case 'mcq': return <MCQRenderer question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
+                case 'grid': return <GridRenderer question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
+                case 'map': return <MapRenderer question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
+                case 'select': return <SelectRenderer question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
+                case 'match': return <MatchRenderer question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
+                case 'speaking': return <SpeakingRenderer question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
+                case 'make_sentence': return <MakeSentenceRenderer question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
+                case 'fill_in_the_blanks': return <FillInBlanksRenderer question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
+                default: return <MCQRenderer question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
             }
-            
-            return (
-              <MotiView
-                key={index}
-                from={{ opacity: 0, translateY: 10 }}
-                animate={{ opacity: 1, translateY: 0 }}
-                transition={{ type: 'spring', delay: index * 50 }}
-              >
-                <Pressable
-                  style={[
-                    styles.optionButton,
-                    { backgroundColor: bgColor },
-                    isSelected && !showResult && styles.optionSelected,
-                  ]}
-                  onPress={() => handleAnswer(index)}
-                  disabled={showResult}
-                >
-                  <View style={[
-                    styles.optionLetter,
-                    showResult && isCorrectOption && styles.optionLetterCorrect,
-                    showResult && isSelected && !isCorrectOption && styles.optionLetterWrong,
-                  ]}>
-                    <Text style={styles.optionLetterText}>
-                      {String.fromCharCode(65 + index)}
-                    </Text>
-                  </View>
-                  <Text style={styles.optionText}>{option}</Text>
-                  
-                  {showResult && isCorrectOption && (
-                    <Ionicons name="checkmark-circle" size={24} color={COLORS.success} />
-                  )}
-                  {showResult && isSelected && !isCorrectOption && (
-                    <Ionicons name="close-circle" size={24} color={COLORS.error} />
-                  )}
-                </Pressable>
-              </MotiView>
-            );
-          })}
-        </View>
-
-        {/* Explanation - shown when user answers incorrectly */}
-        {showResult && !isCorrect && currentQuestion.explanation && (
-          <MotiView
-            from={{ opacity: 0, translateY: 10 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            style={styles.funFactContainer}
-          >
-            <Mascot mascotType={mascot} size="small" />
-            <View style={styles.funFactBubble}>
-              <Text style={styles.funFactText}>{currentQuestion.explanation}</Text>
-            </View>
-          </MotiView>
-        )}
-      </MotiView>
+        })()}
+      </View>
 
       {/* Skip Button - shows before answering */}
       {!showResult && (
@@ -404,71 +349,24 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: SPACING.lg,
   },
-  questionText: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: COLORS.text,
-    lineHeight: 32,
-    marginBottom: SPACING.xl,
-  },
-  optionsContainer: {
-    gap: SPACING.md,
-  },
-  optionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  // Removed old question/options styles as they are now inside renderers
+  skipButtonContainer: {
     padding: SPACING.lg,
-    borderRadius: BORDER_RADIUS.lg,
-    gap: SPACING.md,
-  },
-  optionSelected: {
-    borderWidth: 2,
-    borderColor: COLORS.primary,
-  },
-  optionLetter: {
-    width: 32,
-    height: 32,
-    borderRadius: BORDER_RADIUS.full,
-    backgroundColor: COLORS.backgroundCard,
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  optionLetterCorrect: {
-    backgroundColor: COLORS.success,
-  },
-  optionLetterWrong: {
-    backgroundColor: COLORS.error,
-  },
-  optionLetterText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.text,
-  },
-  optionText: {
-    flex: 1,
-    fontSize: 16,
-    color: COLORS.text,
-  },
-  funFactContainer: {
+  skipButton: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginTop: SPACING.xl,
-    gap: SPACING.md,
-  },
-  mascotEmoji: {
-    fontSize: 32,
-  },
-  funFactBubble: {
-    flex: 1,
+    alignItems: 'center',
+    gap: SPACING.xs,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.full,
     backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
   },
-  funFactText: {
+  skipButtonText: {
     fontSize: 14,
-    color: COLORS.textSecondary,
-    fontStyle: 'italic',
-    lineHeight: 20,
+    color: COLORS.textMuted,
+    fontWeight: '500',
   },
   bottomButtons: {
     flexDirection: 'row',
@@ -505,23 +403,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: COLORS.text,
-  },
-  skipButtonContainer: {
-    padding: SPACING.lg,
-    alignItems: 'center',
-  },
-  skipButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.full,
-    backgroundColor: COLORS.surface,
-  },
-  skipButtonText: {
-    fontSize: 14,
-    color: COLORS.textMuted,
-    fontWeight: '500',
   },
 });

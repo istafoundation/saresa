@@ -9,6 +9,7 @@ interface FillInBlanksRendererProps {
   onAnswer: (isCorrect: boolean) => void;
   onFeedback?: (isCorrect: boolean) => void;
   disabled?: boolean;
+  showAnswer?: boolean;
 }
 
 export default function FillInBlanksRenderer({
@@ -16,7 +17,8 @@ export default function FillInBlanksRenderer({
   data,
   onAnswer,
   onFeedback,
-  disabled
+  disabled,
+  showAnswer
 }: FillInBlanksRendererProps) {
   // Parse question to extract segments and blanks
   const { segments, answers } = useMemo(() => {

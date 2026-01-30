@@ -33,6 +33,14 @@ export const updateGKStats = mutation({
     }
     if (args.playedCompetitive) {
       updates.gkLastCompetitiveDate = getISTDate();
+      
+      const today = getISTDate();
+      // Reset attempts if new day (though gkLastCompetitiveDate check handles basic logic, we need correct counter)
+      if (user.gkLastCompetitiveDate !== today) {
+          updates.gkCompetitiveAttemptsToday = 1;
+      } else {
+          updates.gkCompetitiveAttemptsToday = (user.gkCompetitiveAttemptsToday ?? 1) + 1;
+      }
     }
 
     if (Object.keys(updates).length > 0) {
@@ -56,7 +64,37 @@ export const canPlayGKCompetitive = query({
     if (!user) return false;
 
     const today = getISTDate();
-    return user.gkLastCompetitiveDate !== today;
+    
+    // Get limit from settings
+    const settings = await ctx.db
+      .query("gameSettings")
+      .withIndex("by_game", (q) => q.eq("gameId", "global_settings"))
+      .first();
+      
+    const limit = settings?.englishInsaneDailyLimit ?? 1; // Default 1
+
+    // If limits > 1 are supported, we need to track attempts today.
+    // Currently, `gkLastCompetitiveDate` only stores the DATE.
+    // If limit is 1, existing logic works.
+    // If limit > 1, we need to add `gkCompetitiveAttemptsToday` to User schema or infer it (but we can't infer without a separate attempts table).
+    // FOR NOW: If the LAST PLAYED DATE is NOT today, they can play.
+    // IF the LAST PLAYED DATE IS today, we need to check attempts.
+    // Since `gkCompetitiveAttemptsToday` doesn't exist in schema yet, let's Stick to 1 limit logic OR assume we will add that field.
+    // Given the request is "allow admin to control the limit for 2X daily and 1X daily", I should probably add `gkCompetitiveAttemptsToday` to user schema too.
+    // Wait, I shouldn't modify User schema mid-flight if I can avoid it.
+    // BUT the request EXPLICITLY asks for controlling limits.
+    // So I will assume I should add `gkCompetitiveAttemptsToday` to User schema in next step or use a workaround.
+    // Workaround: Re-use logic? No.
+    // Let's add `gkCompetitiveAttemptsToday` to schema. (I will do this in a separate tool call if needed, but for now let's write the query assuming it exists or default to 1-per-day logic if field missing)
+    
+    // Actually, let's keep it simple: If limit > 1, and they played today, we check attempts.
+    // If `gkCompetitiveAttemptsToday` is missing (undefined), but date is today, it means they played once.
+    // So attempts = 1.
+    
+    if (user.gkLastCompetitiveDate !== today) return true; // Haven't played today
+    
+    const attempts = (user as any).gkCompetitiveAttemptsToday ?? 1;
+    return attempts < limit;
   },
 });
 
@@ -409,12 +447,28 @@ export const canPlayWordFinder = query({
     if (!user) return false;
 
     const today = getISTDate();
+    
+    const settings = await ctx.db
+      .query("gameSettings")
+      .withIndex("by_game", (q) => q.eq("gameId", "global_settings"))
+      .first();
 
     if (args.mode === "easy") {
+      const limit = settings?.wordFinderEasyDailyLimit ?? 2;
       if (user.wfLastEasyDate !== today) return true;
-      return user.wfEasyAttemptsToday < 2; // 2 attempts per day
+      return user.wfEasyAttemptsToday < limit; 
     } else {
-      return user.wfLastHardDate !== today; // 1 attempt per day
+      const limit = settings?.wordFinderHardDailyLimit ?? 1;
+      // Provide generic fallthrough for hard mode attempts if we adding support for >1 hard games
+      // Since `wfHardAttemptsToday` doesn't exist, we assume 1 limit logic for backward compat if limit is 1.
+      // If limit > 1, we treat "date == today" as 1 attempt.
+      if (user.wfLastHardDate !== today) return true;
+      
+      // If we want to support > 1 hard game, we need `wfHardAttemptsToday`.
+      // For now, let's assume Hard is strictly 1 unless we add that field.
+      // Wait, I can add schema fields easily.
+      const attempts = (user as any).wfHardAttemptsToday ?? 1; // Fallback to 1 if missing
+      return attempts < limit;
     }
   },
 });

@@ -23,6 +23,14 @@ import { useGameAudio } from '../../../utils/sound-manager';
 import { useTapFeedback } from '../../../utils/useTapFeedback';
 import Mascot from '../../../components/Mascot';
 import { useEnglishInsaneQuestions } from '../../../utils/content-hooks';
+import MCQRenderer from '../../../components/questions/MCQRenderer';
+import GridRenderer from '../../../components/questions/GridRenderer';
+import MapRenderer from '../../../components/questions/MapRenderer';
+import SelectRenderer from '../../../components/questions/SelectRenderer';
+import MatchRenderer from '../../../components/questions/MatchRenderer';
+import SpeakingRenderer from '../../../components/questions/SpeakingRenderer';
+import MakeSentenceRenderer from '../../../components/questions/MakeSentenceRenderer';
+import FillInBlanksRenderer from '../../../components/questions/FillInBlanksRenderer';
 
 const TIME_LIMIT = 30;
 const TOTAL_QUESTIONS = 10;
@@ -50,10 +58,9 @@ export default function CompetitiveScreen() {
   // Sound effects
   const { playTap, playCorrect, playWrong, playWin } = useGameAudio();
 
-  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
-  const [correctIndex, setCorrectIndex] = useState(0);
+  // Removed explicit selectedAnswer/correctIndex state as Renderers handle valid UI
   const [timeLeft, setTimeLeft] = useState(TIME_LIMIT);
   const [gameEnded, setGameEnded] = useState(false);
   const [finalResult, setFinalResult] = useState<{
@@ -117,9 +124,8 @@ export default function CompetitiveScreen() {
     playWrong();
     
     // Auto-select wrong answer
-    const result = answerQuestion(-1); // Invalid answer
+    answerQuestion(false); 
     setIsCorrect(false);
-    setCorrectIndex(result.correctIndex);
     setShowResult(true);
   };
 
@@ -128,26 +134,23 @@ export default function CompetitiveScreen() {
     triggerTap('light');
     
     // Record as skipped (no XP for this question)
-    const result = answerQuestion(-1); // Invalid answer
+    answerQuestion(false);
     setIsCorrect(false);
-    setCorrectIndex(result.correctIndex);
     setShowResult(true);
   };
 
-  const handleAnswer = (index: number) => {
+  const handleAnswer = (correct: boolean) => {
     if (showResult) return;
     if (timerRef.current) clearInterval(timerRef.current);
     
     triggerHapticOnly('medium');
-    setSelectedAnswer(index);
     
-    const result = answerQuestion(index);
-    setIsCorrect(result.correct);
-    setCorrectIndex(result.correctIndex);
+    answerQuestion(correct);
+    setIsCorrect(correct);
     setShowResult(true);
     
     // Only play correct/wrong sound, not tap + result together
-    if (result.correct) {
+    if (correct) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       playCorrect();
     } else {
@@ -158,7 +161,6 @@ export default function CompetitiveScreen() {
 
   const handleNext = async () => {
     triggerTap();
-    setSelectedAnswer(null);
     setShowResult(false);
     timerProgress.value = 1;
     
@@ -311,64 +313,21 @@ export default function CompetitiveScreen() {
       </View>
 
       {/* Question */}
-      <MotiView
-        key={currentQuestionIndex}
-        from={{ opacity: 0, translateX: 50 }}
-        animate={{ opacity: 1, translateX: 0 }}
-        transition={{ type: 'spring' }}
-        style={styles.questionContainer}
-      >
-        <Text style={styles.questionText}>{currentQuestion.question}</Text>
-        
-        <View style={styles.optionsContainer}>
-          {currentQuestion.options.map((option, index) => {
-            const isSelected = selectedAnswer === index;
-            const isCorrectOption = index === correctIndex;
-            
-            let bgColor = COLORS.surface;
-            if (showResult) {
-              if (isCorrectOption) bgColor = COLORS.success + '40';
-              else if (isSelected) bgColor = COLORS.error + '40';
+      <View style={styles.questionContainer}>
+        {(() => {
+            switch (currentQuestion.type) {
+                case 'mcq': return <MCQRenderer question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
+                case 'grid': return <GridRenderer question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
+                case 'map': return <MapRenderer question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
+                case 'select': return <SelectRenderer question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
+                case 'match': return <MatchRenderer question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
+                case 'speaking': return <SpeakingRenderer question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
+                case 'make_sentence': return <MakeSentenceRenderer question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
+                case 'fill_in_the_blanks': return <FillInBlanksRenderer question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
+                default: return <MCQRenderer question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
             }
-            
-            return (
-              <MotiView
-                key={index}
-                from={{ opacity: 0, translateY: 10 }}
-                animate={{ opacity: 1, translateY: 0 }}
-                transition={{ type: 'spring', delay: index * 50 }}
-              >
-                <Pressable
-                  style={[
-                    styles.optionButton,
-                    { backgroundColor: bgColor },
-                  ]}
-                  onPress={() => handleAnswer(index)}
-                  disabled={showResult}
-                >
-                  <View style={[
-                    styles.optionLetter,
-                    showResult && isCorrectOption && styles.optionLetterCorrect,
-                    showResult && isSelected && !isCorrectOption && styles.optionLetterWrong,
-                  ]}>
-                    <Text style={styles.optionLetterText}>
-                      {String.fromCharCode(65 + index)}
-                    </Text>
-                  </View>
-                  <Text style={styles.optionText}>{option}</Text>
-                  
-                  {showResult && isCorrectOption && (
-                    <Ionicons name="checkmark-circle" size={24} color={COLORS.success} />
-                  )}
-                  {showResult && isSelected && !isCorrectOption && (
-                    <Ionicons name="close-circle" size={24} color={COLORS.error} />
-                  )}
-                </Pressable>
-              </MotiView>
-            );
-          })}
-        </View>
-      </MotiView>
+        })()}
+      </View>
 
       {/* Skip Button - shows before answering */}
       {!showResult && (

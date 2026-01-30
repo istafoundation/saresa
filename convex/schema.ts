@@ -67,6 +67,7 @@ export default defineSchema({
     gkPracticeTotal: v.number(),
     gkPracticeCorrect: v.number(),
     gkLastCompetitiveDate: v.optional(v.string()),
+    gkCompetitiveAttemptsToday: v.optional(v.number()), // For limits > 1
 
     // Wordle Stats
     wordleGamesPlayed: v.number(),
@@ -86,6 +87,7 @@ export default defineSchema({
     wfLastEasyDate: v.optional(v.string()),
     wfLastHardDate: v.optional(v.string()),
     wfEasyAttemptsToday: v.number(),
+    wfHardAttemptsToday: v.optional(v.number()), // For limits > 1
 
     // Grammar Detective Stats (optional for backward compatibility)
     gdQuestionsAnswered: v.optional(v.number()),
@@ -205,10 +207,14 @@ export default defineSchema({
 
   // Game settings (singleton per game)
   gameSettings: defineTable({
-    gameId: v.string(), // "let-em-cook", etc.
+    gameId: v.string(), // "global_settings" (singleton)
 
-    // Let'em Cook settings
-    lecQuestionsPerGame: v.optional(v.number()), // Default: 1
+    // Daily Limits
+    englishInsaneDailyLimit: v.optional(v.number()), // Default 1
+    wordFinderEasyDailyLimit: v.optional(v.number()), // Default 2
+    wordFinderHardDailyLimit: v.optional(v.number()), // Default 1
+    letEmCookDailyLimit: v.optional(v.number()), // Default 1
+    lecQuestionsPerGame: v.optional(v.number()), // Default 10
 
     // Metadata
     updatedBy: v.optional(v.id("parents")),
