@@ -100,7 +100,13 @@ export const createSubscription = action({
       subscriptionOptions.offer_id = args.offerId;
     }
     
-    const subscription = await razorpay.subscriptions.create(subscriptionOptions);
+    let subscription;
+    try {
+      subscription = await razorpay.subscriptions.create(subscriptionOptions);
+    } catch (err: any) {
+      console.error("Razorpay Subscription Create Error:", JSON.stringify(err, null, 2));
+      throw new ConvexError(err.error?.description || err.message || "Failed to initiate subscription with payment provider");
+    }
     
     // Store subscription in database
     await ctx.runMutation(internal.subscriptions.storeSubscription, {
