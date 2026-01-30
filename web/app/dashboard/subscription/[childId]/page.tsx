@@ -58,7 +58,8 @@ export default function SubscriptionPage() {
     try {
       const result = await createSubscription({
         childId,
-        // callbackUrl is optional, backend handles it if omitted or we can pass one
+        // Pass offerId if coupon is applied to lock in the discount on backend
+        offerId: isCouponApplied ? PLAN.offerId : undefined,
       });
       
       // Open Razorpay Checkout instead of redirecting
@@ -90,10 +91,6 @@ export default function SubscriptionPage() {
         }
       };
 
-      // Apply offer if coupon matches
-      if (isCouponApplied) {
-        options.offer_id = PLAN.offerId;
-      }
       
       const razorpay = new window.Razorpay(options);
       razorpay.on("payment.failed", function(response: any) {

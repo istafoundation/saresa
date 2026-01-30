@@ -29,6 +29,7 @@ export const createSubscription = action({
   args: {
     childId: v.id("children"),
     callbackUrl: v.optional(v.string()), // URL to redirect after payment
+    offerId: v.optional(v.string()), // Optional offer ID for discounts
   },
   handler: async (ctx, args): Promise<SubscriptionResult> => {
     const identity = await ctx.auth.getUserIdentity();
@@ -92,6 +93,11 @@ export const createSubscription = action({
       subscriptionOptions.notify_info = {
         redirect_url: args.callbackUrl,
       };
+    }
+
+    // Add offer_id if provided (for discounts)
+    if (args.offerId) {
+      subscriptionOptions.offer_id = args.offerId;
     }
     
     const subscription = await razorpay.subscriptions.create(subscriptionOptions);
