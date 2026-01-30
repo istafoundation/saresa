@@ -41,6 +41,8 @@ export default function SubscriptionPage() {
   const [error, setError] = useState<string | null>(null);
   const [razorpayLoaded, setRazorpayLoaded] = useState(false);
   const [couponCode, setCouponCode] = useState("");
+  const [isCouponApplied, setIsCouponApplied] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
   
   const myChildren = useQuery(api.parents.getMyChildren);
   const createSubscription = useAction(api.subscriptionActions.createSubscription);
@@ -89,7 +91,7 @@ export default function SubscriptionPage() {
       };
 
       // Apply offer if coupon matches
-      if (couponCode === PLAN.discountCode) {
+      if (isCouponApplied) {
         options.offer_id = PLAN.offerId;
       }
       
@@ -165,7 +167,14 @@ export default function SubscriptionPage() {
             {/* Price Section */}
             <div className="text-center mb-8">
                 <div className="flex items-center justify-center gap-2 mb-2">
-                    <span className="text-4xl font-bold text-slate-900">₹{PLAN.price}</span>
+                    {isCouponApplied ? (
+                      <>
+                        <span className="text-2xl text-slate-400 line-through">₹{PLAN.price}</span>
+                        <span className="text-4xl font-bold text-emerald-600">₹{PLAN.price - PLAN.discountAmount}</span>
+                      </>
+                    ) : (
+                      <span className="text-4xl font-bold text-slate-900">₹{PLAN.price}</span>
+                    )}
                     <span className="text-slate-500 font-medium">/month</span>
                 </div>
                 
@@ -201,14 +210,48 @@ export default function SubscriptionPage() {
             {/* Subscribe Button */}
             <div className="space-y-4">
               <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Enter Coupon Code"
-                  className="flex-1 px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-emerald-500 focus:outline-hidden text-lg uppercase placeholder:normal-case transition-colors"
-                  value={couponCode}
-                  onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                />
+                <div className="flex-1 relative">
+                  <input
+                    type="text"
+                    placeholder="Enter Coupon Code"
+                    className={`w-full px-4 py-3 rounded-xl border-2 ${couponError ? "border-rose-300 focus:border-rose-500" : isCouponApplied ? "border-emerald-500 bg-emerald-50" : "border-slate-200 focus:border-emerald-500"} focus:outline-hidden text-lg uppercase placeholder:normal-case transition-colors`}
+                    value={couponCode}
+                    onChange={(e) => {
+                      setCouponCode(e.target.value.toUpperCase());
+                      setCouponError(null);
+                      setIsCouponApplied(false);
+                    }}
+                    disabled={isCouponApplied}
+                  />
+                  {isCouponApplied && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-600 flex items-center gap-1 font-medium text-sm">
+                      <Check className="w-4 h-4" /> Applied
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => {
+                    if (couponCode === PLAN.discountCode) {
+                      setIsCouponApplied(true);
+                      setCouponError(null);
+                    } else {
+                      setCouponError("Invalid Coupon Code");
+                      setIsCouponApplied(false);
+                    }
+                  }}
+                  disabled={isCouponApplied || !couponCode}
+                  className={`px-6 py-3 rounded-xl font-bold transition-colors ${
+                    isCouponApplied 
+                      ? "bg-slate-100 text-slate-400 cursor-not-allowed" 
+                      : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                  }`}
+                >
+                  Apply
+                </button>
               </div>
+              {couponError && (
+                 <p className="text-rose-500 text-sm ml-1 -mt-2">{couponError}</p>
+              )}
 
               <button
                 onClick={handleSubscribe}
