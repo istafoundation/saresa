@@ -270,7 +270,7 @@ export function useEnglishInsaneQuestions(): ContentResult<any[]> {
   // All content now available without group filtering
   const serverData = useQuery(
     api.content.getGameContentWithVersion,
-    token ? { gameId: 'english-insane', type: 'gk_question' } : 'skip'
+    token ? { gameId: 'english-insane' } : 'skip'
   );
 
   const [cachedData, setCachedData] = useState<typeof FALLBACK_GK_QUESTIONS | null>(null);
@@ -289,7 +289,7 @@ export function useEnglishInsaneQuestions(): ContentResult<any[]> {
     if (serverData && serverData.content) {
       const transformedContent = serverData.content.map((c: any) => ({
         id: c._id,
-        type: c.data.questionType || 'mcq',
+        type: c.type || c.data.questionType || 'mcq',
         question: c.data.question,
         data: c.data,
         // Keep correctIndex at top level for store compatibility until fully refactored? 

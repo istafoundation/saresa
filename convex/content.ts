@@ -146,6 +146,25 @@ function validateContentData(type: string, data: any): { valid: boolean; error?:
       }
       break;
 
+    // New Types - Reuse similar validation where appropriate
+    case 'mcq':
+      if (!data.question && typeof data.question !== 'string') return { valid: false, error: 'Question is required' };
+      if (!data.options || !Array.isArray(data.options)) return { valid: false, error: 'Options array is required' };
+       // allow slight variance from gk_question (e.g. maybe no category)
+      break;
+    
+    case 'grid':
+    case 'map':
+    case 'select':
+    case 'match':
+    case 'speaking':
+    case 'make_sentence':
+    case 'fill_in_the_blanks':
+       // For now, just ensure data is an object. 
+       // We trust the admin/frontend for complex types until we have specific rules.
+       if (!data) return { valid: false, error: 'Data object is required' };
+       break;
+      
     case 'pos_question':
       if (!data.sentence || typeof data.sentence !== 'string' || data.sentence.trim().length === 0) {
         return { valid: false, error: 'Sentence is required' };
@@ -271,7 +290,16 @@ export const getGameContentWithVersion = query({
       v.literal("word_set"),
       v.literal("hard_question"),
       v.literal("gk_question"),
-      v.literal("pos_question")
+      v.literal("pos_question"),
+      // New types
+      v.literal("mcq"),
+      v.literal("grid"),
+      v.literal("map"),
+      v.literal("select"),
+      v.literal("match"),
+      v.literal("speaking"),
+      v.literal("make_sentence"),
+      v.literal("fill_in_the_blanks")
     )),
   },
   handler: async (ctx, args) => {
@@ -444,7 +472,16 @@ export const addContent = mutation({
       v.literal("word_set"),
       v.literal("hard_question"),
       v.literal("gk_question"),
-      v.literal("pos_question")
+      v.literal("pos_question"),
+      // New types
+      v.literal("mcq"),
+      v.literal("grid"),
+      v.literal("map"),
+      v.literal("select"),
+      v.literal("match"),
+      v.literal("speaking"),
+      v.literal("make_sentence"),
+      v.literal("fill_in_the_blanks")
     ),
     gameId: v.string(),
     data: v.any(),
@@ -591,7 +628,16 @@ export const bulkAddContent = mutation({
         v.literal("word_set"),
         v.literal("hard_question"),
         v.literal("gk_question"),
-        v.literal("pos_question")
+        v.literal("pos_question"),
+        // New types
+        v.literal("mcq"),
+        v.literal("grid"),
+        v.literal("map"),
+        v.literal("select"),
+        v.literal("match"),
+        v.literal("speaking"),
+        v.literal("make_sentence"),
+        v.literal("fill_in_the_blanks")
       ),
       gameId: v.string(),
       data: v.any(),

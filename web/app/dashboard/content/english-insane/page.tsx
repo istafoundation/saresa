@@ -80,13 +80,21 @@ function EnglishInsaneContent() {
   // SET_OPTIONS removed
 
   // Form state
+  const [selectedType, setSelectedType] = useState<QuestionType>("mcq");
   const [question, setQuestion] = useState("");
   const [options, setOptions] = useState(["", "", "", ""]);
   const [correctIndex, setCorrectIndex] = useState(0);
   const [category, setCategory] = useState("grammar");
   const [explanation, setExplanation] = useState("");
-  // questionSet removed
 
+  // Other Type Fields
+  const [solution, setSolution] = useState("");
+  const [statement, setStatement] = useState("");
+  const [correctWords, setCorrectWords] = useState("");
+  const [selectMode, setSelectMode] = useState("single");
+  const [pairs, setPairs] = useState<{imageUrl: string, text: string}[]>([{imageUrl: "", text: ""}]);
+  const [sentence, setSentence] = useState("");
+  
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
@@ -115,17 +123,35 @@ function EnglishInsaneContent() {
     // To suppress errors, I'll just cast data to any or generic structure matching schema
      setIsSubmitting(true);
     try {
-      await addContent({
-        type: "gk_question",
-        gameId: "english-insane",
-        data: {
+      const data: any = {
           question: question.trim(),
-          options: options.map((o) => o.trim()),
-          correctIndex,
           category,
           explanation: explanation.trim(),
-          questionType: 'mcq' // Explicit default for manual add
-        },
+          questionType: selectedType // Store type inside data as well for easy access
+      };
+
+      if (selectedType === 'mcq') {
+          data.options = options.map((o) => o.trim());
+          data.correctIndex = correctIndex;
+      } else if (selectedType === 'grid') {
+          data.solution = solution.toLowerCase();
+      } else if (selectedType === 'map') {
+          data.solution = solution;
+          data.mapType = 'india';
+      } else if (selectedType === 'select') {
+          data.statement = statement;
+          data.correctWords = correctWords.split(',').map(w => w.trim());
+          data.selectMode = selectMode;
+      } else if (selectedType === 'match') {
+          data.pairs = pairs.filter(p => p.imageUrl && p.text);
+      } else if (selectedType === 'speaking') {
+          data.sentence = sentence;
+      }
+
+      await addContent({
+        type: selectedType, // Use the ACTUAL type in schema
+        gameId: "english-insane",
+        data: data,
         status: "active",
         // questionSet removed
       });
@@ -533,7 +559,7 @@ function EnglishInsaneContent() {
              }
 
              await addContent({
-                type: 'gk_question', // ALWAYS gk_question for this game
+                type: type as any, // Use parsed type
                 gameId: 'english-insane',
                 data: data, // The polymorphic data
                 status: 'active',
@@ -733,8 +759,8 @@ function EnglishInsaneContent() {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filteredContent?.map((item) => {
-              const data = item.data as EnglishInsaneContent;
-              const type = data.type || (data.options ? 'mcq' : 'gk_question');
+              const data = item.data as any; // Cast to any to access dynamic fields easily
+              const type = (item.type && item.type !== 'gk_question') ? item.type : (data.questionType || (data.options ? 'mcq' : 'gk_question'));
 
               return (
                 <tr key={item._id} className="hover:bg-slate-50">
@@ -826,17 +852,36 @@ function EnglishInsaneContent() {
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Question
+                  Type
+                </label>
+                <select
+                  value={selectedType}
+                  onChange={(e) => setSelectedType(e.target.value as QuestionType)}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 mb-4"
+                >
+                    <option value="mcq">Multiple Choice</option>
+                    <option value="grid">Word Finder Grid</option>
+                    <option value="map">Map Selection</option>
+                    <option value="select">Word Select</option>
+                    <option value="match">Image Match</option>
+                    <option value="speaking">Speaking</option>
+                    <option value="make_sentence">Make Sentence</option>
+                    <option value="fill_in_the_blanks">Fill in Blanks</option>
+                </select>
+
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Question / Instruction
                 </label>
                 <textarea
                   value={question}
                   onChange={(e) => setQuestion(e.target.value)}
-                  placeholder="Which sentence is grammatically correct?"
+                  placeholder="Enter question or instruction..."
                   rows={2}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
               </div>
 
+              {selectedType === 'mcq' && (
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Options (click to mark correct)
@@ -870,6 +915,42 @@ function EnglishInsaneContent() {
                   ))}
                 </div>
               </div>
+              )}
+
+              {selectedType === 'grid' && (
+                  <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Solution Word</label>
+                      <input type="text" value={solution} onChange={e => setSolution(e.target.value)} className="w-full px-4 py-2 border border-slate-200 rounded-lg" placeholder="e.g. apple" />
+                  </div>
+              )}
+
+              {selectedType === 'map' && (
+                  <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Region ID (Solution)</label>
+                      <input type="text" value={solution} onChange={e => setSolution(e.target.value)} className="w-full px-4 py-2 border border-slate-200 rounded-lg" placeholder="e.g. IN-MH" />
+                      <p className="text-xs text-slate-500 mt-1">Map Type: India (Hardcoded)</p>
+                  </div>
+              )}
+
+              {selectedType === 'select' && (
+                  <>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Statement</label>
+                        <input type="text" value={statement} onChange={e => setStatement(e.target.value)} className="w-full px-4 py-2 border border-slate-200 rounded-lg" placeholder="e.g. The cat sat on the mat" />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Correct Words (comma separated)</label>
+                        <input type="text" value={correctWords} onChange={e => setCorrectWords(e.target.value)} className="w-full px-4 py-2 border border-slate-200 rounded-lg" placeholder="e.g. cat, mat" />
+                    </div>
+                  </>
+              )}
+
+              {selectedType === 'speaking' && (
+                   <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Sentence to Speak</label>
+                        <input type="text" value={sentence} onChange={e => setSentence(e.target.value)} className="w-full px-4 py-2 border border-slate-200 rounded-lg" placeholder="e.g. I like apples" />
+                   </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">

@@ -128,8 +128,17 @@ export default defineSchema({
       v.literal("wordle_word"),
       v.literal("word_set"),
       v.literal("hard_question"),
-      v.literal("gk_question"),
+      v.literal("gk_question"), // Keeping for backward compatibility
       v.literal("pos_question"),
+      // New types (matching levelQuestions)
+      v.literal("mcq"),
+      v.literal("grid"),
+      v.literal("map"),
+      v.literal("select"),
+      v.literal("match"),
+      v.literal("speaking"),
+      v.literal("make_sentence"),
+      v.literal("fill_in_the_blanks"),
     ),
     gameId: v.string(), // "wordle", "word-finder", "english-insane"
 

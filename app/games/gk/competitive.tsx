@@ -77,16 +77,23 @@ export default function CompetitiveScreen() {
   useEffect(() => {
     if (!allQuestions || allQuestions.length === 0) return;
     
-    const success = startQuiz('competitive', allQuestions as Question[]);
-    if (!success) {
-      safeBack();
-      return;
+    // Only start if we aren't already playing (prevents restart on background refresh)
+    if (quizState === 'idle') {
+      const success = startQuiz('competitive', allQuestions as Question[]);
+      if (!success) {
+        safeBack();
+        return;
+      }
     }
+  }, [allQuestions, quizState]);
+
+  // Cleanup on unmount
+  useEffect(() => {
     return () => {
       resetQuiz();
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [allQuestions]);
+  }, []);
 
   // Start timer when question changes
   useEffect(() => {
@@ -315,16 +322,17 @@ export default function CompetitiveScreen() {
       {/* Question */}
       <View style={styles.questionContainer}>
         {(() => {
+            const key = `q-${currentQuestionIndex}`;
             switch (currentQuestion.type) {
-                case 'mcq': return <MCQRenderer question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
-                case 'grid': return <GridRenderer question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
-                case 'map': return <MapRenderer question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
-                case 'select': return <SelectRenderer question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
-                case 'match': return <MatchRenderer question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
-                case 'speaking': return <SpeakingRenderer question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
-                case 'make_sentence': return <MakeSentenceRenderer question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
-                case 'fill_in_the_blanks': return <FillInBlanksRenderer question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
-                default: return <MCQRenderer question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
+                case 'mcq': return <MCQRenderer key={key} question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
+                case 'grid': return <GridRenderer key={key} question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
+                case 'map': return <MapRenderer key={key} question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
+                case 'select': return <SelectRenderer key={key} question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
+                case 'match': return <MatchRenderer key={key} question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
+                case 'speaking': return <SpeakingRenderer key={key} question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
+                case 'make_sentence': return <MakeSentenceRenderer key={key} question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
+                case 'fill_in_the_blanks': return <FillInBlanksRenderer key={key} question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
+                default: return <MCQRenderer key={key} question={currentQuestion.question} data={currentQuestion.data} onAnswer={handleAnswer} disabled={showResult} showAnswer={showResult} />;
             }
         })()}
       </View>
@@ -444,7 +452,7 @@ const styles = StyleSheet.create({
   },
   questionContainer: {
     flex: 1,
-    padding: SPACING.lg,
+    // padding: SPACING.lg,
   },
   questionText: {
     fontSize: 22,
