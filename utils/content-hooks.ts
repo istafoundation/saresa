@@ -292,6 +292,7 @@ export function useEnglishInsaneQuestions(): ContentResult<any[]> {
         type: c.type || c.data.questionType || 'mcq',
         question: c.data.question,
         data: c.data,
+        questionCode: c.questionCode,
         // Keep correctIndex at top level for store compatibility until fully refactored? 
         // optional: correctIndex: c.data.correctIndex
       })) as any[]; // Type assertion to bypass strict checks for now or define fallback type better
@@ -315,6 +316,7 @@ export function useEnglishInsaneQuestions(): ContentResult<any[]> {
         type: c.data.questionType || 'mcq',
         question: c.data.question,
         data: c.data,
+        questionCode: c.questionCode,
       })) as any[];
     }
     return FALLBACK_GK_QUESTIONS.map(q => ({

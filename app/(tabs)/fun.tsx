@@ -1,6 +1,5 @@
-// Games Hub - GK Quiz and Wordle access
-// OPTIMIZED: Uses synced gameLimits instead of 5 separate Convex queries
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from 'react-native';
+// Games Hub - Redesigned with Candy/Pink Layout
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Dimensions } from 'react-native';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -11,6 +10,112 @@ import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants/theme';
 import { useUserStore } from '../../stores/user-store';
 import { useTapFeedback } from '../../utils/useTapFeedback';
 import Mascot from '../../components/Mascot';
+import { CandyBackground } from '../../components/animations/SparkleBackground';
+
+const { width } = Dimensions.get('window');
+const GAP = SPACING.md;
+const CARD_WIDTH = (width - SPACING.lg * 2 - GAP) / 2;
+
+// --- Components ---
+
+const SectionHeader = ({ title, icon }: { title: string, icon: string }) => (
+  <View style={styles.sectionHeader}>
+      <View style={styles.sectionIconContainer}>
+        <Text style={styles.sectionIcon}>{icon}</Text>
+      </View>
+      <Text style={styles.sectionTitle}>{title}</Text>
+  </View>
+);
+
+interface GameCardProps {
+  title: string;
+  emoji: string;
+  color: string;
+  route: string;
+  enabled?: boolean;
+  subtitle?: string;
+  isWide?: boolean;
+  badgeText?: string;
+  lockedMessage?: string;
+  onPress: (route: string) => void;
+  isLoading?: boolean;
+}
+
+const GameCard = ({
+  title,
+  emoji,
+  color,
+  route,
+  enabled = true,
+  subtitle,
+  isWide = false,
+  badgeText,
+  lockedMessage = "Locked",
+  onPress,
+  isLoading
+}: GameCardProps) => {
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.gameCard,
+        { 
+          backgroundColor: color,
+          width: isWide ? '100%' : CARD_WIDTH,
+          // Fixed height for consistency, or auto for wide
+          height: isWide ? 100 : 180, 
+          transform: [{ scale: pressed && enabled ? 0.96 : 1 }]
+        },
+        !enabled && styles.disabledCard
+      ]}
+      onPress={() => enabled && onPress(route)}
+      disabled={!enabled}
+    >
+        {/* Loading Overlay */}
+        {isLoading && (
+            <View style={styles.loadingOverlay}>
+                <ActivityIndicator size="small" color="#FFF" />
+            </View>
+        )}
+
+        {/* XP/Status Badge */}
+        {badgeText && enabled && (
+            <View style={styles.badgeContainer}>
+                <View style={styles.badgeIcon}>
+                   <Ionicons name="star" size={10} color="#FFF" />
+                </View>
+                <Text style={styles.badgeText}>{badgeText}</Text>
+            </View>
+        )}
+
+        {/* Content */}
+        <View style={[styles.cardContent, isWide && styles.cardContentWide]}>
+            <View style={[styles.emojiContainer, isWide && { marginBottom: 0, marginRight: 12 }]}>
+                <Text style={styles.gameEmoji}>{emoji}</Text>
+            </View>
+            
+            <View style={[styles.textContainer, isWide && { alignItems: 'flex-start' }]}>
+                <Text style={styles.gameTitle} numberOfLines={2}>{title}</Text>
+                {subtitle && (
+                    <Text style={[styles.gameSubtitle, isWide && { textAlign: 'left' }]} numberOfLines={2}>
+                        {subtitle}
+                    </Text>
+                )}
+            </View>
+        </View>
+
+        {/* Lock Overlay */}
+        {!enabled && (
+             <View style={styles.lockOverlay}>
+                <View style={[styles.lockBadge, { backgroundColor: 'rgba(0,0,0,0.6)' }]}>
+                    <Ionicons name="lock-closed" size={16} color="#FFF" />
+                    <Text style={styles.lockText}>{lockedMessage}</Text>
+                </View>
+             </View>
+        )}
+    </Pressable>
+  );
+};
+
 
 export default function FunScreen() {
   const { safePush: routerPush } = useSafeNavigation();
@@ -18,481 +123,218 @@ export default function FunScreen() {
   const { mascot, gameLimits } = useUserStore();
   const { triggerTap } = useTapFeedback();
   
-  // OPTIMIZATION: Use pre-computed limits from useConvexSync instead of 5 separate queries!
-  // This eliminates: canPlayGKCompetitive, canPlayWordle, canPlayWordFinder(easy), 
-  // canPlayWordFinder(hard), and getExplorerProgress queries
+  // Checking limits & Locks
   const canPlayCompetitive = gameLimits.canPlayGKCompetitive;
   const canPlayWordle = gameLimits.canPlayWordle;
   const canPlayWordFinderEasy = gameLimits.canPlayWordFinderEasy;
   const canPlayWordFinderHard = gameLimits.canPlayWordFinderHard;
+  // Explorer limits
   const explorerRemaining = gameLimits.explorerRemaining;
-  const isExplorerStarted = gameLimits.explorerGuessedToday.length > 0;
   
   const handleGamePress = (route: string) => {
     if (loadingGame) return;
     setLoadingGame(route);
     triggerTap('medium');
     
-    // Slight delay to allow UI to update before navigation pushes new screen
-    // This makes the spinner visible for a moment
+    // Artificial delay for better perceived performance perception
     setTimeout(() => {
       routerPush(route as any);
-      // We don't reset loadingGame here immediately because we want it to stay loading
-      // until the new screen completely covers it or we come back.
-      // But typically with React Native navigation, we should reset it eventually
-      // in case they come back quickly or it fails.
-      // For now, let's reset it after a timeout that covers the transition
-      setTimeout(() => setLoadingGame(null), 1000);
+      setTimeout(() => setLoadingGame(null), 500);
     }, 50);
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>Fun Zone</Text>
-          <Text style={styles.subtitle}>Play games to earn XP and level up!</Text>
-        </View>
+      <CandyBackground />
 
-        {/* Mascot Tip */}
-        <MotiView
-          from={{ opacity: 0, translateY: 10 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'spring', delay: 100 }}
-          style={styles.mascotTip}
-        >
-          <Mascot mascotType={mascot} size="small" />
-          <Text style={styles.mascotTipText}>
-            Tip: Competitive mode gives more XP, but you can only play once per day!
-          </Text>
-        </MotiView>
-
-        {/* GK Quiz Card */}
-        <MotiView
-          from={{ opacity: 0, translateY: 20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'spring', delay: 200 }}
-        >
-          <View style={styles.gameCard}>
-            <LinearGradient
-              colors={[COLORS.primary, COLORS.primaryDark]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.gameCardHeader}
-            >
-              <Text style={styles.gameCardEmoji}>🧠</Text>
-              <View style={styles.gameCardTitleContainer}>
-                <Text style={styles.gameCardTitle}>English Insane</Text>
-                <Text style={styles.gameCardDesc}>Master hard English grammar</Text>
-              </View>
-            </LinearGradient>
-            
-            <View style={styles.gameCardContent}>
-              {/* Practice Mode */}
-              <Pressable 
-                style={styles.modeButton}
-                onPress={() => handleGamePress('/games/gk/practice')}
-              >
-                <View style={styles.modeButtonContent}>
-                  <Ionicons name="infinite" size={24} color={COLORS.primary} />
-                  <View style={styles.modeButtonText}>
-                    <Text style={styles.modeButtonTitle}>Practice Mode</Text>
-                    <Text style={styles.modeButtonDesc}>Infinite questions • No XP</Text>
-                  </View>
-                </View>
-                {loadingGame === '/games/gk/practice' ? (
-                  <ActivityIndicator size="small" color={COLORS.primary} />
-                ) : (
-                  <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
-                )}
-              </Pressable>
-
-              {/* Competitive Mode */}
-              <Pressable 
-                style={[
-                  styles.modeButton, 
-                  !canPlayCompetitive && styles.modeButtonDisabled
-                ]}
-                onPress={() => canPlayCompetitive && handleGamePress('/games/gk/competitive')}
-                disabled={!canPlayCompetitive}
-              >
-                <View style={styles.modeButtonContent}>
-                  <Ionicons 
-                    name="trophy" 
-                    size={24} 
-                    color={canPlayCompetitive ? COLORS.accentGold : COLORS.textMuted} 
-                  />
-                  <View style={styles.modeButtonText}>
-                    <Text style={[
-                      styles.modeButtonTitle,
-                      !canPlayCompetitive && styles.modeButtonTitleDisabled
-                    ]}>
-                      Competitive Mode
-                    </Text>
-                    <Text style={styles.modeButtonDesc}>
-                      {canPlayCompetitive 
-                        ? '10 questions • 30s timer • Earn XP!' 
-                        : 'Come back tomorrow!'}
-                    </Text>
-                  </View>
-                </View>
-                {canPlayCompetitive ? (
-                  <View style={styles.xpBadge}>
-                    <Text style={styles.xpBadgeText}>+XP</Text>
-                  </View>
-                ) : (
-                  <Ionicons name="lock-closed" size={20} color={COLORS.textMuted} />
-                )}
-                {loadingGame === '/games/gk/competitive' && (
-                  <View style={{ marginLeft: 8 }}>
-                    <ActivityIndicator size="small" color={COLORS.primary} />
-                  </View>
-                )}
-              </Pressable>
-            </View>
-          </View>
-        </MotiView>
-
-        {/* Wordle Card */}
-        <MotiView
-          from={{ opacity: 0, translateY: 20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'spring', delay: 300 }}
-        >
-          <Pressable
-            style={[
-              styles.gameCard, 
-              !canPlayWordle && styles.gameCardDisabled
-            ]}
-            onPress={() => canPlayWordle && handleGamePress('/games/wordle')}
-            disabled={!canPlayWordle}
-          >
-            <LinearGradient
-              colors={canPlayWordle 
-                ? [COLORS.accent, COLORS.accentLight] 
-                : [COLORS.surface, COLORS.backgroundCard]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.gameCardHeader}
-            >
-              <Text style={styles.gameCardEmoji}>📝</Text>
-              <View style={styles.gameCardTitleContainer}>
-                <Text style={[
-                  styles.gameCardTitle,
-                  !canPlayWordle && styles.gameCardTitleDisabled
-                ]}>Wordle</Text>
-                <Text style={styles.gameCardDesc}>
-                  {canPlayWordle 
-                    ? 'Guess the 5-letter word!' 
-                    : 'Come back tomorrow!'}
-                </Text>
-              </View>
-              {canPlayWordle ? (
-                <View style={styles.dailyBadge}>
-                  <Text style={styles.dailyBadgeText}>DAILY</Text>
-                </View>
-              ) : (
-                <Ionicons name="checkmark-circle" size={28} color={COLORS.success} />
-              )}
-              {loadingGame === '/games/wordle' && (
-                <View style={{ marginLeft: 8 }}>
-                  <ActivityIndicator size="small" color={COLORS.text} />
-                </View>
-              )}
-            </LinearGradient>
-            
-            <View style={styles.gameCardContent}>
-              <View style={styles.wordleInfo}>
-                <View style={styles.wordleInfoItem}>
-                  <Ionicons name="grid" size={18} color={COLORS.textSecondary} />
-                  <Text style={styles.wordleInfoText}>6 attempts</Text>
-                </View>
-                <View style={styles.wordleInfoItem}>
-                  <Ionicons name="star" size={18} color={canPlayWordle ? COLORS.accentGold : COLORS.textMuted} />
-                  <Text style={styles.wordleInfoText}>+100 XP on win</Text>
-                </View>
-              </View>
-            </View>
-          </Pressable>
-        </MotiView>
-
-        {/* Word Finder Card */}
-        <MotiView
-          from={{ opacity: 0, translateY: 20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'spring', delay: 400 }}
-        >
-          <View style={styles.gameCard}>
-            <LinearGradient
-              colors={[COLORS.rainbow2, COLORS.rainbow6]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.gameCardHeader}
-            >
-              <Text style={styles.gameCardEmoji}>🔍</Text>
-              <View style={styles.gameCardTitleContainer}>
-                <Text style={styles.gameCardTitle}>Word Finder</Text>
-                <Text style={styles.gameCardDesc}>Find English vocabulary words</Text>
-              </View>
-            </LinearGradient>
-            
-            <View style={styles.gameCardContent}>
-              {/* Easy Mode */}
-              <Pressable 
-                style={[
-                  styles.modeButton,
-                  !canPlayWordFinderEasy && styles.modeButtonDisabled
-                ]}
-                onPress={() => canPlayWordFinderEasy && handleGamePress('/games/word-finder?mode=easy')}
-                disabled={!canPlayWordFinderEasy}
-              >
-                <View style={styles.modeButtonContent}>
-                  <Ionicons 
-                    name="star-outline" 
-                    size={24} 
-                    color={canPlayWordFinderEasy ? COLORS.rainbow6 : COLORS.textMuted} 
-                  />
-                  <View style={styles.modeButtonText}>
-                    <Text style={[
-                      styles.modeButtonTitle,
-                      !canPlayWordFinderEasy && styles.modeButtonTitleDisabled
-                    ]}>Easy Mode</Text>
-                    <Text style={styles.modeButtonDesc}>
-                      {canPlayWordFinderEasy 
-                        ? 'Find 5 words • 10 min • 2x daily' 
-                        : 'No attempts left today!'}
-                    </Text>
-                  </View>
-                </View>
-                {canPlayWordFinderEasy ? (
-                                  <View style={styles.xpBadge}>
-                    <Text style={styles.xpBadgeText}>+50 XP</Text>
-                  </View>
-                ) : (
-                  <Ionicons name="lock-closed" size={20} color={COLORS.textMuted} />
-                )}
-                {loadingGame === '/games/word-finder?mode=easy' && (
-                  <View style={{ marginLeft: 8 }}>
-                    <ActivityIndicator size="small" color={COLORS.rainbow6} />
-                  </View>
-                )}
-              </Pressable>
-
-              {/* Hard Mode */}
-              <Pressable 
-                style={[
-                  styles.modeButton,
-                  !canPlayWordFinderHard && styles.modeButtonDisabled
-                ]}
-                onPress={() => canPlayWordFinderHard && handleGamePress('/games/word-finder?mode=hard')}
-                disabled={!canPlayWordFinderHard}
-              >
-                <View style={styles.modeButtonContent}>
-                  <Ionicons 
-                    name="flash" 
-                    size={24} 
-                    color={canPlayWordFinderHard ? COLORS.accentGold : COLORS.textMuted} 
-                  />
-                  <View style={styles.modeButtonText}>
-                    <Text style={[
-                      styles.modeButtonTitle,
-                      !canPlayWordFinderHard && styles.modeButtonTitleDisabled
-                    ]}>Hard Mode</Text>
-                    <Text style={styles.modeButtonDesc}>
-                      {canPlayWordFinderHard 
-                        ? 'Answer questions • Hints -50% XP • 1x daily' 
-                        : 'Come back tomorrow!'}
-                    </Text>
-                  </View>
-                </View>
-                {canPlayWordFinderHard ? (
-                                    <View style={[styles.xpBadge, { backgroundColor: COLORS.accentGold + '30' }]}>
-                    <Text style={styles.xpBadgeText}>+200 XP</Text>
-                  </View>
-                ) : (
-                  <Ionicons name="lock-closed" size={20} color={COLORS.textMuted} />
-                )}
-                {loadingGame === '/games/word-finder?mode=hard' && (
-                  <View style={{ marginLeft: 8 }}>
-                    <ActivityIndicator size="small" color={COLORS.accentGold} />
-                  </View>
-                )}
-              </Pressable>
-            </View>
-          </View>
-        </MotiView>
-
-        {/* Grammar Detective Card */}
-        <MotiView
-          from={{ opacity: 0, translateY: 20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'spring', delay: 500 }}
-        >
-          <Pressable
-            style={styles.gameCard}
-            onPress={() => handleGamePress('/games/grammar-detective')}
-          >
-            <LinearGradient
-              colors={[COLORS.rainbow3 || '#9b59b6', COLORS.rainbow5 || '#3498db']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.gameCardHeader}
-            >
-              <Text style={styles.gameCardEmoji}>🔍</Text>
-              <View style={styles.gameCardTitleContainer}>
-                <Text style={styles.gameCardTitle}>Grammar Detective</Text>
-                <Text style={styles.gameCardDesc}>Find parts of speech</Text>
-              </View>
-              <View style={styles.dailyBadge}>
-                <Text style={styles.dailyBadgeText}>∞</Text>
-              </View>
-            </LinearGradient>
-            
-            <View style={styles.gameCardContent}>
-              <View style={styles.wordleInfo}>
-                <View style={styles.wordleInfoItem}>
-                  <Ionicons name="flash" size={18} color={COLORS.primary} />
-                  <Text style={styles.wordleInfoText}>Infinite Rush</Text>
-                </View>
-                <View style={styles.wordleInfoItem}>
-                  <Ionicons name="star" size={18} color={COLORS.accentGold} />
-                  <Text style={styles.wordleInfoText}>+2 XP per correct</Text>
-                </View>
-                </View>
-            </View>
-            {loadingGame === '/games/grammar-detective' && (
-              <View style={{ position: 'absolute', right: 16, top: '50%', marginTop: -10 }}>
-                <ActivityIndicator size="small" color={COLORS.text} />
-              </View>
-            )}
-          </Pressable>
-        </MotiView>
-
-        {/* Explorer's Heaven Card */}
-        <MotiView
-          from={{ opacity: 0, translateY: 20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'spring', delay: 600 }}
-        >
-          <View style={styles.gameCard}>
-            <LinearGradient
-              colors={['#1abc9c', '#16a085']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.gameCardHeader}
-            >
-              <Text style={styles.gameCardEmoji}>🗺️</Text>
-              <View style={styles.gameCardTitleContainer}>
-                <Text style={styles.gameCardTitle}>Explorer's Heaven</Text>
-                <Text style={styles.gameCardDesc}>Discover geography!</Text>
-              </View>
-            </LinearGradient>
-            
-            <View style={styles.gameCardContent}>
-              {/* India Explorer */}
-              <Pressable 
-                style={styles.modeButton}
-                onPress={() => handleGamePress('/games/explorer/india')}
-              >
-                <View style={styles.modeButtonContent}>
-                  <Text style={{ fontSize: 24 }}>🇮🇳</Text>
-                  <View style={styles.modeButtonText}>
-                    <Text style={styles.modeButtonTitle}>
-                       Explore India
-                    </Text>
-                    <Text style={styles.modeButtonDesc}>
-                      {`${explorerRemaining} remaining today • ${isExplorerStarted ? 'Continue' : 'Start'}`}
-                    </Text>
-                  </View>
-                </View>
-                {loadingGame === '/games/explorer/india' ? (
-                  <ActivityIndicator size="small" color={COLORS.textSecondary} />
-                ) : (
-                  <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
-                )}
-              </Pressable>
-
-              {/* Let'em Cook - Spice Matching */}
-              <Pressable 
-                style={[
-                  styles.modeButton,
-                  gameLimits.lecCompleted && styles.modeButtonDisabled
-                ]}
-                onPress={() => gameLimits.canPlayLetEmCook && handleGamePress('/games/let-em-cook')}
-                disabled={!gameLimits.canPlayLetEmCook}
-              >
-                <View style={styles.modeButtonContent}>
-                  <Text style={{ fontSize: 24 }}>🌶️</Text>
-                  <View style={styles.modeButtonText}>
-                    <Text style={[
-                      styles.modeButtonTitle,
-                      gameLimits.lecCompleted && styles.modeButtonTitleDisabled
-                    ]}>
-                      Let'em Cook
-                    </Text>
-                    <Text style={styles.modeButtonDesc}>
-                      {gameLimits.lecCompleted 
-                        ? 'Challenge completed!' 
-                        : 'Explore Indian Spices • 1x daily'}
-                    </Text>
-                  </View>
-                </View>
-                {gameLimits.lecCompleted ? (
-                  <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
-                ) : loadingGame === '/games/let-em-cook' ? (
-                  <ActivityIndicator size="small" color={COLORS.textSecondary} />
-                ) : (
-                  <View style={styles.xpBadge}>
-                    <Text style={styles.xpBadgeText}>+300 XP</Text>
-                  </View>
-                )}
-              </Pressable>
-
-              {/* Flag Champs - Fill-in-the-blanks Flag Guessing */}
-              <Pressable 
-                style={[
-                  styles.modeButton,
-                  gameLimits.fcCompleted && styles.modeButtonDisabled
-                ]}
-                onPress={() => gameLimits.canPlayFlagChamps && handleGamePress('/games/flag-champs')}
-                disabled={!gameLimits.canPlayFlagChamps}
-              >
-                <View style={styles.modeButtonContent}>
-                  <Text style={{ fontSize: 24 }}>🏴</Text>
-                  <View style={styles.modeButtonText}>
-                    <Text style={[
-                      styles.modeButtonTitle,
-                      gameLimits.fcCompleted && styles.modeButtonTitleDisabled
-                    ]}>
-                      Flag Champs
-                    </Text>
-                    <Text style={styles.modeButtonDesc}>
-                      {gameLimits.fcCompleted 
-                        ? 'All 195 flags done!' 
-                        : gameLimits.fcRemaining < 195 
-                          ? `${gameLimits.fcRemaining} remaining • Continue`
-                          : 'Guess world flags • Daily'}
-                    </Text>
-                  </View>
-                </View>
-                {gameLimits.fcCompleted ? (
-                  <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
-                ) : loadingGame === '/games/flag-champs' ? (
-                  <ActivityIndicator size="small" color={COLORS.textSecondary} />
-                ) : (
-                  <View style={styles.xpBadge}>
-                    <Text style={styles.xpBadgeText}>+975 XP</Text>
-                  </View>
-                )}
-              </Pressable>
-            </View>
-          </View>
-        </MotiView>
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false} 
+        contentContainerStyle={{ paddingBottom: 120 }}
+      >
         
-        {/* Bottom spacing to account for tab bar */}
-        <View style={{ height: 100 }} />
+        {/* Header Section */}
+        <MotiView 
+            from={{ opacity: 0, translateY: -20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ type: 'timing', duration: 400 }}
+            style={styles.headerCard}
+        >
+          <LinearGradient
+            colors={[COLORS.primaryLight, COLORS.candyPink]} 
+            style={styles.headerGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <View style={styles.headerTextContainer}>
+              <Text style={styles.headerTitle}>Let's Play</Text>
+              <Text style={styles.headerTitle2}>Together!</Text>
+              <Text style={styles.headerSubtitle}>Earn XP & Have Fun</Text>
+            </View>
+            <View style={styles.mascotContainer}>
+                <Mascot mascotType={mascot} size="medium" />
+                <View style={styles.mascotGlow} />
+            </View>
+          </LinearGradient>
+        </MotiView>
+
+        {/* --- English Insane Section --- */}
+        <MotiView 
+            from={{ opacity: 0, translateY: 20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            delay={100}
+        >
+            <SectionHeader title="English Knowledge" icon="🧠" />
+            <View style={styles.gridContainer}>
+                <GameCard
+                    title="Practice"
+                    emoji="🦄"
+                    color="#FFE4E1" // Misty Rose
+                    route='/games/gk/practice'
+                    subtitle="Unlimited Training"
+                    badgeText="Train"
+                    onPress={handleGamePress}
+                    isLoading={loadingGame === '/games/gk/practice'}
+                />
+                <GameCard
+                    title="Competitive"
+                    emoji="🏆"
+                    color="#FFFACD" // Lemon Chiffon
+                    route='/games/gk/competitive'
+                    enabled={canPlayCompetitive}
+                    subtitle={canPlayCompetitive ? "Daily Rank Push" : "Come back tomorrow"}
+                    badgeText="Win XP"
+                    lockedMessage="Played"
+                    onPress={handleGamePress}
+                    isLoading={loadingGame === '/games/gk/competitive'}
+                />
+            </View>
+        </MotiView>
+
+        {/* --- Word Games Section --- */}
+        <MotiView 
+            from={{ opacity: 0, translateY: 20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            delay={200}
+            style={{ marginTop: SPACING.lg }}
+        >
+             <SectionHeader title="Word Games" icon="📝" />
+             <View style={styles.gridContainer}>
+                <GameCard
+                    title="Wordle"
+                    emoji="🔡"
+                    color="#E0F7FA" // Light Cyan
+                    route='/games/wordle'
+                    enabled={canPlayWordle}
+                    subtitle="Daily Guess"
+                    badgeText="Daily"
+                    lockedMessage="Solved"
+                    onPress={handleGamePress}
+                    isLoading={loadingGame === '/games/wordle'}
+                />
+                <GameCard
+                    title="Grammar"
+                    emoji="🔍"
+                    color="#F3E5F5" // Purple Light
+                    route='/games/grammar-detective'
+                    subtitle="Grammar Detective"
+                    badgeText="Rush"
+                    onPress={handleGamePress}
+                    isLoading={loadingGame === '/games/grammar-detective'}
+                />
+            </View>
+        </MotiView>
+
+        {/* --- Word Finder Section --- */}
+        <MotiView 
+            from={{ opacity: 0, translateY: 20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            delay={300}
+            style={{ marginTop: SPACING.lg }}
+        >
+            <SectionHeader title="Word Finder" icon="🔎" />
+            <View style={styles.gridContainer}>
+                <GameCard
+                    title="Easy Mode"
+                    emoji="🧩"
+                    color="#E8F5E9" // Green Light
+                    route='/games/word-finder?mode=easy'
+                    enabled={canPlayWordFinderEasy}
+                    subtitle="Relaxed Search"
+                    badgeText="50 XP"
+                    lockedMessage="Done"
+                    onPress={handleGamePress}
+                    isLoading={loadingGame === '/games/word-finder?mode=easy'}
+                />
+                 <GameCard
+                    title="Hard Mode"
+                    emoji="⚡"
+                    color="#FFF3E0" // Orange Light
+                    route='/games/word-finder?mode=hard'
+                    enabled={canPlayWordFinderHard}
+                    subtitle="Timed Challenge"
+                    badgeText="200 XP"
+                    lockedMessage="Done"
+                    onPress={handleGamePress}
+                    isLoading={loadingGame === '/games/word-finder?mode=hard'}
+                />
+            </View>
+        </MotiView>
+
+        {/* --- Explorer's Heaven Section --- */}
+        <MotiView 
+            from={{ opacity: 0, translateY: 20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            delay={400}
+            style={{ marginTop: SPACING.lg }}
+        >
+            <SectionHeader title="Explorer's World" icon="🌍" />
+            
+            {/* Full width card for India Explorer */}
+            <View style={{ marginBottom: SPACING.md }}>
+                 <GameCard
+                    title="India Explorer"
+                    emoji="🇮🇳"
+                    color="#E1BEE7" // Purple
+                    route='/games/explorer/india'
+                    subtitle={`${explorerRemaining} remaining • Explore States`}
+                    badgeText="Explore"
+                    isWide={true}
+                    onPress={handleGamePress}
+                    isLoading={loadingGame === '/games/explorer/india'}
+                />
+            </View>
+
+            <View style={styles.gridContainer}>
+                 <GameCard
+                    title="Let'em Cook"
+                    emoji="🌶️"
+                    color="#FFCCBC" // Deep Orange extraction
+                    route='/games/let-em-cook'
+                    enabled={gameLimits.canPlayLetEmCook && !gameLimits.lecCompleted}
+                    subtitle="Spice Matching"
+                    badgeText="300 XP"
+                    lockedMessage="Cooked"
+                    onPress={handleGamePress}
+                    isLoading={loadingGame === '/games/let-em-cook'}
+                />
+                 <GameCard
+                    title="Flag Champs"
+                    emoji="🚩"
+                    color="#B2DFDB" // Teal Light
+                    route='/games/flag-champs'
+                    enabled={gameLimits.canPlayFlagChamps && !gameLimits.fcCompleted}
+                    subtitle="Flags Quiz"
+                    badgeText="975 XP"
+                    lockedMessage="Won"
+                    onPress={handleGamePress}
+                    isLoading={loadingGame === '/games/flag-champs'}
+                />
+            </View>
+        </MotiView>
+
       </ScrollView>
+
     </SafeAreaView>
   );
 }
@@ -500,155 +342,226 @@ export default function FunScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.background, 
   },
   content: {
-    flex: 1,
     padding: SPACING.lg,
+    zIndex: 10,
   },
-  header: {
-    marginBottom: SPACING.lg,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: COLORS.textSecondary,
-  },
-  mascotTip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
-    marginBottom: SPACING.lg,
-    gap: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.primary + '30',
-  },
-  mascotEmoji: {
-    fontSize: 32,
-  },
-  mascotTipText: {
-    flex: 1,
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    lineHeight: 20,
-  },
-  gameCard: {
-    backgroundColor: COLORS.backgroundCard,
+  
+  // Header Components
+  headerCard: {
+    marginBottom: SPACING.md,
     borderRadius: BORDER_RADIUS.xl,
     overflow: 'hidden',
-    marginBottom: SPACING.lg,
+    height: 140,
     ...SHADOWS.md,
+    borderWidth: 2,
+    borderColor: '#FFF',
   },
-  gameCardPlayed: {
-    opacity: 0.8,
-  },
-  gameCardDisabled: {
-    opacity: 0.7,
-  },
-  gameCardTitleDisabled: {
-    color: COLORS.textMuted,
-  },
-  gameCardHeader: {
+  headerGradient: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     padding: SPACING.lg,
-    gap: SPACING.md,
   },
-  gameCardEmoji: {
-    fontSize: 40,
-  },
-  gameCardTitleContainer: {
+  headerTextContainer: {
     flex: 1,
+    justifyContent: 'center',
   },
-  gameCardTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: COLORS.text,
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#FFF',
+    lineHeight: 28,
   },
-  gameCardDesc: {
-    fontSize: 13,
-    color: COLORS.text + 'CC',
-    marginTop: 2,
+  headerTitle2: {
+      fontSize: 28,
+      fontWeight: '900',
+      color: '#FFF',
+      lineHeight: 32,
+      marginBottom: 6,
+      textShadowColor: 'rgba(0,0,0,0.1)',
+      textShadowOffset: { width: 1, height: 1 },
+      textShadowRadius: 3,
   },
-  gameCardContent: {
-    padding: SPACING.md,
-    paddingTop: 0,
-  },
-  modeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
-    marginBottom: SPACING.sm,
-  },
-  modeButtonDisabled: {
-    backgroundColor: COLORS.surface + '80',
-    opacity: 0.7,
-  },
-  modeButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-  },
-  modeButtonText: {
-    gap: 2,
-  },
-  modeButtonTitle: {
-    fontSize: 16,
+  headerSubtitle: {
+    fontSize: 14,
     fontWeight: '600',
-    color: COLORS.text,
+    color: 'rgba(255,255,255,0.95)',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    overflow: 'hidden',
   },
-  modeButtonTitleDisabled: {
-    color: COLORS.textMuted,
-  },
-  modeButtonDesc: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-  },
-  xpBadge: {
-    backgroundColor: COLORS.accentGold + '30',
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: SPACING.xs,
-    borderRadius: BORDER_RADIUS.full,
-  },
-  xpBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.accentGold,
-  },
-  dailyBadge: {
-    backgroundColor: COLORS.text + '20',
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: SPACING.xs,
-    borderRadius: BORDER_RADIUS.full,
-  },
-  dailyBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: COLORS.text,
-    letterSpacing: 1,
-  },
-  wordleInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: SPACING.sm,
-  },
-  wordleInfoItem: {
-    flexDirection: 'row',
+  mascotContainer: {
+    width: 90,
+    height: 90,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: SPACING.xs,
+    position: 'relative',
   },
-  wordleInfoText: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
+  mascotGlow: {
+      position: 'absolute',
+      width: 70,
+      height: 70,
+      backgroundColor: '#FFF',
+      borderRadius: 40,
+      opacity: 0.3,
+      zIndex: -1,
   },
+
+  // Section Headers
+  sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: SPACING.sm,
+      gap: 10,
+      paddingHorizontal: 4,
+      marginTop: 8,
+  },
+  sectionIconContainer: {
+      width: 32,
+      height: 32,
+      borderRadius: 12,
+      backgroundColor: '#FFF',
+      justifyContent: 'center',
+      alignItems: 'center',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 2,
+  },
+  sectionIcon: {
+      fontSize: 18,
+  },
+  sectionTitle: {
+      fontSize: 18,
+      fontWeight: '800',
+      color: COLORS.text,
+      letterSpacing: -0.5,
+  },
+
+  // Grid
+  gridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: GAP,
+    justifyContent: 'space-between',
+  },
+
+  // Game Cards
+  gameCard: {
+    borderRadius: 24,
+    padding: SPACING.md,
+    ...SHADOWS.sm,
+    borderWidth: 2,
+    borderColor: '#FFF',
+    overflow: 'hidden', // Clean clip for children
+    justifyContent: 'center',
+  },
+  disabledCard: {
+    opacity: 0.9, 
+    backgroundColor: '#F0F0F0', 
+  },
+  cardContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    gap: 8,
+  },
+  cardContentWide: {
+      flexDirection: 'row',
+      justifyContent: 'flex-start',
+      alignItems: 'center', // Align vertically center
+      gap: 16,
+      paddingHorizontal: 8,
+  },
+  
+  // Card Badge
+  badgeContainer: {
+      position: 'absolute',
+      top: 10,
+      right: 10,
+      backgroundColor: COLORS.primary,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 12,
+      zIndex: 5,
+      borderWidth: 1.5,
+      borderColor: '#FFF',
+  },
+  badgeIcon: {
+      marginTop: -1,
+  },
+  badgeText: {
+      fontSize: 10,
+      fontWeight: '800',
+      color: '#FFF',
+      textTransform: 'uppercase',
+  },
+
+  // Card Content Internals
+  emojiContainer: {
+      marginBottom: 6,
+  },
+  gameEmoji: {
+    fontSize: 42,
+  },
+  textContainer: {
+      alignItems: 'center',
+      width: '100%',
+  },
+  gameTitle: {
+    fontSize: 18, // Bigger
+    fontWeight: '800',
+    color: '#333', // Darker text for contrast
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 4,
+  },
+  gameSubtitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 16,
+  },
+
+  // Overlays
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 20,
+  },
+  lockOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(255,255,255,0.4)', // Frost effect
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 10,
+  },
+  lockBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.5)',
+  },
+  lockText: {
+      color: '#FFF',
+      fontWeight: '800',
+      fontSize: 14,
+      textTransform: 'uppercase',
+  }
 });

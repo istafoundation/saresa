@@ -49,6 +49,18 @@ export const COLORS = {
   wordleCorrect: '#4ADE80',   // Bright green
   wordlePresent: '#FFD93D',   // Sunny yellow
   wordleAbsent: '#D4D4D8',    // Light gray
+
+  // Candy / Pastel Theme Colors
+  candyPink: '#FFB7B2',       // Pastel Pink (Strawberry)
+  candyBlue: '#AEC6CF',       // Pastel Blue (Blueberry)
+  candyYellow: '#FDFD96',     // Pastel Yellow (Lemon)
+  candyGreen: '#B5EAD7',      // Pastel Mint (Mint)
+  candyPurple: '#E2F0CB',     // Pastel Lime/Purpleish (Grape) - keeping it soft
+  candyPeach: '#FFDAC1',      // Pastel Peach (Peach)
+  candyCyan: '#97F8FF',       // Pastel Cyan
+  
+  // Header specific
+  candyHeaderBg: '#87CEEB',   // Sky blue for header
 };
 
 export const FONTS = {
