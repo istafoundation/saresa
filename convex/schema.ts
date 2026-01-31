@@ -158,13 +158,6 @@ export default defineSchema({
     // Priority for weighted selection
     priority: v.number(), // Higher = more likely to show
 
-    // Set 1: EasyC, MediumB, HardA (All groups)
-    // Set 2: MediumC, HardB (Groups B, C)
-    // Set 3: EasyB, MediumA (Groups A, B)
-    // Set 4: HardC (Group C only)
-    // Set 5: EasyA (Group A only)
-    // questionSet removed - logic deprecated
-
     // Metadata
     createdBy: v.optional(v.id("parents")), // Admin who created it
     createdAt: v.number(),

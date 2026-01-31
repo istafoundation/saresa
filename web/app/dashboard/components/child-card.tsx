@@ -48,7 +48,7 @@ interface ChildProps {
   username: string;
   password?: string;
   role: string;
-  group?: "A" | "B" | "C";
+
   xp: number;
   streak: number;
   level: number;
@@ -94,8 +94,7 @@ export function ChildCard({ child }: { child: ChildProps }) {
     }
   };
 
-  const groupLabel = child.group === "A" ? "Class 1-4" : child.group === "C" ? "Class 9-10" : "Class 5-8";
-  const groupColor = child.group === "A" ? "emerald" : child.group === "C" ? "purple" : "blue";
+
 
   return (
     <div className="group bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-md hover:border-emerald-100 transition-all duration-300">
@@ -109,13 +108,7 @@ export function ChildCard({ child }: { child: ChildProps }) {
               {child.name}
             </h3>
             <div className="flex items-center gap-2 text-sm text-slate-500">
-              <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-                groupColor === "emerald" ? "bg-emerald-100 text-emerald-700" :
-                groupColor === "purple" ? "bg-purple-100 text-purple-700" :
-                "bg-blue-100 text-blue-700"
-              }`}>
-                Group {child.group || "B"} ({groupLabel})
-              </span>
+              {/* Group badge removed */}
             </div>
           </div>
         </div>
@@ -162,7 +155,7 @@ export function ChildCard({ child }: { child: ChildProps }) {
         </div>
         <div className="h-2 bg-emerald-100 rounded-full overflow-hidden">
           <div 
-            className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-full transition-all duration-500"
+            className="h-full bg-linear-to-r from-emerald-500 to-emerald-600 rounded-full transition-all duration-500"
             style={{ width: `${Math.min(child.xpProgress, 100)}%` }}
           />
         </div>
@@ -236,7 +229,7 @@ export function ChildCard({ child }: { child: ChildProps }) {
         ) : (
           <Link 
             href={`/dashboard/subscription/${child._id}`}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-semibold text-white bg-gradient-to-r from-amber-500 to-amber-600 border border-transparent rounded-xl hover:from-amber-600 hover:to-amber-700 transition-all active:scale-95 shadow-lg shadow-amber-500/20"
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-semibold text-white bg-linear-to-r from-amber-500 to-amber-600 border border-transparent rounded-xl hover:from-amber-600 hover:to-amber-700 transition-all active:scale-95 shadow-lg shadow-amber-500/20"
           >
             <Zap size={14} />
             <span>Activate</span>

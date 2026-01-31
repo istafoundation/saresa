@@ -15,7 +15,7 @@ import {
   Check,
   Download,
   Upload,
-  FileText,
+
 } from "lucide-react";
 import type { Id } from "@convex/_generated/dataModel";
 
@@ -225,79 +225,7 @@ function GrammarDetectiveContent() {
     URL.revokeObjectURL(url);
   };
 
-  // Set Instructions Download Handler
-  const handleDownloadSetInstructions = () => {
-    const instructions = `================================
-GRAMMAR DETECTIVE CONTENT GUIDELINES
-================================
 
-📝 ABOUT GRAMMAR DETECTIVE
-==========================
-Grammar Detective questions are shown to ALL users regardless of their group.
-There are no sets - all questions are accessible to everyone.
-
-
-📚 USER GROUPS (Reference)
-==========================
-Group A: Classes 1-4 (Primary)
-Group B: Classes 5-8 (Middle School)  
-Group C: Classes 9-10 (High School)
-
-
-🎯 QUESTION DESIGN TIPS
-=======================
-Since ALL age groups see all questions:
-
-1. Use sentences with vocabulary appropriate for Class 1-4
-2. Keep sentences short and clear
-3. Avoid complex or compound-complex sentences
-4. Use common, everyday words
-5. Explanations should be educational but simple
-
-
-✅ GOOD QUESTION EXAMPLES
-=========================
-Sentence: "The happy dog runs fast."
-Question: "Find ALL the adjectives"
-Answer: happy
-Explanation: "Happy" describes the dog, so it's an adjective.
-
-Sentence: "She quickly ate her lunch."
-Question: "Find the adverb"
-Answer: quickly  
-Explanation: "Quickly" tells us HOW she ate, so it's an adverb.
-
-
-📋 PARTS OF SPEECH TO COVER
-===========================
-• Nouns (person, place, thing)
-• Verbs (action words)
-• Adjectives (describe nouns)
-• Adverbs (describe verbs - how, when, where)
-• Pronouns (he, she, it, they)
-• Prepositions (in, on, under, beside)
-
-
-📋 CSV FORMAT
-=============
-Sentence, Question Text, Correct Word Indices (pipe-separated), Explanation
-"The cat sleeps.", "Find the noun", 1, The cat is a thing so it's a noun.
-
-================================
-Happy Question Making! 🎉
-================================
-`;
-
-    const blob = new Blob([instructions], { type: 'text/plain;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'grammar-detective-set-instructions.txt';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
 
   // CSV Upload Handler
   const handleUploadCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -422,14 +350,7 @@ Happy Question Making! 🎉
             </div>
           </div>
         </div>
-        <button
-          onClick={handleDownloadSetInstructions}
-          className="flex items-center gap-2 border border-slate-200 text-slate-600 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors"
-          title="Download Set Instructions"
-        >
-          <FileText className="w-4 h-4" />
-          Set Instructions
-        </button>
+
         <button
           onClick={handleDownloadCSV}
           disabled={!filteredContent || filteredContent.length === 0}

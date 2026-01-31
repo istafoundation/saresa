@@ -32,7 +32,7 @@ export const getMyData = query({
     // Get child data
     const child = await ctx.db.get(childId);
 
-    // Get subscription status FIRST (needed for group calculation)
+    // Get subscription status FIRST
     const subscription = await ctx.db
       .query("subscriptions")
       .withIndex("by_child", (q) => q.eq("childId", childId))
@@ -41,8 +41,7 @@ export const getMyData = query({
 
     const isSubscriptionActive = subscription?.status === "active" || subscription?.status === "authenticated";
     
-    // Group logic removed - all users have same access now
-    // const group = subscription?.planGroup || "B";
+
 
     // Pre-compute all daily limits (IST-based) to avoid separate queries
     const today = getISTDate();
@@ -50,7 +49,7 @@ export const getMyData = query({
 
     return {
       ...user,
-      // group removed
+
       // Subscription status for mobile app display
       subscription: subscription ? {
         status: subscription.status,
