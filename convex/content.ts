@@ -61,6 +61,38 @@ async function requireAdmin(ctx: any): Promise<Id<"parents">> {
   return parent._id;
 }
 
+// Generate a unique code for content
+// English Insane: EI + 6 digits (e.g., EI123456)
+// Others: 6 digits
+async function generateUniqueContentCode(ctx: any, gameId: string): Promise<string> {
+  const prefix = gameId === 'english-insane' ? 'EI' : '';
+  const generate = () => {
+    const num = Math.floor(100000 + Math.random() * 900000);
+    return `${prefix}${num}`;
+  };
+  
+  let code = generate();
+  let isUnique = false;
+  let attempts = 0;
+
+  while (!isUnique && attempts < 10) {
+    const existing = await ctx.db
+      .query("gameContent")
+      .withIndex("by_question_code", (q: any) => q.eq("questionCode", code))
+      .first();
+    
+    if (!existing) {
+      isUnique = true;
+    } else {
+      code = generate();
+      attempts++;
+    }
+  }
+
+  if (!isUnique) throw new ConvexError("Failed to generate unique content code");
+  return code;
+}
+
 // Generate checksum for content array
 function generateChecksum(content: any[]): string {
   const str = JSON.stringify(content.map(c => ({ id: c._id, v: c.version })));
@@ -433,6 +465,39 @@ export const getAllContent = query({
   },
 });
 
+// Search content by code or text (for admin)
+export const searchContentAdmin = query({
+  args: { query: v.string() },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    
+    if (!args.query) return [];
+    
+    // Exact match on code (case insensitive could be added if needed, but strict for now)
+    // Try both exact and uppercase since prefixes are likely uppercase
+    const query = args.query.trim();
+    
+    const codeMatches = await ctx.db
+      .query("gameContent")
+      .withIndex("by_question_code", (q) => q.eq("questionCode", query))
+      .collect();
+      
+    if (codeMatches.length > 0) return codeMatches;
+    
+    // Also try uppercase if user typed "ei..."
+    const upperQuery = query.toUpperCase();
+    if (upperQuery !== query) {
+      const upperMatches = await ctx.db
+        .query("gameContent")
+        .withIndex("by_question_code", (q) => q.eq("questionCode", upperQuery))
+        .collect();
+      if (upperMatches.length > 0) return upperMatches;
+    }
+
+    return [];
+  },
+});
+
 // Get content analytics
 export const getContentAnalytics = query({
   args: { gameId: v.string() },
@@ -533,6 +598,12 @@ export const addContent = mutation({
 
     const version = (latestVersion?.version ?? 0) + 1;
 
+
+
+
+    // Generate unique code for this content
+    const questionCode = await generateUniqueContentCode(ctx, args.gameId);
+
     const contentId = await ctx.db.insert("gameContent", {
       type: args.type,
       gameId: args.gameId,
@@ -544,6 +615,7 @@ export const addContent = mutation({
       validFrom: args.validFrom,
       validUntil: args.validUntil,
       priority: args.priority ?? 0,
+      questionCode,
       createdBy: adminId,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -661,6 +733,9 @@ export const bulkAddContent = mutation({
         gameVersions[item.gameId] = (latestVersion?.version ?? 0) + 1;
       }
 
+      // Generate code for each item
+      const questionCode = await generateUniqueContentCode(ctx, item.gameId);
+
       await ctx.db.insert("gameContent", {
         type: item.type,
         gameId: item.gameId,
@@ -669,6 +744,7 @@ export const bulkAddContent = mutation({
         version: gameVersions[item.gameId],
         tags: item.tags ?? [],
         priority: item.priority ?? 0,
+        questionCode,
         createdBy: adminId,
         createdAt: Date.now(),
         updatedAt: Date.now(),

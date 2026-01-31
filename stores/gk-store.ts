@@ -14,6 +14,7 @@ export interface Question {
   data: any;
   // Legacy/Flattened properties for easier access if needed, but 'data' is primary for Renderers
   correctIndex?: number;
+  questionCode?: string;
 }
 
 export type GameMode = 'practice' | 'competitive';

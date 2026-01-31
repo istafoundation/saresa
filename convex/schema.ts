@@ -168,13 +168,15 @@ export default defineSchema({
     priority: v.number(), // Higher = more likely to show
 
     // Metadata
+    questionCode: v.optional(v.string()), // 6-digit unique code (e.g. "123456")
     createdBy: v.optional(v.id("parents")), // Admin who created it
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_game_status", ["gameId", "status"])
     .index("by_type_status", ["type", "status"])
-    .index("by_pack", ["packId"]),
+    .index("by_pack", ["packId"])
+    .index("by_question_code", ["questionCode"]),
 
   // ============================================
   // SPICES TABLE (Let'em Cook Game)

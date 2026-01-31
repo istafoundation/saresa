@@ -104,7 +104,8 @@ function EnglishInsaneContent() {
     const data = item.data as EnglishInsaneContent;
     const matchesSearch =
       data.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (data.options?.some((o) => o.toLowerCase().includes(searchQuery.toLowerCase())) ?? false);
+      (data.options?.some((o) => o.toLowerCase().includes(searchQuery.toLowerCase())) ?? false) ||
+      (item.questionCode?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
     return matchesSearch && item.status !== "archived";
   });
 
@@ -743,6 +744,9 @@ function EnglishInsaneContent() {
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
+                Code
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
                 Question
               </th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
@@ -764,6 +768,11 @@ function EnglishInsaneContent() {
 
               return (
                 <tr key={item._id} className="hover:bg-slate-50">
+                  <td className="px-6 py-4">
+                     <span className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">
+                        {item.questionCode || '-'}
+                     </span>
+                  </td>
                   <td className="px-6 py-4 max-w-md">
                     <div className="flex items-center gap-2">
                       <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider ${

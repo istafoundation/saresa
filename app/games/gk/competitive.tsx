@@ -322,6 +322,24 @@ export default function CompetitiveScreen() {
 
       {/* Question */}
       <View style={styles.questionContainer}>
+        {currentQuestion?.questionCode && (
+          <View style={{ 
+            position: 'absolute',
+            top: 8,
+            right: 16,
+            zIndex: 10,
+            paddingHorizontal: 6, 
+            paddingVertical: 2, 
+            backgroundColor: 'rgba(0,0,0,0.05)', 
+            borderRadius: 4,
+            borderWidth: 1,
+            borderColor: 'rgba(0,0,0,0.1)'
+          }}>
+            <Text style={{ fontSize: 10, color: COLORS.textMuted, opacity: 0.7 }}>
+              #{currentQuestion.questionCode}
+            </Text>
+          </View>
+        )}
         {(() => {
             const key = `q-${currentQuestionIndex}`;
             switch (currentQuestion.type) {

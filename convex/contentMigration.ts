@@ -411,6 +411,25 @@ export const migrateWordFinderContent = mutation({
 export const migrateEnglishInsaneContent = mutation({
   args: {},
   handler: async (ctx) => {
+    // Helper to generate unique codes locally within the batch
+    const generateCode = (gameId: string) => {
+      const prefix = gameId === 'english-insane' ? 'EI' : '';
+      const num = Math.floor(100000 + Math.random() * 900000);
+      return `${prefix}${num}`;
+    };
+    const usedCodes = new Set<string>();
+
+    const getUniqueCode = async (gameId: string) => {
+       let code = generateCode(gameId);
+       let attempts = 0;
+       while ((usedCodes.has(code) || (await ctx.db.query("gameContent").withIndex("by_question_code", q => q.eq("questionCode", code)).first())) && attempts < 10) {
+         code = generateCode(gameId);
+         attempts++;
+       }
+       usedCodes.add(code);
+       return code;
+    };
+
     const existing = await ctx.db
       .query("gameContent")
       .withIndex("by_game_status", (q) => q.eq("gameId", "english-insane").eq("status", "active"))
@@ -483,6 +502,7 @@ export const migrateEnglishInsaneContent = mutation({
         version: 1,
         tags: [q.difficulty, q.category],
         priority: 0,
+        questionCode: await getUniqueCode("english-insane"),
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
@@ -518,5 +538,55 @@ export const getMigrationStatus = query({
       wordFinder: { migrated: wordFinderCount > 0, count: wordFinderCount },
       englishInsane: { migrated: englishInsaneCount > 0, count: englishInsaneCount },
     };
+  },
+});
+
+// ============================================
+// BACKFILL UTILS
+// ============================================
+
+export const backfillQuestionCodes = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const allContent = await ctx.db.query("gameContent").collect();
+    let updatedCount = 0;
+
+    const generateCode = (gameId: string) => {
+      const prefix = gameId === 'english-insane' ? 'EI' : '';
+      const num = Math.floor(100000 + Math.random() * 900000);
+      return `${prefix}${num}`;
+    };
+
+    for (const item of allContent) {
+      const isEnglishInsane = item.gameId === 'english-insane';
+      const hasCorrectFormat = item.questionCode && (isEnglishInsane ? item.questionCode.startsWith('EI') : true);
+
+      if (!item.questionCode || !hasCorrectFormat) {
+        let code = generateCode(item.gameId);
+        let isUnique = false;
+        let attempts = 0;
+
+        while (!isUnique && attempts < 10) {
+          const existing = await ctx.db
+            .query("gameContent")
+            .withIndex("by_question_code", (q: any) => q.eq("questionCode", code))
+            .first();
+          
+          if (!existing) {
+            isUnique = true;
+          } else {
+            code = generateCode(item.gameId);
+            attempts++;
+          }
+        }
+
+        if (isUnique) {
+          await ctx.db.patch(item._id, { questionCode: code });
+          updatedCount++;
+        }
+      }
+    }
+
+    return { success: true, message: `Backfilled ${updatedCount} items with question codes` };
   },
 });
