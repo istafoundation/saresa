@@ -92,6 +92,9 @@ export default function PracticeScreen() {
   }, [gkStats.practiceTotal, gkStats.practiceCorrect, sessionTotal]);
 
   useEffect(() => {
+    // Wait for content to load (cache or server) before starting
+    if (questionsStatus === 'loading') return;
+
     if (quizState === 'idle' && allQuestions && allQuestions.length > 0) {
       startQuiz('practice', allQuestions as Question[]);
     }
@@ -100,7 +103,7 @@ export default function PracticeScreen() {
     // The previous code had `return () => resetQuiz()` which runs on dependency change too.
     // That was PART of the problem (resetting when allQuestions updated).
     // Use a separate effect for cleanup.
-  }, [allQuestions, quizState]);
+  }, [allQuestions, quizState, questionsStatus]);
 
   useEffect(() => {
     return () => {

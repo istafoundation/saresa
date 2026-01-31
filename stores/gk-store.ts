@@ -54,8 +54,19 @@ const COMPETITIVE_QUESTION_COUNT = 10;
 const TIME_LIMIT_SECONDS = 30;
 
 // Helper to get random questions from pool
+// Helper to get random questions from pool using Fisher-Yates shuffle
 function getRandomQuestions(allQuestions: Question[], count: number): Question[] {
-  const shuffled = [...allQuestions].sort(() => Math.random() - 0.5);
+  if (!allQuestions || allQuestions.length === 0) return [];
+  
+  // Clone array to avoid mutating source
+  const shuffled = [...allQuestions];
+  
+  // Fisher-Yates Shuffle
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  
   return shuffled.slice(0, Math.min(count, shuffled.length));
 }
 

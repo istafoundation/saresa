@@ -76,6 +76,7 @@ export default function CompetitiveScreen() {
 
   useEffect(() => {
     if (!allQuestions || allQuestions.length === 0) return;
+    if (questionsStatus === 'loading') return;
     
     // Only start if we aren't already playing (prevents restart on background refresh)
     if (quizState === 'idle') {
@@ -85,7 +86,7 @@ export default function CompetitiveScreen() {
         return;
       }
     }
-  }, [allQuestions, quizState]);
+  }, [allQuestions, quizState, questionsStatus]);
 
   // Cleanup on unmount
   useEffect(() => {
