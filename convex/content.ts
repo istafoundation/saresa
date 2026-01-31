@@ -458,14 +458,6 @@ export const addContent = mutation({
     validFrom: v.optional(v.number()),
     validUntil: v.optional(v.number()),
     priority: v.optional(v.number()),
-    // Question Set for level-based filtering (1-5)
-    questionSet: v.optional(v.union(
-      v.literal(1),
-      v.literal(2),
-      v.literal(3),
-      v.literal(4),
-      v.literal(5)
-    )),
   },
   handler: async (ctx, args) => {
     const adminId = await requireAdmin(ctx);
@@ -515,7 +507,6 @@ export const addContent = mutation({
       validFrom: args.validFrom,
       validUntil: args.validUntil,
       priority: args.priority ?? 0,
-      questionSet: args.questionSet ?? 1, // Default to Set 1
       createdBy: adminId,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -541,13 +532,6 @@ export const updateContent = mutation({
     validFrom: v.optional(v.number()),
     validUntil: v.optional(v.number()),
     priority: v.optional(v.number()),
-    questionSet: v.optional(v.union(
-      v.literal(1),
-      v.literal(2),
-      v.literal(3),
-      v.literal(4),
-      v.literal(5)
-    )),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
@@ -576,7 +560,6 @@ export const updateContent = mutation({
     if (args.validFrom !== undefined) updates.validFrom = args.validFrom;
     if (args.validUntil !== undefined) updates.validUntil = args.validUntil;
     if (args.priority !== undefined) updates.priority = args.priority;
-    if (args.questionSet !== undefined) updates.questionSet = args.questionSet;
 
     await ctx.db.patch(args.contentId, updates);
 

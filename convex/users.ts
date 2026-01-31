@@ -41,9 +41,8 @@ export const getMyData = query({
 
     const isSubscriptionActive = subscription?.status === "active" || subscription?.status === "authenticated";
     
-    // Get group from subscription - ONLY subscribed users can access content
-    // Subscription is the SINGLE SOURCE OF TRUTH for group
-    const group = subscription?.planGroup || "B";
+    // Group logic removed - all users have same access now
+    // const group = subscription?.planGroup || "B";
 
     // Pre-compute all daily limits (IST-based) to avoid separate queries
     const today = getISTDate();
@@ -51,8 +50,7 @@ export const getMyData = query({
 
     return {
       ...user,
-      // Child's learning group
-      group,
+      // group removed
       // Subscription status for mobile app display
       subscription: subscription ? {
         status: subscription.status,

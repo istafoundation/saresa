@@ -56,21 +56,14 @@ function WordFinderContent() {
   const [contentType, setContentType] = useState<ContentType>("word_set");
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "word_set" | "hard_question">("all");
-  const [setFilter, setSetFilter] = useState<"all" | 1 | 2 | 3 | 4 | 5>("all");
-
-  // Set options with simple labels (for display and CSV export)
-  const SET_OPTIONS = [
-    { value: 1, label: "Set 1" },
-    { value: 2, label: "Set 2" },
-    { value: 3, label: "Set 3" },
-    { value: 4, label: "Set 4" },
-    { value: 5, label: "Set 5" },
-  ];
+  // setFilter removed
+  
+  // SET_OPTIONS removed
 
   // Word Set form
   const [theme, setTheme] = useState("");
   const [words, setWords] = useState<string[]>(["", "", "", "", ""]);
-  const [questionSet, setQuestionSet] = useState<1 | 2 | 3 | 4 | 5>(1);
+  // questionSet removed
 
   // Hard Question form
   const [question, setQuestion] = useState("");
@@ -85,8 +78,7 @@ function WordFinderContent() {
 
   const filteredContent = content?.filter((item: { type: string; data: WordSet | HardQuestion; questionSet?: number; status?: string }) => {
     const matchesType = typeFilter === "all" || item.type === typeFilter;
-    const matchesSet = setFilter === "all" || (item.questionSet ?? 1) === setFilter;
-    if (!matchesType || !matchesSet) return false;
+    if (!matchesType) return false;
     if (item.status === "archived") return false;
 
     if (item.type === "word_set") {
@@ -133,11 +125,11 @@ function WordFinderContent() {
           words: validWords.map((w) => w.toUpperCase()),
         },
         status: "active",
-        questionSet,
+        // questionSet removed
       });
       setTheme("");
       setWords(["", "", "", "", ""]);
-      setQuestionSet(1);
+      // setQuestionSet removed
       setIsAddModalOpen(false);
     } catch (err) {
       setError("Failed to add word set");
@@ -176,12 +168,12 @@ function WordFinderContent() {
           hint: hint.trim(),
         },
         status: "active",
-        questionSet,
+        // questionSet removed
       });
       setQuestion("");
       setAnswer("");
       setHint("");
-      setQuestionSet(1);
+      // setQuestionSet removed
       setIsAddModalOpen(false);
     } catch (err) {
       setError("Failed to add question");
@@ -202,7 +194,7 @@ function WordFinderContent() {
     setEditingType("word_set");
     setTheme(data.theme);
     setWords([...data.words]);
-    setQuestionSet((item.questionSet ?? 1) as 1 | 2 | 3 | 4 | 5);
+    // setQuestionSet removed
     setIsEditModalOpen(true);
   };
 
@@ -214,7 +206,7 @@ function WordFinderContent() {
     setQuestion(data.question);
     setAnswer(data.answer);
     setHint(data.hint);
-    setQuestionSet((item.questionSet ?? 1) as 1 | 2 | 3 | 4 | 5);
+    // setQuestionSet removed
     setIsEditModalOpen(true);
   };
 
@@ -240,7 +232,7 @@ function WordFinderContent() {
           theme: theme.trim(),
           words: validWords.map((w) => w.toUpperCase()),
         },
-        questionSet,
+        // questionSet removed
       });
       closeEditModal();
     } catch (err) {
@@ -267,7 +259,7 @@ function WordFinderContent() {
           answer: answer.toUpperCase().trim(),
           hint: hint.trim(),
         },
-        questionSet,
+        // questionSet removed
       });
       closeEditModal();
     } catch (err) {
@@ -284,7 +276,7 @@ function WordFinderContent() {
     setQuestion("");
     setAnswer("");
     setHint("");
-    setQuestionSet(1);
+    // setQuestionSet removed
     setError("");
   };
 
@@ -347,13 +339,13 @@ function WordFinderContent() {
     const wordSets = content?.filter((c: { type: string; status?: string }) => c.type === "word_set" && c.status !== "archived");
     if (!wordSets || wordSets.length === 0) return;
 
-    const headers = ['Theme', 'Word 1', 'Word 2', 'Word 3', 'Word 4', 'Word 5', 'Question Set'];
+    const headers = ['Theme', 'Word 1', 'Word 2', 'Word 3', 'Word 4', 'Word 5'];
     const rows = wordSets.map((item) => {
       const data = item.data as WordSet;
       return [
         escapeCSV(data.theme),
         ...data.words.map(w => escapeCSV(w)),
-        String(item.questionSet ?? 1),
+        // questionSet column removed
       ].join(',');
     });
 
@@ -374,14 +366,14 @@ function WordFinderContent() {
     const questions = content?.filter((c: { type: string; status?: string }) => c.type === "hard_question" && c.status !== "archived");
     if (!questions || questions.length === 0) return;
 
-    const headers = ['Question', 'Answer', 'Hint', 'Question Set'];
+    const headers = ['Question', 'Answer', 'Hint'];
     const rows = questions.map((item) => {
       const data = item.data as HardQuestion;
       return [
         escapeCSV(data.question),
         escapeCSV(data.answer),
         escapeCSV(data.hint),
-        String(item.questionSet ?? 1),
+        // questionSet column removed
       ].join(',');
     });
 
@@ -398,74 +390,9 @@ function WordFinderContent() {
   };
 
   // Set Instructions Download Handler
+  // Set Instructions Download Removed
   const handleDownloadSetInstructions = () => {
-    const instructions = `============================
-WORD FINDER CONTENT GUIDELINES
-============================
-
-📚 GROUPS & CLASS RANGES
-========================
-Group A: Classes 1-4 (Primary)
-Group B: Classes 5-8 (Middle School)
-Group C: Classes 9-10 (High School)
-
-
-📋 SET ACCESSIBILITY
-====================
-• Group A (Class 1-4):  Set 1, Set 3, Set 5
-• Group B (Class 5-8):  Set 1, Set 2, Set 3
-• Group C (Class 9-10): Set 1, Set 2, Set 4
-
-
-🎯 SET DIFFICULTY GUIDE
-=======================
-Set 1: Universal (All) → EasyC | MediumB | HardA
-Set 2: Groups B, C → MediumC | HardB
-Set 3: Groups A, B → EasyB | MediumA
-Set 4: Group C only → HardC
-Set 5: Group A only → EasyA
-
-
-📝 WORD FINDER CONTENT TYPES
-============================
-
-1. WORD SETS (Easy Mode)
-   - Theme + 5 words (max 6 letters each)
-   - Use familiar themes for younger sets
-   - Example themes: Animals, Colors, Food, Sports
-   
-2. HARD QUESTIONS (Hard Mode)
-   - Question + Answer (max 6 letters) + Hint
-   - Riddles, definitions, or clues
-   - Match difficulty to target set
-
-
-✅ QUICK REFERENCE TABLE
-========================
-┌──────────┬──────────┬───────────────────────┐
-│ Set      │ Groups   │ Difficulty Target     │
-├──────────┼──────────┼───────────────────────┤
-│ Set 1    │ A, B, C  │ EasyC, MediumB, HardA │
-│ Set 2    │ B, C     │ MediumC, HardB        │
-│ Set 3    │ A, B     │ EasyB, MediumA        │
-│ Set 4    │ C only   │ HardC                 │
-│ Set 5    │ A only   │ EasyA                 │
-└──────────┴──────────┴───────────────────────┘
-
-============================
-Happy Content Making! 🎉
-============================
-`;
-
-    const blob = new Blob([instructions], { type: 'text/plain;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'word-finder-set-instructions.txt';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+      alert("Set system has been removed.");
   };
 
   // Word Sets CSV Upload
@@ -503,7 +430,7 @@ Happy Content Making! 🎉
 
         const [themeText, ...rest] = row;
         const wordTexts = rest.slice(0, 5);
-        const questionSetStr = rest[5] || '';
+        // questionSet logic removed
 
         if (!themeText?.trim()) {
           errors.push(`Row ${rowNum}: Theme is required`);
@@ -524,12 +451,7 @@ Happy Content Making! 🎉
           continue;
         }
 
-        let qSet: 1 | 2 | 3 | 4 | 5 = 1;
-        const setMatch = questionSetStr?.match(/Set\s*(\d)/);
-        if (setMatch) {
-          const setNum = parseInt(setMatch[1], 10);
-          if (setNum >= 1 && setNum <= 5) qSet = setNum as 1 | 2 | 3 | 4 | 5;
-        }
+        // questionSet logic removed
 
         try {
           await addContent({
@@ -540,7 +462,7 @@ Happy Content Making! 🎉
               words: validWords,
             },
             status: "active",
-            questionSet: qSet,
+            // questionSet removed
           });
           success++;
         } catch (err) {
@@ -591,7 +513,7 @@ Happy Content Making! 🎉
           continue;
         }
 
-        const [questionText, answerText, hintText, questionSetStr] = row;
+        const [questionText, answerText, hintText] = row;
 
         if (!questionText?.trim()) {
           errors.push(`Row ${rowNum}: Question is required`);
@@ -617,12 +539,7 @@ Happy Content Making! 🎉
           continue;
         }
 
-        let qSet: 1 | 2 | 3 | 4 | 5 = 1;
-        const setMatch = questionSetStr?.match(/Set\s*(\d)/);
-        if (setMatch) {
-          const setNum = parseInt(setMatch[1], 10);
-          if (setNum >= 1 && setNum <= 5) qSet = setNum as 1 | 2 | 3 | 4 | 5;
-        }
+        // questionSet logic removed
 
         try {
           await addContent({
@@ -634,7 +551,7 @@ Happy Content Making! 🎉
               hint: hintText.trim(),
             },
             status: "active",
-            questionSet: qSet,
+            // questionSet removed
           });
           success++;
         } catch (err) {
@@ -803,16 +720,7 @@ Happy Content Making! 🎉
           ))}
         </div>
 
-        <select
-          value={setFilter}
-          onChange={(e) => setSetFilter(e.target.value === "all" ? "all" : Number(e.target.value) as 1 | 2 | 3 | 4 | 5)}
-          className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="all">All Sets</option>
-          {SET_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
+        {/* Set filter removed */}
       </div>
 
       {/* Content Table */}
@@ -826,9 +734,7 @@ Happy Content Making! 🎉
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
                 Content
               </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
-                Set
-              </th>
+              {/* Set column removed */}
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
                 Status
               </th>
@@ -857,9 +763,7 @@ Happy Content Making! 🎉
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
-                        {SET_OPTIONS.find(s => s.value === (item.questionSet ?? 1))?.label ?? 'Set 1'}
-                      </span>
+                      {/* Set cell removed */}
                     </td>
                     <td className="px-6 py-4">
                       <span
@@ -912,9 +816,7 @@ Happy Content Making! 🎉
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
-                        {SET_OPTIONS.find(s => s.value === (item.questionSet ?? 1))?.label ?? 'Set 1'}
-                      </span>
+                      {/* Set cell removed */}
                     </td>
                     <td className="px-6 py-4">
                       <span
@@ -1088,33 +990,7 @@ Happy Content Making! 🎉
                 </>
               )}
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Question Set
-                </label>
-                <select
-                  value={questionSet}
-                  onChange={(e) => setQuestionSet(Number(e.target.value) as 1 | 2 | 3 | 4 | 5)}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  {SET_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Group Access Reference */}
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                <p className="text-xs font-semibold text-slate-600 mb-2">Group Access Reference:</p>
-                <div className="grid grid-cols-2 gap-1 text-xs">
-                  <span className="text-emerald-700 font-medium">Group A (Class 1-4):</span>
-                  <span className="text-slate-600">Set 1, Set 3, Set 5</span>
-                  <span className="text-blue-700 font-medium">Group B (Class 5-8):</span>
-                  <span className="text-slate-600">Set 1, Set 2, Set 3</span>
-                  <span className="text-purple-700 font-medium">Group C (Class 9-10):</span>
-                  <span className="text-slate-600">Set 1, Set 2, Set 4</span>
-                </div>
-              </div>
+              {/* Group Access removed */}
             </div>
 
             <div className="flex gap-3 p-4 border-t border-slate-200">
@@ -1241,33 +1117,7 @@ Happy Content Making! 🎉
                 </>
               )}
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Question Set
-                </label>
-                <select
-                  value={questionSet}
-                  onChange={(e) => setQuestionSet(Number(e.target.value) as 1 | 2 | 3 | 4 | 5)}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  {SET_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Group Access Reference */}
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                <p className="text-xs font-semibold text-slate-600 mb-2">Group Access Reference:</p>
-                <div className="grid grid-cols-2 gap-1 text-xs">
-                  <span className="text-emerald-700 font-medium">Group A (Class 1-4):</span>
-                  <span className="text-slate-600">Set 1, Set 3, Set 5</span>
-                  <span className="text-blue-700 font-medium">Group B (Class 5-8):</span>
-                  <span className="text-slate-600">Set 1, Set 2, Set 3</span>
-                  <span className="text-purple-700 font-medium">Group C (Class 9-10):</span>
-                  <span className="text-slate-600">Set 1, Set 2, Set 4</span>
-                </div>
-              </div>
+              {/* Group Access removed */}
             </div>
 
             <div className="flex gap-3 p-4 border-t border-slate-200">

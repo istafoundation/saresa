@@ -74,16 +74,10 @@ function EnglishInsaneContent() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<Id<"gameContent"> | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [setFilter, setSetFilter] = useState<"all" | 1 | 2 | 3 | 4 | 5>("all");
+  // setFilter removed
 
   // Set options with simple labels (for display and CSV export)
-  const SET_OPTIONS = [
-    { value: 1, label: "Set 1" },
-    { value: 2, label: "Set 2" },
-    { value: 3, label: "Set 3" },
-    { value: 4, label: "Set 4" },
-    { value: 5, label: "Set 5" },
-  ];
+  // SET_OPTIONS removed
 
   // Form state
   const [question, setQuestion] = useState("");
@@ -91,7 +85,7 @@ function EnglishInsaneContent() {
   const [correctIndex, setCorrectIndex] = useState(0);
   const [category, setCategory] = useState("grammar");
   const [explanation, setExplanation] = useState("");
-  const [questionSet, setQuestionSet] = useState<1 | 2 | 3 | 4 | 5>(1);
+  // questionSet removed
 
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -103,8 +97,7 @@ function EnglishInsaneContent() {
     const matchesSearch =
       data.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (data.options?.some((o) => o.toLowerCase().includes(searchQuery.toLowerCase())) ?? false);
-    const matchesSet = setFilter === "all" || (item.questionSet ?? 1) === setFilter;
-    return matchesSearch && matchesSet && item.status !== "archived";
+    return matchesSearch && item.status !== "archived";
   });
 
   // ... (keeping handleAdd/Edit primarily for MCQ or generic text fields for now, minimal changes to them to fix types)
@@ -134,7 +127,7 @@ function EnglishInsaneContent() {
           questionType: 'mcq' // Explicit default for manual add
         },
         status: "active",
-        questionSet,
+        // questionSet removed
       });
       // ... reset
       setIsAddModalOpen(false);
@@ -160,7 +153,6 @@ function EnglishInsaneContent() {
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Type</th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Question</th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Category</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Set</th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Answer/Solution</th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Actions</th>
             </tr>
@@ -188,11 +180,6 @@ function EnglishInsaneContent() {
                   <td className="px-6 py-4">
                     <span className="px-2 py-1 bg-slate-100 text-slate-700 rounded text-xs font-medium">
                       {data.category}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
-                      {SET_OPTIONS.find(s => s.value === (item.questionSet ?? 1))?.label ?? 'Set 1'}
                     </span>
                   </td>
                   <td className="px-6 py-4">
@@ -251,7 +238,7 @@ function EnglishInsaneContent() {
     setCorrectIndex(data.correctIndex ?? 0);
     setCategory(data.category ?? "grammar");
     setExplanation(data.explanation ?? "");
-    setQuestionSet((item.questionSet ?? 1) as 1 | 2 | 3 | 4 | 5);
+    // setQuestionSet removed
     setIsEditModalOpen(true);
   };
 
@@ -288,7 +275,7 @@ function EnglishInsaneContent() {
           explanation: explanation.trim(),
           questionType: 'mcq'
         },
-        questionSet,
+        // questionSet removed
       });
       closeEditModal();
     } catch (err) {
@@ -305,7 +292,7 @@ function EnglishInsaneContent() {
     setCorrectIndex(0);
     setCategory("grammar");
     setExplanation("");
-    setQuestionSet(1);
+    // setQuestionSet removed
     setError("");
   };
 
@@ -323,7 +310,7 @@ function EnglishInsaneContent() {
       return value;
     };
 
-    const headers = ['Question Set', 'Type', 'Category', 'Question', 'Option 1', 'Option 2', 'Option 3', 'Option 4', 'Correct Option', 'Solution', 'Statement', 'Correct Words', 'Select Mode', 'Explanation', 'Pairs', 'Sentence'];
+    const headers = ['Type', 'Category', 'Question', 'Option 1', 'Option 2', 'Option 3', 'Option 4', 'Correct Option', 'Solution', 'Statement', 'Correct Words', 'Select Mode', 'Explanation', 'Pairs', 'Sentence'];
     
     const rows = filteredContent.map((item) => {
       const data = item.data as EnglishInsaneContent;
@@ -335,7 +322,7 @@ function EnglishInsaneContent() {
       const pairsStr = data.pairs ? data.pairs.map(p => `${p.imageUrl}|${p.text}`).join(';') : '';
 
       return [
-        String(item.questionSet ?? 1),
+        // Question Set removed
         type,
         escapeCSV(data.category ?? ''),
         escapeCSV(data.question),
@@ -366,88 +353,9 @@ function EnglishInsaneContent() {
     URL.revokeObjectURL(url);
   };
 
-  // Set Instructions Download Handler
+  // Set Instructions Download Removed
   const handleDownloadSetInstructions = () => {
-    const instructions = `==============================
-ENGLISH INSANE CONTENT GUIDELINES
-==============================
-
-📚 GROUPS & CLASS RANGES
-========================
-Group A: Classes 1-4 (Primary)
-Group B: Classes 5-8 (Middle School)
-Group C: Classes 9-10 (High School)
-
-
-📋 SET ACCESSIBILITY
-====================
-Each user group can only access certain sets:
-
-• Group A (Class 1-4):  Set 1, Set 3, Set 5
-• Group B (Class 5-8):  Set 1, Set 2, Set 3
-• Group C (Class 9-10): Set 1, Set 2, Set 4
-
-
-🎯 SET DIFFICULTY GUIDE
-=======================
-Set 1: Universal Set (All Groups)
-  → EasyC | MediumB | HardA
-
-Set 2: Intermediate-Advanced (Groups B, C)
-  → MediumC | HardB
-  → NOT accessible to Group A
-
-Set 3: Beginner-Intermediate (Groups A, B)
-  → EasyB | MediumA
-  → NOT accessible to Group C
-
-Set 4: Advanced Only (Group C Only)
-  → HardC
-
-Set 5: Beginner Only (Group A Only)
-  → EasyA
-
-
-📝 ENGLISH INSANE QUESTION TIPS
-===============================
-Categories: grammar, vocabulary, idioms, syntax
-
-1. Grammar: Sentence correction, tense usage, subject-verb agreement
-2. Vocabulary: Word meanings, synonyms, antonyms
-3. Idioms: Common phrases and their meanings
-4. Syntax: Sentence structure and word order
-
-For younger sets (3, 5): Use basic grammar rules
-For older sets (2, 4): Include complex grammar and idioms
-For universal set (1): Balance difficulty for all groups
-
-
-✅ QUICK REFERENCE TABLE
-========================
-┌──────────┬──────────┬───────────────────────┐
-│ Set      │ Groups   │ Difficulty Target     │
-├──────────┼──────────┼───────────────────────┤
-│ Set 1    │ A, B, C  │ EasyC, MediumB, HardA │
-│ Set 2    │ B, C     │ MediumC, HardB        │
-│ Set 3    │ A, B     │ EasyB, MediumA        │
-│ Set 4    │ C only   │ HardC                 │
-│ Set 5    │ A only   │ EasyA                 │
-└──────────┴──────────┴───────────────────────┘
-
-==============================
-Happy Question Making! 🎉
-==============================
-`;
-
-    const blob = new Blob([instructions], { type: 'text/plain;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'english-insane-set-instructions.txt';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    alert("Set system has been removed.");
   };
 
   // CSV Upload Handler
@@ -507,8 +415,8 @@ Happy Question Making! 🎉
 
       // Validate Headers
       const headers = rows[0].map(h => h.trim().toLowerCase());
-      // Extended headers for all types + Question Set
-      const expectedHeaders = ['question set', 'type', 'category', 'question', 'option 1', 'option 2', 'option 3', 'option 4', 'correct option', 'solution', 'statement', 'correct words', 'select mode', 'explanation', 'pairs', 'sentence'];
+      // Extended headers for all types
+      const expectedHeaders = ['type', 'category', 'question', 'option 1', 'option 2', 'option 3', 'option 4', 'correct option', 'solution', 'statement', 'correct words', 'select mode', 'explanation', 'pairs', 'sentence'];
       
       const idx = expectedHeaders.reduce((acc, h) => {
         const foundIndex = headers.indexOf(h);
@@ -516,9 +424,9 @@ Happy Question Making! 🎉
         return acc;
       }, {} as Record<string, number>);
 
-      const requiredCols = ['type', 'question']; // Question Set is optional (default 1)
+      const requiredCols = ['type', 'question'];
       const missingRequired = requiredCols.filter(h => !headers.includes(h));
-      // Note: 'question set' might be missing in older CSVs, defaulting to 1 is fine.
+      // question set removed
       
       if (missingRequired.length > 0) {
         throw new Error(`Missing required headers: ${missingRequired.join(', ')}`);
@@ -555,17 +463,7 @@ Happy Question Making! 🎉
         const question = getVal('question');
         const category = getVal('category') || 'grammar';
         const explanation = getVal('explanation');
-        let qSet: 1|2|3|4|5 = 1;
-
-        // Parse Set
-        const setStr = getVal('question set');
-        if (setStr) {
-             const setMatch = setStr.match(/Set\s*(\d)/) || setStr.match(/(\d)/);
-             if (setMatch) {
-                 const num = parseInt(setMatch[1]);
-                 if (num >= 1 && num <= 5) qSet = num as any;
-             }
-        }
+        // Parse Set - Removed
 
         if (!question) {
            errors.push(`Row ${rowNum}: Question is required`);
@@ -639,7 +537,7 @@ Happy Question Making! 🎉
                 gameId: 'english-insane',
                 data: data, // The polymorphic data
                 status: 'active',
-                questionSet: qSet
+                // questionSet removed
              });
              success++;
 
@@ -810,16 +708,7 @@ Happy Question Making! 🎉
           />
         </div>
 
-        <select
-          value={setFilter}
-          onChange={(e) => setSetFilter(e.target.value === "all" ? "all" : Number(e.target.value) as 1 | 2 | 3 | 4 | 5)}
-          className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-        >
-          <option value="all">All Sets</option>
-          {SET_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
+        {/* Set filter removed */}
       </div>
 
       {/* Content Table */}
@@ -833,9 +722,7 @@ Happy Question Making! 🎉
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
                 Category
               </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
-                Set
-              </th>
+              {/* Set column removed */}
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">
                 Answer
               </th>
@@ -869,11 +756,9 @@ Happy Question Making! 🎉
                       {data.category}
                     </span>
                   </td>
-                  <td className="px-6 py-4">
-                    <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
-                      {SET_OPTIONS.find(s => s.value === (item.questionSet ?? 1))?.label ?? 'Set 1'}
-                    </span>
-                  </td>
+                    <td className="px-6 py-4">
+                      {/* Set cell removed */}
+                    </td>
                   <td className="px-6 py-4">
                     <span className="text-sm text-slate-600 truncate max-w-37.5 block">
                       {type === 'mcq' ? data.options?.[data.correctIndex ?? 0] :
@@ -1016,33 +901,7 @@ Happy Question Making! 🎉
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Question Set
-                </label>
-                <select
-                  value={questionSet}
-                  onChange={(e) => setQuestionSet(Number(e.target.value) as 1 | 2 | 3 | 4 | 5)}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                >
-                  {SET_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Group Access Reference */}
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                <p className="text-xs font-semibold text-slate-600 mb-2">Group Access Reference:</p>
-                <div className="grid grid-cols-2 gap-1 text-xs">
-                  <span className="text-emerald-700 font-medium">Group A (Class 1-4):</span>
-                  <span className="text-slate-600">Set 1, Set 3, Set 5</span>
-                  <span className="text-blue-700 font-medium">Group B (Class 5-8):</span>
-                  <span className="text-slate-600">Set 1, Set 2, Set 3</span>
-                  <span className="text-purple-700 font-medium">Group C (Class 9-10):</span>
-                  <span className="text-slate-600">Set 1, Set 2, Set 4</span>
-                </div>
-              </div>
+              {/* Set UI removed */}
             </div>
 
             <div className="flex gap-3 p-4 border-t border-slate-200">
@@ -1160,33 +1019,7 @@ Happy Question Making! 🎉
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Question Set
-                </label>
-                <select
-                  value={questionSet}
-                  onChange={(e) => setQuestionSet(Number(e.target.value) as 1 | 2 | 3 | 4 | 5)}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                >
-                  {SET_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Group Access Reference */}
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                <p className="text-xs font-semibold text-slate-600 mb-2">Group Access Reference:</p>
-                <div className="grid grid-cols-2 gap-1 text-xs">
-                  <span className="text-emerald-700 font-medium">Group A (Class 1-4):</span>
-                  <span className="text-slate-600">Set 1, Set 3, Set 5</span>
-                  <span className="text-blue-700 font-medium">Group B (Class 5-8):</span>
-                  <span className="text-slate-600">Set 1, Set 2, Set 3</span>
-                  <span className="text-purple-700 font-medium">Group C (Class 9-10):</span>
-                  <span className="text-slate-600">Set 1, Set 2, Set 4</span>
-                </div>
-              </div>
+              {/* Set UI removed */}
             </div>
 
             <div className="flex gap-3 p-4 border-t border-slate-200">

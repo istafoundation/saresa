@@ -18,8 +18,8 @@ export default defineSchema({
     password: v.string(), // Parent-chosen (plaintext for parent visibility)
     name: v.string(), // Child's display name
     role: v.string(), // "user" (future: "admin", "premium")
-    // DEPRECATED: group field no longer used (kept for backward compatibility)
-    group: v.optional(v.string()),
+    // DEPRECATED: group field removed
+    // group: v.optional(v.string()),
     createdAt: v.number(),
     lastLoginAt: v.optional(v.number()),
   })
@@ -158,21 +158,12 @@ export default defineSchema({
     // Priority for weighted selection
     priority: v.number(), // Higher = more likely to show
 
-    // Question Set for level-based filtering (English Insane, Word Finder)
     // Set 1: EasyC, MediumB, HardA (All groups)
     // Set 2: MediumC, HardB (Groups B, C)
     // Set 3: EasyB, MediumA (Groups A, B)
     // Set 4: HardC (Group C only)
     // Set 5: EasyA (Group A only)
-    questionSet: v.optional(
-      v.union(
-        v.literal(1),
-        v.literal(2),
-        v.literal(3),
-        v.literal(4),
-        v.literal(5),
-      ),
-    ),
+    // questionSet removed - logic deprecated
 
     // Metadata
     createdBy: v.optional(v.id("parents")), // Admin who created it
@@ -181,8 +172,7 @@ export default defineSchema({
   })
     .index("by_game_status", ["gameId", "status"])
     .index("by_type_status", ["type", "status"])
-    .index("by_pack", ["packId"])
-    .index("by_game_set", ["gameId", "questionSet"]),
+    .index("by_pack", ["packId"]),
 
   // ============================================
   // SPICES TABLE (Let'em Cook Game)
@@ -325,7 +315,7 @@ export default defineSchema({
     // Dates
     currentPeriodStart: v.optional(v.number()),
     currentPeriodEnd: v.optional(v.number()), // "Activated till" date
-    
+
     couponCode: v.optional(v.string()), // Coupon used for this subscription
 
     createdAt: v.number(),
@@ -348,7 +338,7 @@ export default defineSchema({
 
     // Status
     isActive: v.boolean(),
-    
+
     // Usage Limits
     expiryDate: v.optional(v.number()), // Timestamp
     maxTotalUses: v.optional(v.number()), // Max total global uses
