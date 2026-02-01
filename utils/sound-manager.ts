@@ -12,6 +12,7 @@ const SOUND_ASSETS = {
   tap: require('../assets/sounds/tap.m4a'),
   key: require('../assets/sounds/key.m4a'),
   submit: require('../assets/sounds/submit.m4a'),
+  coin: require('../assets/sounds/cha_ching.m4a'),
 } as const;
 
 // Global background music that plays continuously while app is active
@@ -43,6 +44,7 @@ export function useSoundEffects() {
   const tapPlayer = useAudioPlayer(SOUND_ASSETS.tap);
   const keyPlayer = useAudioPlayer(SOUND_ASSETS.key);
   const submitPlayer = useAudioPlayer(SOUND_ASSETS.submit);
+  const coinPlayer = useAudioPlayer(SOUND_ASSETS.coin);
   
   // Memoize players object to prevent recreation on every render
   // This fixes a potential memory leak where stale references were used in callbacks
@@ -53,7 +55,8 @@ export function useSoundEffects() {
     tap: tapPlayer,
     key: keyPlayer,
     submit: submitPlayer,
-  }), [correctPlayer, wrongPlayer, winPlayer, tapPlayer, keyPlayer, submitPlayer]);
+    coin: coinPlayer,
+  }), [correctPlayer, wrongPlayer, winPlayer, tapPlayer, keyPlayer, submitPlayer, coinPlayer]);
   
   // Track unmount state
   useEffect(() => {
@@ -98,6 +101,7 @@ export function useSoundEffects() {
     playTap: () => playSound('tap'),
     playKey: () => playSound('key'),
     playSubmit: () => playSound('submit'),
+    playCoin: () => playSound('coin'),
     playSound,
   };
 }

@@ -25,15 +25,16 @@ import ShareButton from '../../components/games/ShareResults';
 import { useWordleContent } from '../../utils/content-hooks';
 import { useTapFeedback } from '../../utils/useTapFeedback';
 import { useGameAudio } from '../../utils/sound-manager';
+import CoinRewardAnimation from '../../components/animations/CoinRewardAnimation';
 
 // Native keyboard is used instead of custom keyboard
 
 // Use centralized rewards
-const { XP_FULL, XP_WITH_HINT, SHARDS_FULL, SHARDS_WITH_HINT } = WORDLE_REWARDS;
+const { XP_FULL, XP_WITH_HINT, COINS_FULL, COINS_WITH_HINT } = WORDLE_REWARDS;
 
 export default function WordleScreen() {
   const { safeBack } = useSafeNavigation();
-  // OPTIMIZATION: Use batched finishWordleGame instead of individual addXP/addWeaponShards
+  // OPTIMIZATION: Use batched finishWordleGame instead of individual addXP/addCoins
   const { finishWordleGame, markWordleHintUsed } = useGameStatsActions();
   
   // Get game session state from local store
@@ -92,6 +93,10 @@ export default function WordleScreen() {
   // Native keyboard support
   const inputRef = useRef<TextInput>(null);
   const [invalidWordError, setInvalidWordError] = useState(false);
+  
+  // Coin animation state
+  const [coinsEarned, setCoinsEarned] = useState(0);
+  const [showCoinAnimation, setShowCoinAnimation] = useState(false);
 
   // Initialize game when we have today's word
   useEffect(() => {
@@ -222,7 +227,7 @@ export default function WordleScreen() {
 
         // Calculate rewards based on hint usage
         const xpReward = hintUsed ? XP_WITH_HINT : XP_FULL;
-        const shardReward = hintUsed ? SHARDS_WITH_HINT : SHARDS_FULL;
+        const coinReward = hintUsed ? COINS_WITH_HINT : COINS_FULL;
         
         // OPTIMIZATION: Single batched API call instead of 3 separate calls
         const result = await finishWordleGame({
@@ -230,12 +235,18 @@ export default function WordleScreen() {
           guessCount: guesses.length + 1,
           usedHint: hintUsed,
           xpReward,
-          shardReward,
+          coinReward,
         });
         
         // Use returned stats directly to avoid race condition
         if (result.success && result.stats) {
           setDisplayStats(result.stats);
+          // Track coins earned for animation
+          if (result.coinsEarned && result.coinsEarned > 0) {
+            setCoinsEarned(result.coinsEarned);
+            // Auto-trigger coin animation after a short delay
+            setTimeout(() => setShowCoinAnimation(true), 800);
+          }
         }
         // Play win sound when showing result (delayed for animation)
         setTimeout(() => {
@@ -246,17 +257,21 @@ export default function WordleScreen() {
       } else if (result.lost) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         
-        // OPTIMIZATION: Single batched API call (no XP/shards for loss)
+        // OPTIMIZATION: Single batched API call (no XP/coins for loss)
         const statsResult = await finishWordleGame({
           won: false,
           usedHint: hintUsed,
           xpReward: 0,
-          shardReward: 0,
+          coinReward: 0,
         });
         
         // Use returned stats directly to avoid race condition
         if (statsResult.success && statsResult.stats) {
           setDisplayStats(statsResult.stats);
+          // Track coins earned for animation
+          if (statsResult.coinsEarned && statsResult.coinsEarned > 0) {
+            setCoinsEarned(statsResult.coinsEarned);
+          }
         }
         setTimeout(() => {
           Keyboard.dismiss();
@@ -295,7 +310,7 @@ export default function WordleScreen() {
 
   // Calculate reward amounts for display
   const xpReward = hintUsed ? XP_WITH_HINT : XP_FULL;
-  const shardReward = hintUsed ? SHARDS_WITH_HINT : SHARDS_FULL;
+  const coinReward = hintUsed ? COINS_WITH_HINT : COINS_FULL;
 
   // No loading state needed - useWordleContent handles fallback/cache internally assignment
 
@@ -489,9 +504,17 @@ export default function WordleScreen() {
                 <View style={[styles.xpEarned, hintUsed && styles.reducedReward]}>
                   <Text style={styles.xpEarnedText}>+{xpReward} XP</Text>
                 </View>
-                <View style={[styles.shardsEarned, hintUsed && styles.reducedReward]}>
-                  <Text style={styles.shardsEarnedText}>+{shardReward} 💎</Text>
+                <View style={[styles.coinsEarnedBadge, hintUsed && styles.reducedReward]}>
+                  <Text style={styles.coinsEarnedBadgeText}>+{coinReward} 🪙</Text>
                 </View>
+                {coinsEarned > 0 && (
+                  <Pressable 
+                    style={[styles.coinsEarned, hintUsed && styles.reducedReward]}
+                    onPress={() => setShowCoinAnimation(true)}
+                  >
+                    <Text style={styles.coinsEarnedText}>+{coinsEarned} 🪙</Text>
+                  </Pressable>
+                )}
               </View>
             )}
 
@@ -543,6 +566,14 @@ export default function WordleScreen() {
           </MotiView>
         </MotiView>
       )}
+      
+      {/* Coin Reward Animation */}
+      {showCoinAnimation && coinsEarned > 0 && (
+        <CoinRewardAnimation
+          coinsEarned={coinsEarned}
+          onComplete={() => setShowCoinAnimation(false)}
+        />
+      )}
 
       {/* Hint Confirmation Modal */}
       {showHintConfirm && (
@@ -575,8 +606,8 @@ export default function WordleScreen() {
                 <View style={styles.rewardBadgeFull}>
                   <Text style={styles.rewardBadgeText}>{XP_FULL} XP</Text>
                 </View>
-                <View style={[styles.rewardBadgeFull, styles.shardBadge]}>
-                  <Text style={styles.rewardBadgeText}>{SHARDS_FULL} 💎</Text>
+                <View style={[styles.rewardBadgeFull, styles.coinBadge]}>
+                  <Text style={styles.rewardBadgeText}>{COINS_FULL} 🪙</Text>
                 </View>
               </View>
 
@@ -591,8 +622,8 @@ export default function WordleScreen() {
                 <View style={styles.rewardBadgeReduced}>
                   <Text style={styles.rewardBadgeTextReduced}>{XP_WITH_HINT} XP</Text>
                 </View>
-                <View style={[styles.rewardBadgeReduced, styles.shardBadgeReduced]}>
-                  <Text style={styles.rewardBadgeTextReduced}>{SHARDS_WITH_HINT} 💎</Text>
+                <View style={[styles.rewardBadgeReduced, styles.coinBadgeReduced]}>
+                  <Text style={styles.rewardBadgeTextReduced}>{COINS_WITH_HINT} 🪙</Text>
                 </View>
               </View>
             </View>
@@ -802,22 +833,33 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.accentGold,
   },
-  // Rewards container for XP + Shards
+  // Rewards container for XP + Coins
   rewardsContainer: {
     flexDirection: 'row',
     gap: SPACING.md,
     marginBottom: SPACING.sm,
   },
-  shardsEarned: {
+  coinsEarnedBadge: {
     backgroundColor: COLORS.primary + '30',
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.sm,
     borderRadius: BORDER_RADIUS.full,
   },
-  shardsEarnedText: {
+  coinsEarnedBadgeText: {
     fontSize: 18,
     fontWeight: '700',
     color: COLORS.primary,
+  },
+  coinsEarned: {
+    backgroundColor: COLORS.accentGold + '30',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.full,
+  },
+  coinsEarnedText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.accentGold,
   },
   reducedReward: {
     opacity: 0.7,
@@ -915,7 +957,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#fff',
   },
-  shardBadge: {
+  coinBadge: {
     backgroundColor: COLORS.primary,
   },
   rewardBadgeReduced: {
@@ -931,7 +973,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.textMuted,
   },
-  shardBadgeReduced: {
+  coinBadgeReduced: {
     borderColor: COLORS.textMuted + '40',
   },
   rewardArrow: {

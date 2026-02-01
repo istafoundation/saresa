@@ -38,7 +38,7 @@ const TOTAL_QUESTIONS = 10;
 export default function CompetitiveScreen() {
   const { safeBack } = useSafeNavigation();
   const { mascot } = useUserStore();
-  const { addXP, addWeaponShards } = useUserActions();
+  const { addXP, addCoins } = useUserActions();
   const { updateGKStats } = useGameStatsActions();
   
   // OTA Content
@@ -67,7 +67,7 @@ export default function CompetitiveScreen() {
     correct: number;
     total: number;
     xpEarned: number;
-    shardsEarned: number;
+    coinsEarned: number;
   } | null>(null);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -175,8 +175,8 @@ export default function CompetitiveScreen() {
     if (currentQuestionIndex >= TOTAL_QUESTIONS - 1) {
       // Quiz finished - play result sound
       const result = finishQuiz();
-      const shardsEarned = result.correct * 5; // 5 shards per correct answer
-      setFinalResult({ ...result, shardsEarned });
+      const coinsEarned = result.correct * 10; // 10 coins per correct answer
+      setFinalResult({ ...result, coinsEarned });
       setGameEnded(true);
       
       // Play win sound for good performance
@@ -188,8 +188,8 @@ export default function CompetitiveScreen() {
       if (result.xpEarned > 0) {
         await addXP(result.xpEarned);
       }
-      if (shardsEarned > 0) {
-        await addWeaponShards(shardsEarned);
+      if (coinsEarned > 0) {
+        await addCoins(coinsEarned);
       }
       // Mark competitive as played today in Convex
       await updateGKStats({ playedCompetitive: true });
@@ -230,9 +230,9 @@ export default function CompetitiveScreen() {
             <View style={styles.xpEarnedBig}>
               <Text style={styles.xpEarnedBigText}>+{finalResult.xpEarned} XP</Text>
             </View>
-            {finalResult.shardsEarned > 0 && (
-              <View style={styles.shardsEarnedBig}>
-                <Text style={styles.shardsEarnedBigText}>+{finalResult.shardsEarned} 💎</Text>
+            {finalResult.coinsEarned > 0 && (
+              <View style={styles.coinsEarnedBig}>
+                <Text style={styles.coinsEarnedBigText}>+{finalResult.coinsEarned} 🪙</Text>
               </View>
             )}
           </View>
@@ -579,22 +579,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.accentGold,
   },
-  // Rewards row for XP + Shards
+  // Rewards row for XP + Coins
   rewardsRow: {
     flexDirection: 'row',
     gap: SPACING.md,
     marginBottom: SPACING.xl,
   },
-  shardsEarnedBig: {
-    backgroundColor: COLORS.primary + '30',
+  coinsEarnedBig: {
+    backgroundColor: COLORS.accentGold + '30',
     paddingHorizontal: SPACING.xl,
     paddingVertical: SPACING.md,
     borderRadius: BORDER_RADIUS.full,
   },
-  shardsEarnedBigText: {
+  coinsEarnedBigText: {
     fontSize: 24,
     fontWeight: '700',
-    color: COLORS.primary,
+    color: COLORS.accentGold,
   },
   mascotResult: {
     flexDirection: 'row',

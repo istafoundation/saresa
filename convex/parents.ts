@@ -622,7 +622,7 @@ export const getChildStats = query({
       collections: {
         artifacts: userData.unlockedArtifacts.length,
         weapons: userData.unlockedWeapons.length,
-        shards: userData.weaponShards,
+        coins: userData.coins ?? 0,
       },
       gkStats: {
         practiceTotal: userData.gkPracticeTotal,

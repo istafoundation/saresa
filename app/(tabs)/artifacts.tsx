@@ -27,8 +27,8 @@ export default function ArtifactsScreen() {
   const [activeTab, setActiveTab] = useState<TabType>('artifacts');
   const [showPackOpening, setShowPackOpening] = useState(false);
   const [isOpening, setIsOpening] = useState(false);
-  const { unlockedArtifacts, unlockedWeapons, xp, weaponShards, canAffordPack } = useUserStore();
-  const { unlockWeapon, addWeaponShards, spendWeaponShards, addWeaponDuplicate, syncProgression } = useUserActions();
+  const { unlockedArtifacts, unlockedWeapons, xp, coins, canAffordPack } = useUserStore();
+  const { unlockWeapon, addCoins, spendCoins, addWeaponDuplicate, syncProgression } = useUserActions();
   
   // Auto-healing: Check for unlocked artifacts that might be missing from the list
   useEffect(() => {
@@ -49,9 +49,8 @@ export default function ArtifactsScreen() {
     if (!canAffordPack() || isOpening) return;
     
     try {
-      setIsOpening(true);
       triggerTap('heavy');
-      await spendWeaponShards(PACK_COST);
+      await spendCoins(PACK_COST);
       setShowPackOpening(true);
     } catch (e) {
       console.error('Failed to open pack:', e);
@@ -62,8 +61,8 @@ export default function ArtifactsScreen() {
 
   const handlePackComplete = async (weapon: Weapon, isDuplicate: boolean) => {
     if (isDuplicate) {
-      // Award bonus shards for duplicates
-      await addWeaponShards(DUPLICATE_BONUS);
+      // Award bonus coins for duplicates
+      await addCoins(DUPLICATE_BONUS);
       await addWeaponDuplicate(weapon.id);
     } else {
       await unlockWeapon(weapon.id);
@@ -111,14 +110,14 @@ export default function ArtifactsScreen() {
           />
         ) : (
           <>
-            {/* Shards Balance */}
-            <View style={styles.shardsContainer}>
-              <View style={styles.shardsInfo}>
-                <Text style={styles.shardsIcon}>💎</Text>
-                <Text style={styles.shardsValue}>{weaponShards}</Text>
-                <Text style={styles.shardsLabel}>Shards</Text>
+            {/* Coins Balance */}
+            <View style={styles.coinsContainer}>
+              <View style={styles.coinsInfo}>
+                <Text style={styles.coinsIcon}>🪙</Text>
+                <Text style={styles.coinsValue}>{coins}</Text>
+                <Text style={styles.coinsLabel}>Coins</Text>
               </View>
-              <Text style={styles.shardsHint}>Earn shards from games!</Text>
+              <Text style={styles.coinsHint}>Earn coins from games!</Text>
             </View>
 
             {/* Open Pack Button */}
@@ -135,7 +134,7 @@ export default function ArtifactsScreen() {
                 <View style={styles.openPackText}>
                   <Text style={styles.openPackTitle}>Open Weapon Pack</Text>
                   <Text style={styles.openPackDesc}>
-                    {canAffordPack() ? `Cost: ${PACK_COST} 💎` : `Need ${PACK_COST - weaponShards} more shards`}
+                    {canAffordPack() ? `Cost: ${PACK_COST} 🪙` : `Need ${PACK_COST - coins} more coins`}
                   </Text>
                 </View>
                 {isOpening ? (
@@ -416,35 +415,35 @@ const styles = StyleSheet.create({
   openPackButtonDisabled: {
     opacity: 0.7,
   },
-  // Shards display
-  shardsContainer: {
+  // Coins display
+  coinsContainer: {
     backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     marginBottom: SPACING.lg,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: COLORS.primaryLight + '40',
+    borderColor: COLORS.accentGold + '40',
   },
-  shardsInfo: {
+  coinsInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
   },
-  shardsIcon: {
+  coinsIcon: {
     fontSize: 28,
   },
-  shardsValue: {
+  coinsValue: {
     fontSize: 32,
     fontWeight: '700',
-    color: COLORS.primary,
+    color: COLORS.accentGold,
   },
-  shardsLabel: {
+  coinsLabel: {
     fontSize: 16,
     color: COLORS.textSecondary,
     marginLeft: SPACING.xs,
   },
-  shardsHint: {
+  coinsHint: {
     fontSize: 12,
     color: COLORS.textMuted,
     marginTop: SPACING.xs,

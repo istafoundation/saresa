@@ -4,8 +4,9 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { zustandStorage } from '../utils/storage';
 
-// Shared constant - exported for use in game screen
+// Shared constants - exported for use in game screen
 export const XP_PER_CORRECT = 2;
+export const COINS_PER_CORRECT = 5;
 
 // Types
 export interface GDQuestion {
@@ -36,6 +37,7 @@ export interface GrammarDetectiveState {
   sessionAnswered: number;
   sessionCorrect: number;
   sessionXP: number;
+  sessionCoins: number;
   
   // Persisted all-time stats (synced to Convex)
   stats: GDStats;
@@ -52,6 +54,7 @@ export interface GrammarDetectiveState {
     answered: number;
     correct: number;
     xp: number;
+    coins: number;
   };
   
   // Actions
@@ -61,7 +64,7 @@ export interface GrammarDetectiveState {
   nextQuestion: () => void;
   resetGame: () => void;
   syncFromConvex: (serverStats: { questionsAnswered: number; correctAnswers: number; totalXPEarned: number; currentQuestionIndex: number }) => void;
-  updateSyncedSession: (synced: { answered: number; correct: number; xp: number }) => void;
+  updateSyncedSession: (synced: { answered: number; correct: number; xp: number; coins: number }) => void;
 }
 
 // Shuffle array using Fisher-Yates
@@ -93,10 +96,12 @@ export const useGrammarDetectiveStore = create<GrammarDetectiveState>()(
       sessionAnswered: 0,
       sessionCorrect: 0,
       sessionXP: 0,
+      sessionCoins: 0,
       syncedSession: {
         answered: 0,
         correct: 0,
         xp: 0,
+        coins: 0,
       },
       stats: {
         totalAnswered: 0,
@@ -126,7 +131,8 @@ export const useGrammarDetectiveStore = create<GrammarDetectiveState>()(
               sessionAnswered: 0,
               sessionCorrect: 0,
               sessionXP: 0,
-              syncedSession: { answered: 0, correct: 0, xp: 0 },
+              sessionCoins: 0,
+              syncedSession: { answered: 0, correct: 0, xp: 0, coins: 0 },
             });
             return;
           }
@@ -143,7 +149,8 @@ export const useGrammarDetectiveStore = create<GrammarDetectiveState>()(
           sessionAnswered: 0,
           sessionCorrect: 0,
           sessionXP: 0,
-          syncedSession: { answered: 0, correct: 0, xp: 0 },
+          sessionCoins: 0,
+          syncedSession: { answered: 0, correct: 0, xp: 0, coins: 0 },
         });
       },
 
@@ -163,6 +170,7 @@ export const useGrammarDetectiveStore = create<GrammarDetectiveState>()(
         
         const correct = arraysMatch(selectedIndices, question.correctIndices);
         const xpEarned = correct ? XP_PER_CORRECT : 0;
+        const coinsEarned = correct ? COINS_PER_CORRECT : 0;
         
         set((state) => ({
           gameState: 'reviewing',
@@ -174,6 +182,7 @@ export const useGrammarDetectiveStore = create<GrammarDetectiveState>()(
           sessionAnswered: state.sessionAnswered + 1,
           sessionCorrect: state.sessionCorrect + (correct ? 1 : 0),
           sessionXP: state.sessionXP + xpEarned,
+          sessionCoins: state.sessionCoins + coinsEarned,
           stats: {
             totalAnswered: stats.totalAnswered + 1,
             totalCorrect: stats.totalCorrect + (correct ? 1 : 0),
@@ -181,7 +190,7 @@ export const useGrammarDetectiveStore = create<GrammarDetectiveState>()(
           },
         }));
         
-        return { correct };
+        return { correct, coinsEarned };
       },
 
       nextQuestion: () => {
@@ -207,7 +216,8 @@ export const useGrammarDetectiveStore = create<GrammarDetectiveState>()(
           sessionAnswered: 0,
           sessionCorrect: 0,
           sessionXP: 0,
-          syncedSession: { answered: 0, correct: 0, xp: 0 },
+          sessionCoins: 0,
+          syncedSession: { answered: 0, correct: 0, xp: 0, coins: 0 },
         });
       },
 
@@ -243,6 +253,7 @@ export const useGrammarDetectiveStore = create<GrammarDetectiveState>()(
         sessionAnswered: state.sessionAnswered,
         sessionCorrect: state.sessionCorrect,
         sessionXP: state.sessionXP,
+        sessionCoins: state.sessionCoins,
         syncedSession: state.syncedSession,
       }),
     }

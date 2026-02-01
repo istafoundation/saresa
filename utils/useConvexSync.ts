@@ -167,6 +167,7 @@ export function useConvexSync() {
       unlockedWeapons: userData.unlockedWeapons ?? [],
       weaponShards: userData.weaponShards ?? 0,
       weaponDuplicates: (userData.weaponDuplicates as Record<string, number>) ?? {},
+      coins: userData.coins ?? 0, // FIX: Add coins mapping from Convex
       // Subscription status from Convex
       subscription: (userData as any).subscription ?? null,
     };

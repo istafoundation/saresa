@@ -13,7 +13,8 @@ export const RATE_LIMITS = {
   
   // XP/Currency mutations: 20 per minute (prevents farming exploits)
   addXP: { max: 20, windowMs: 60 * 1000, windowMinutes: 1 },
-  updateShards: { max: 20, windowMs: 60 * 1000, windowMinutes: 1 },
+  updateCoins: { max: 20, windowMs: 60 * 1000, windowMinutes: 1 },
+  addCoins: { max: 20, windowMs: 60 * 1000, windowMinutes: 1 },
   
   // Game completions: 30 per minute (generous for normal play)
   finishGame: { max: 30, windowMs: 60 * 1000, windowMinutes: 1 },

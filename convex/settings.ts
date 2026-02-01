@@ -15,6 +15,7 @@ export const getGameSettings = query({
       wordFinderEasyDailyLimit: 2,
       wordFinderHardDailyLimit: 1,
       letEmCookDailyLimit: 1,
+      disabledGames: {},
     };
   },
 });
@@ -25,6 +26,7 @@ export const updateGameSettings = mutation({
     wordFinderEasyDailyLimit: v.number(),
     wordFinderHardDailyLimit: v.number(),
     letEmCookDailyLimit: v.number(),
+    disabledGames: v.record(v.string(), v.boolean()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();

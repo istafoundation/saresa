@@ -7,8 +7,10 @@ import { LEVELS, VALID_ARTIFACT_IDS, getUnlockedArtifactsForXP } from "./lib/lev
 
 // Maximum XP that can be added in a single operation (prevents exploits)
 const MAX_XP_PER_OPERATION = 100;
-// Maximum shards that can be added in a single operation
-const MAX_SHARDS_PER_OPERATION = 50;
+// Maximum coins that can be added/spent in a single operation
+const MAX_COINS_PER_SPEND_OPERATION = 200;
+// Maximum coins that can be added in a single operation
+const MAX_COINS_PER_OPERATION = 200;
 
 // Get current user data (for child app)
 // OPTIMIZED: Returns pre-computed daily limits to eliminate separate queries
@@ -147,6 +149,7 @@ export const createUser = mutation({
       // Starting currency
       weaponShards: 100,
       weaponDuplicates: {},
+      coins: 0, // Starting coins
 
       // GK stats
       gkPracticeTotal: 0,
@@ -366,8 +369,8 @@ export const unlockWeapon = mutation({
   },
 });
 
-// Update weapon shards
-export const updateShards = mutation({
+// Update coins (add or spend)
+export const updateCoins = mutation({
   args: {
     token: v.string(),
     amount: v.number(),
@@ -378,15 +381,15 @@ export const updateShards = mutation({
     if (!childId) throw new ConvexError("Not authenticated");
 
     // Validate amount bounds
-    if (args.amount <= 0 || args.amount > MAX_SHARDS_PER_OPERATION) {
-      throw new ConvexError(`Shard amount must be between 1 and ${MAX_SHARDS_PER_OPERATION}`);
+    if (args.amount <= 0 || args.amount > MAX_COINS_PER_SPEND_OPERATION) {
+      throw new ConvexError(`Coin amount must be between 1 and ${MAX_COINS_PER_SPEND_OPERATION}`);
     }
 
-    // Rate limit for shard operations
+    // Rate limit for coin operations
     const child = await ctx.db.get(childId);
     await checkRateLimit(
       ctx, 
-      "updateShards", 
+      "updateCoins", 
       childId as string, 
       childId, 
       child?.name, 
@@ -400,17 +403,61 @@ export const updateShards = mutation({
 
     if (!user) throw new ConvexError("User not found");
 
+    const currentCoins = user.coins ?? 0;
     const newAmount = args.operation === "add"
-      ? user.weaponShards + args.amount
-      : user.weaponShards - args.amount;
+      ? currentCoins + args.amount
+      : currentCoins - args.amount;
 
-    if (newAmount < 0) throw new ConvexError("Insufficient shards");
+    if (newAmount < 0) throw new ConvexError("Insufficient coins");
 
     await ctx.db.patch(user._id, {
-      weaponShards: newAmount,
+      coins: newAmount,
     });
 
-    return { newShards: newAmount };
+    return { newCoins: newAmount };
+  },
+});
+
+// Add coins (earned from successful game completions)
+export const addCoins = mutation({
+  args: {
+    token: v.string(),
+    amount: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const childId = await getChildIdFromSession(ctx, args.token);
+    if (!childId) throw new ConvexError("Not authenticated");
+
+    // Validate coin amount bounds
+    if (args.amount <= 0 || args.amount > MAX_COINS_PER_OPERATION) {
+      throw new ConvexError(`Coin amount must be between 1 and ${MAX_COINS_PER_OPERATION}`);
+    }
+
+    // Rate limit for coin operations
+    const child = await ctx.db.get(childId);
+    await checkRateLimit(
+      ctx, 
+      "addCoins", 
+      childId as string, 
+      childId, 
+      child?.name, 
+      child?.username
+    );
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_child_id", (q) => q.eq("childId", childId))
+      .first();
+
+    if (!user) throw new ConvexError("User not found");
+
+    const newCoins = (user.coins ?? 0) + args.amount;
+
+    await ctx.db.patch(user._id, {
+      coins: newCoins,
+    });
+
+    return { newCoins };
   },
 });
 

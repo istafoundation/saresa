@@ -1,12 +1,12 @@
 // Centralized game reward constants
-// All XP and shard rewards in one place for easy balancing
+// All XP and coin rewards in one place for easy balancing
 
 // Wordle rewards
 export const WORDLE_REWARDS = {
   XP_FULL: 100,
   XP_WITH_HINT: 50,
-  SHARDS_FULL: 50,
-  SHARDS_WITH_HINT: 25,
+  COINS_FULL: 50,
+  COINS_WITH_HINT: 25,
 } as const;
 
 // GK Quiz rewards
@@ -39,6 +39,6 @@ export const WORD_FINDER_REWARDS = {
 
 // General progression
 export const PROGRESSION = {
-  INITIAL_SHARDS: 100,
+  INITIAL_COINS: 100,
   PACK_COST: 100,
 } as const;

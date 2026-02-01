@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MotiView } from "moti";
-import { useEffect, useMemo, useCallback, useRef } from "react";
+import { useEffect, useMemo, useCallback, useRef, useState } from "react";
 import { useSafeNavigation } from "../../utils/useSafeNavigation";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -22,6 +22,7 @@ import {
   useGrammarDetectiveStore,
   type GDQuestion,
   XP_PER_CORRECT,
+  COINS_PER_CORRECT,
 } from "../../stores/grammar-detective-store";
 import { useUserActions } from "../../utils/useUserActions";
 import { useGameAudio } from "../../utils/sound-manager";
@@ -29,11 +30,12 @@ import { useTapFeedback } from "../../utils/useTapFeedback";
 import { useGrammarDetectiveQuestions } from "../../utils/content-hooks";
 import { useChildAuth } from "../../utils/childAuth";
 import { api } from "../../convex/_generated/api";
+import CoinRewardAnimation from "../../components/animations/CoinRewardAnimation";
 
 export default function GrammarDetectiveScreen() {
   const { safeBack } = useSafeNavigation();
   const { token } = useChildAuth();
-  const { addXP } = useUserActions();
+  const { addXP, addCoins } = useUserActions();
   const { playCorrect, playWrong } = useGameAudio();
   const { triggerTap, triggerHapticOnly } = useTapFeedback();
 
@@ -63,6 +65,7 @@ export default function GrammarDetectiveScreen() {
     (s) => s.shuffledQuestionIds
   );
   const syncedSession = useGrammarDetectiveStore((s) => s.syncedSession);
+  const sessionCoins = useGrammarDetectiveStore((s) => s.sessionCoins);
 
   // Actions
   const startGame = useGrammarDetectiveStore((s) => s.startGame);
@@ -79,6 +82,10 @@ export default function GrammarDetectiveScreen() {
 
   // Mutex lock for sync to prevent race conditions
   const isSyncingRef = useRef(false);
+  
+  // Coin animation state
+  const [showCoinAnimation, setShowCoinAnimation] = useState(false);
+  const [lastCoinsEarned, setLastCoinsEarned] = useState(0);
 
   // Memoize content IDs for dependency tracking
   const contentIds = useMemo(
@@ -139,11 +146,11 @@ export default function GrammarDetectiveScreen() {
   }, [contentIds, allQuestions, shuffledQuestionIds, startGame, currentQuestionIndex]);
   
   // Keep track of latest stats in a ref to use in cleanup/callbacks without triggering re-renders
-  const latestStatsRef = useRef({ sessionAnswered, sessionCorrect, sessionXP, currentQuestionIndex, syncedSession });
+  const latestStatsRef = useRef({ sessionAnswered, sessionCorrect, sessionXP, sessionCoins, currentQuestionIndex, syncedSession });
   
   useEffect(() => {
-    latestStatsRef.current = { sessionAnswered, sessionCorrect, sessionXP, currentQuestionIndex, syncedSession };
-  }, [sessionAnswered, sessionCorrect, sessionXP, currentQuestionIndex, syncedSession]);
+    latestStatsRef.current = { sessionAnswered, sessionCorrect, sessionXP, sessionCoins, currentQuestionIndex, syncedSession };
+  }, [sessionAnswered, sessionCorrect, sessionXP, sessionCoins, currentQuestionIndex, syncedSession]);
 
   // OPTIMIZATION: Sync stats to Convex only when exiting or every 1 minute
   // This replaces per-answer syncing, reducing calls from ~800/hr to ~60/hr max
@@ -160,6 +167,7 @@ export default function GrammarDetectiveScreen() {
       answered: currentStats.sessionAnswered - currentStats.syncedSession.answered,
       correct: currentStats.sessionCorrect - currentStats.syncedSession.correct,
       xp: currentStats.sessionXP - currentStats.syncedSession.xp,
+      coins: (currentStats.sessionCoins ?? 0) - (currentStats.syncedSession.coins ?? 0),
     };
     
     if (unsynced.answered > 0) {
@@ -175,12 +183,16 @@ export default function GrammarDetectiveScreen() {
         if (unsynced.xp > 0) {
           await addXP(unsynced.xp);
         }
+        if (unsynced.coins > 0) {
+          await addCoins(unsynced.coins);
+        }
         
         // Update the STORE with the new synced state (persisted)
         updateSyncedSession({ 
           answered: currentStats.sessionAnswered, 
           correct: currentStats.sessionCorrect, 
-          xp: currentStats.sessionXP 
+          xp: currentStats.sessionXP,
+          coins: currentStats.sessionCoins ?? 0,
         });
         
         if (__DEV__) console.log("[GrammarDetective] Synced successfully:", unsynced);
@@ -190,7 +202,7 @@ export default function GrammarDetectiveScreen() {
         isSyncingRef.current = false;
       }
     }
-  }, [token, updateStats, addXP, updateSyncedSession]);
+  }, [token, updateStats, addXP, addCoins, updateSyncedSession]);
 
   // Sync on component unmount (catches ALL exit methods including Android back)
   // Use a ref to store the latest sync function preventing the effect from re-running
@@ -247,6 +259,11 @@ export default function GrammarDetectiveScreen() {
       if (result.correct) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         playCorrect();
+        // FIX: Trigger coin animation immediately when answer is correct
+        if (COINS_PER_CORRECT > 0) {
+          setLastCoinsEarned(COINS_PER_CORRECT);
+          setShowCoinAnimation(true);
+        }
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         playWrong();
@@ -265,8 +282,14 @@ export default function GrammarDetectiveScreen() {
 
   const handleNext = useCallback(() => {
     triggerTap();
+    // FIX: Animation now triggers in handleSubmit, so just advance to next question
     nextQuestion();
   }, [triggerTap, nextQuestion]);
+  
+  // Handle coin animation complete - just hide the animation, don't navigate
+  const handleCoinAnimationComplete = useCallback(() => {
+    setShowCoinAnimation(false);
+  }, []);
 
   const handleBack = useCallback(() => {
     triggerTap();
@@ -276,7 +299,8 @@ export default function GrammarDetectiveScreen() {
 
   // Loading state - show if we have no content OR if we are using fallback content
   // User requested "no fallback data instead shows loading" to prevent random question flash
-  if (!allQuestions || allQuestions.length === 0 || questionsStatus === 'fallback') {
+  // FIX: Also show loading if game hasn't started yet (gameState is idle)
+  if (!allQuestions || allQuestions.length === 0 || questionsStatus === 'fallback' || gameState === 'idle') {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
@@ -311,6 +335,9 @@ export default function GrammarDetectiveScreen() {
         </View>
         <View style={styles.xpBadge}>
           <Text style={styles.xpText}>+{sessionXP} XP</Text>
+        </View>
+        <View style={styles.coinBadge}>
+          <Text style={styles.coinText}>+{sessionCoins} 🪙</Text>
         </View>
       </View>
 
@@ -492,7 +519,7 @@ export default function GrammarDetectiveScreen() {
                 </Text>
                 {lastResult.correct && (
                   <Text style={styles.xpEarnedText}>
-                    +{XP_PER_CORRECT} XP earned
+                    +{XP_PER_CORRECT} XP · +{COINS_PER_CORRECT} 🪙 earned
                   </Text>
                 )}
               </View>
@@ -562,6 +589,15 @@ export default function GrammarDetectiveScreen() {
           </Pressable>
         )}
       </View>
+      
+      {/* Coin Flying Animation */}
+      {showCoinAnimation && lastCoinsEarned > 0 && (
+        <CoinRewardAnimation
+          coinsEarned={lastCoinsEarned}
+          originY={400}
+          onComplete={handleCoinAnimationComplete}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -608,6 +644,20 @@ const styles = StyleSheet.create({
     borderColor: COLORS.accentGold + "40",
   },
   xpText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: COLORS.accentGold,
+  },
+  coinBadge: {
+    backgroundColor: COLORS.accentGold + "25",
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs + 2,
+    borderRadius: BORDER_RADIUS.full,
+    borderWidth: 1,
+    borderColor: COLORS.accentGold + "40",
+    marginLeft: SPACING.xs,
+  },
+  coinText: {
     fontSize: 14,
     fontWeight: "800",
     color: COLORS.accentGold,

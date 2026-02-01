@@ -21,7 +21,8 @@ function logError(action: string, error: any) {
 export function useUserActions() {
   const { token } = useChildAuth();
   const addXPMutation = useMutation(api.users.addXP);
-  const updateShardsMutation = useMutation(api.users.updateShards);
+  const updateCoinsMutation = useMutation(api.users.updateCoins);
+  const addCoinsMutation = useMutation(api.users.addCoins);
   const unlockWeaponMutation = useMutation(api.users.unlockWeapon);
   const unlockArtifactMutation = useMutation(api.users.unlockArtifact);
   const addWeaponDuplicateMutation = useMutation(api.users.addWeaponDuplicate);
@@ -51,29 +52,61 @@ export function useUserActions() {
       }
     },
     
-    addWeaponShards: async (amount: number): Promise<{ success: boolean; newShards?: number }> => {
-      logSync('addWeaponShards', { amount });
+    addWeaponShards: async (amount: number): Promise<{ success: boolean; newCoins?: number }> => {
+      // DEPRECATED: Use addCoins instead. This now adds coins.
+      logSync('addWeaponShards (deprecated -> addCoins)', { amount });
       const authToken = getAuthToken();
       if (!authToken) return { success: false };
 
       try {
-        const result = await updateShardsMutation({ amount, operation: 'add', token: authToken });
-        logSync('addWeaponShards SUCCESS', { newShards: result.newShards });
-        return { success: true, newShards: result.newShards };
+        const result = await updateCoinsMutation({ amount, operation: 'add', token: authToken });
+        logSync('addWeaponShards SUCCESS', { newCoins: result.newCoins });
+        return { success: true, newCoins: result.newCoins };
       } catch (error) {
         logError('addWeaponShards', error);
         return { success: false };
       }
     },
     
-    spendWeaponShards: async (amount: number): Promise<boolean> => {
-      logSync('spendWeaponShards', { amount });
+    addCoins: async (amount: number): Promise<{ success: boolean; newCoins?: number }> => {
+      logSync('addCoins', { amount });
+      const authToken = getAuthToken();
+      if (!authToken) return { success: false };
+
+      try {
+        const result = await addCoinsMutation({ amount, token: authToken });
+        logSync('addCoins SUCCESS', { newCoins: result.newCoins });
+        return { success: true, newCoins: result.newCoins };
+      } catch (error) {
+        logError('addCoins', error);
+        return { success: false };
+      }
+    },
+    
+    spendCoins: async (amount: number): Promise<boolean> => {
+      logSync('spendCoins', { amount });
       const authToken = getAuthToken();
       if (!authToken) return false;
 
       try {
-        const result = await updateShardsMutation({ amount, operation: 'spend', token: authToken });
-        logSync('spendWeaponShards SUCCESS', { newShards: result.newShards });
+        const result = await updateCoinsMutation({ amount, operation: 'spend', token: authToken });
+        logSync('spendCoins SUCCESS', { newCoins: result.newCoins });
+        return true;
+      } catch (error) {
+        logError('spendCoins', error);
+        return false;
+      }
+    },
+    
+    // DEPRECATED: Use spendCoins instead
+    spendWeaponShards: async (amount: number): Promise<boolean> => {
+      logSync('spendWeaponShards (deprecated -> spendCoins)', { amount });
+      const authToken = getAuthToken();
+      if (!authToken) return false;
+
+      try {
+        const result = await updateCoinsMutation({ amount, operation: 'spend', token: authToken });
+        logSync('spendWeaponShards SUCCESS', { newCoins: result.newCoins });
         return true;
       } catch (error) {
         logError('spendWeaponShards', error);
@@ -139,7 +172,7 @@ export function useUserActions() {
         return false;
       }
     },
-  }), [token, addXPMutation, updateShardsMutation, unlockWeaponMutation, unlockArtifactMutation, addWeaponDuplicateMutation, syncProgressionMutation]);
+  }), [token, addXPMutation, updateCoinsMutation, addCoinsMutation, unlockWeaponMutation, unlockArtifactMutation, addWeaponDuplicateMutation, syncProgressionMutation]);
 }
 
 // Game stats actions
@@ -248,7 +281,7 @@ export function useGameStatsActions() {
     },
 
     /**
-     * BATCHED: Complete Wordle game with XP, shards, and stats in one call
+     * BATCHED: Complete Wordle game with XP, coins, and stats in one call
      * Reduces 3 API calls to 1, improving performance and preventing race conditions
      */
     finishWordleGame: async (data: {
@@ -256,7 +289,7 @@ export function useGameStatsActions() {
       guessCount?: number;
       usedHint: boolean;
       xpReward: number;
-      shardReward: number;
+      coinReward: number;
     }): Promise<{
       success: boolean;
       stats?: {
@@ -268,7 +301,8 @@ export function useGameStatsActions() {
         usedHint: boolean;
       };
       newXP?: number;
-      newShards?: number;
+      newCoins?: number;
+      coinsEarned?: number;
     }> => {
       logSync('finishWordleGame', data);
       const authToken = getAuthToken();
@@ -278,14 +312,16 @@ export function useGameStatsActions() {
         const result = await finishWordleGameMutation({ ...data, token: authToken });
         logSync('finishWordleGame SUCCESS', { 
           newXP: result.newXP, 
-          newShards: result.newShards,
+          newCoins: result.newCoins,
+          coinsEarned: result.coinsEarned,
           gamesPlayed: result.wordleStats.gamesPlayed 
         });
         return { 
           success: true, 
           stats: result.wordleStats,
           newXP: result.newXP,
-          newShards: result.newShards,
+          newCoins: result.newCoins,
+          coinsEarned: result.coinsEarned,
         };
       } catch (error) {
         logError('finishWordleGame', error);

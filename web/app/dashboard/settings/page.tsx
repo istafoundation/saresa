@@ -13,6 +13,7 @@ export default function SettingsPage() {
   const [wfEasyLimit, setWfEasyLimit] = useState(2);
   const [wfHardLimit, setWfHardLimit] = useState(1);
   const [lecLimit, setLecLimit] = useState(1);
+  const [disabledGames, setDisabledGames] = useState<Record<string, boolean>>({});
 
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
@@ -23,6 +24,7 @@ export default function SettingsPage() {
       setWfEasyLimit(settings.wordFinderEasyDailyLimit ?? 2);
       setWfHardLimit(settings.wordFinderHardDailyLimit ?? 1);
       setLecLimit(settings.letEmCookDailyLimit ?? 1);
+      setDisabledGames(settings.disabledGames ?? {});
     }
   }, [settings]);
 
@@ -35,6 +37,7 @@ export default function SettingsPage() {
         wordFinderEasyDailyLimit: wfEasyLimit,
         wordFinderHardDailyLimit: wfHardLimit,
         letEmCookDailyLimit: lecLimit,
+        disabledGames: disabledGames,
       });
       setMessage({ type: 'success', text: 'Settings updated successfully!' });
       setTimeout(() => setMessage(null), 3000);
@@ -175,6 +178,7 @@ export default function SettingsPage() {
           </div>
         </div>
 
+
         <div className="p-6 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
             {message ? (
                 <div className={`text-sm px-3 py-1.5 rounded-md ${
@@ -201,6 +205,51 @@ export default function SettingsPage() {
               </>
             )}
           </button>
+        </div>
+      </div>
+      
+      {/* Game Availability Section */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+          <h2 className="text-lg font-semibold text-slate-900">Game Availability</h2>
+          <p className="text-sm text-slate-500">
+            Temporarily disable specific game modes. Disabled games will appear locked in the app.
+          </p>
+        </div>
+        
+        <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[
+                { id: 'gk_practice', label: 'GK Practice' },
+                { id: 'gk_competitive', label: 'GK Competitive' },
+                { id: 'wordle', label: 'Wordle' },
+                { id: 'grammar_detective', label: 'Grammar Detective' },
+                { id: 'word_finder_easy', label: 'Word Finder (Easy)' },
+                { id: 'word_finder_hard', label: 'Word Finder (Hard)' },
+                { id: 'india_explorer', label: 'India Explorer' },
+                { id: 'let_em_cook', label: 'Let \'em Cook' },
+                { id: 'flag_champs', label: 'Flag Champs' },
+            ].map((game) => (
+                <div key={game.id} className="flex items-center justify-between p-4 border border-slate-200 rounded-lg">
+                    <span className="font-medium text-slate-700">{game.label}</span>
+                    <button
+                        onClick={() => setDisabledGames(prev => ({ ...prev, [game.id]: !prev[game.id] }))}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
+                            disabledGames[game.id] ? 'bg-slate-200' : 'bg-green-500'
+                        }`}
+                    >
+                         <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                disabledGames[game.id] ? 'translate-x-1' : 'translate-x-6'
+                            }`}
+                        />
+                    </button>
+                </div>
+            ))}
+        </div>
+         <div className="px-6 py-4 bg-slate-50 border-t border-slate-200">
+            <p className="text-xs text-slate-500">
+                <span className="font-bold text-slate-700">Note:</span> Green means ACTIVE (Enabled). Grey means DISABLED.
+            </p>
         </div>
       </div>
     </div>

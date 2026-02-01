@@ -45,7 +45,7 @@ interface WeaponPackOpeningProps {
   onComplete: (weapon: Weapon, isDuplicate: boolean) => void;
   onCancel: () => void;
   ownedWeapons?: string[]; // To check for duplicates
-  disabled?: boolean; // If user doesn't have enough shards
+  disabled?: boolean; // If user doesn't have enough coins
 }
 
 type Phase = 'ready' | 'shaking' | 'opening' | 'reveal' | 'details';
@@ -398,7 +398,7 @@ export default function WeaponPackOpening({
                   {isDuplicate && (
                     <View style={styles.duplicateBadge}>
                       <Text style={styles.duplicateText}>DUPLICATE</Text>
-                      <Text style={styles.duplicateBonus}>+25 Shards!</Text>
+                      <Text style={styles.duplicateBonus}>+25 Coins!</Text>
                     </View>
                   )}
 
@@ -469,7 +469,7 @@ export default function WeaponPackOpening({
                 style={styles.openButtonGradient}
               >
                 <Text style={styles.openButtonText}>
-                  {disabled ? 'Not Enough Shards' : '✨ Open Pack!'}
+                  {disabled ? 'Not Enough Coins' : '✨ Open Pack!'}
                 </Text>
               </LinearGradient>
             </Pressable>
@@ -497,7 +497,7 @@ export default function WeaponPackOpening({
                 style={styles.collectButtonGradient}
               >
                 <Text style={styles.collectButtonText}>
-                  {isDuplicate ? '💎 Collect Shards' : '⚔️ Collect Weapon'}
+                  {isDuplicate ? '🪙 Collect Coins' : '⚔️ Collect Weapon'}
                 </Text>
               </LinearGradient>
             </Pressable>

@@ -17,8 +17,8 @@ export interface SyncedUserData {
   lastLoginDate: string | null;
   unlockedArtifacts: string[];
   unlockedWeapons: string[];
-  weaponShards: number;
   weaponDuplicates: Record<string, number>;
+  coins: number; // Coin currency (replaces shards)
   // Subscription status
   subscription?: {
     status: string;
@@ -50,8 +50,8 @@ export interface UserState extends LocalSettings {
   streak: number;
   unlockedArtifacts: string[];
   unlockedWeapons: string[];
-  weaponShards: number;
   weaponDuplicates: Record<string, number>;
+  coins: number;
   level: number;
   levelTitle: string;
   onboardingComplete: boolean;
@@ -133,8 +133,8 @@ export const useUserStore = create<UserState>()(
       streak: 0,
       unlockedArtifacts: [],
       unlockedWeapons: [],
-      weaponShards: 0,
       weaponDuplicates: {},
+      coins: 0,
       level: 1,
       levelTitle: 'Novice',
       onboardingComplete: false,
@@ -211,8 +211,8 @@ export const useUserStore = create<UserState>()(
           streak: data?.streak ?? 0,
           unlockedArtifacts: data?.unlockedArtifacts ?? [],
           unlockedWeapons: data?.unlockedWeapons ?? [],
-          weaponShards: data?.weaponShards ?? 0,
           weaponDuplicates: data?.weaponDuplicates ?? {},
+          coins: data?.coins ?? 0,
           level: levelInfo.level,
           levelTitle: levelInfo.title,
           onboardingComplete: data !== null,
@@ -287,7 +287,7 @@ export const useUserStore = create<UserState>()(
       setMusicVolume: (volume) => set({ musicVolume: Math.max(0, Math.min(1, volume)) }),
       
       canAffordPack: () => {
-        return (get().weaponShards ?? 0) >= 100;
+        return (get().coins ?? 0) >= 100;
       },
     }),
     {

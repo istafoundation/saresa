@@ -17,7 +17,7 @@ export default function ProfileScreen() {
   const { logout } = useChildAuth();
   
   const { 
-    name, mascot, xp, streak, unlockedArtifacts, unlockedWeapons, 
+    name, mascot, xp, streak, unlockedArtifacts, unlockedWeapons, coins,
     soundEnabled, musicEnabled, sfxVolume, musicVolume,
     setSoundEnabled, setMusicEnabled, setSfxVolume, setMusicVolume,
     // Now reading game stats from Convex-synced data!
@@ -126,10 +126,10 @@ export default function ProfileScreen() {
             delay={200}
           />
           <StatCard 
-            icon="shield"
-            label="Weapons"
-            value={`${unlockedWeapons.length}/20`}
-            color={COLORS.rarityRare}
+            icon="cash"
+            label="Coins"
+            value={(coins ?? 0).toLocaleString()}
+            color={COLORS.accentGold}
             delay={250}
           />
         </View>

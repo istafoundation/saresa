@@ -180,25 +180,28 @@ function calculateWordleXP(won: boolean, guessCount?: number, usedHint?: boolean
 }
 
 /**
- * Calculate Wordle shard reward server-side
+ * Calculate Wordle coin reward server-side
+ * Only awarded on successful completion
  */
-function calculateWordleShards(won: boolean, guessCount?: number): number {
-  if (!won) return 2; // Small consolation
+function calculateWordleCoins(won: boolean, guessCount?: number, usedHint?: boolean): number {
+  if (!won) return 0; // No coins for losing
   
-  const shards: Record<number, number> = {
-    1: 15,
-    2: 12,
-    3: 10,
-    4: 8,
-    5: 6,
-    6: 5,
+  // Base coins by guess count (fewer guesses = more coins)
+  const baseCoins: Record<number, number> = {
+    1: 100, // Perfect!
+    2: 80,
+    3: 60,
+    4: 50,
+    5: 40,
+    6: 30,
   };
   
-  return shards[guessCount ?? 6] ?? 5;
+  const coins = baseCoins[guessCount ?? 6] ?? 30;
+  return usedHint ? Math.floor(coins * 0.5) : coins; // 50% penalty for hint
 }
 
 /**
- * BATCHED: Finish Wordle game - handles XP, shards, and stats in one atomic operation
+ * BATCHED: Finish Wordle game - handles XP, coins, and stats in one atomic operation
  * Reduces 3 separate API calls to 1, eliminating race conditions
  * SECURITY: Rewards are now calculated SERVER-SIDE to prevent manipulation
  */
@@ -210,7 +213,7 @@ export const finishWordleGame = mutation({
     usedHint: v.boolean(),
     // Client values are IGNORED for security - kept for backward compatibility
     xpReward: v.optional(v.number()),
-    shardReward: v.optional(v.number()),
+    coinReward: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const childId = await getChildIdFromSession(ctx, args.token);
@@ -249,7 +252,6 @@ export const finishWordleGame = mutation({
 
     // ---- Calculate Rewards SERVER-SIDE (ignore client values) ----
     const xpReward = calculateWordleXP(args.won, args.guessCount, args.usedHint);
-    const shardReward = calculateWordleShards(args.won, args.guessCount);
 
     // ---- Calculate XP and Artifact Unlocks ----
     const newXP = user.xp + xpReward;
@@ -259,9 +261,10 @@ export const finishWordleGame = mutation({
       newXP, 
       user.unlockedArtifacts
     );
-
-    // ---- Calculate Shards ----
-    const newShards = user.weaponShards + shardReward;
+    
+    // ---- Calculate Coins (only on win) ----
+    const coinReward = calculateWordleCoins(args.won, args.guessCount, args.usedHint);
+    const newCoins = (user.coins ?? 0) + coinReward;
 
     // ---- Single Atomic Database Update ----
     await ctx.db.patch(user._id, {
@@ -275,15 +278,16 @@ export const finishWordleGame = mutation({
       // XP and artifacts
       xp: newXP,
       ...(artifactsUpdated ? { unlockedArtifacts } : {}),
-      // Shards
-      weaponShards: newShards,
+      // Coins (only if won)
+      ...(coinReward > 0 ? { coins: newCoins } : {}),
     });
 
     // Return all updated values for immediate client use
     return {
       wordleStats,
       newXP,
-      newShards,
+      newCoins: coinReward > 0 ? newCoins : undefined,
+      coinsEarned: coinReward,
       newArtifacts: artifactsUpdated ? unlockedArtifacts : null,
     };
   },

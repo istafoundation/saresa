@@ -11,6 +11,9 @@ import { useUserStore } from '../../stores/user-store';
 import { useTapFeedback } from '../../utils/useTapFeedback';
 import Mascot from '../../components/Mascot';
 import { CandyBackground } from '../../components/animations/SparkleBackground';
+import CoinBalance from '../../components/CoinBalance';
+import { useQuery } from 'convex/react';
+import { api } from '../../convex/_generated/api';
 
 const { width } = Dimensions.get('window');
 const GAP = SPACING.md;
@@ -130,6 +133,12 @@ export default function FunScreen() {
   const canPlayWordFinderHard = gameLimits.canPlayWordFinderHard;
   // Explorer limits
   const explorerRemaining = gameLimits.explorerRemaining;
+
+  // Fetch Global Settings (to check for disabled games)
+  const settings = useQuery(api.settings.getGameSettings);
+  const disabledGames: Record<string, boolean> = settings?.disabledGames || {};
+
+  const isGameDisabled = (gameId: string) => !!disabledGames[gameId];
   
   const handleGamePress = (route: string) => {
     if (loadingGame) return;
@@ -176,6 +185,10 @@ export default function FunScreen() {
                 <View style={styles.mascotGlow} />
             </View>
           </LinearGradient>
+          {/* Coin Balance Badge */}
+          <View style={styles.coinBalanceContainer}>
+            <CoinBalance size="small" />
+          </View>
         </MotiView>
 
         {/* --- English Insane Section --- */}
@@ -193,6 +206,8 @@ export default function FunScreen() {
                     route='/games/gk/practice'
                     subtitle="Unlimited Training"
                     badgeText="Train"
+                    enabled={!isGameDisabled('gk_practice')}
+                    lockedMessage="Disabled"
                     onPress={handleGamePress}
                     isLoading={loadingGame === '/games/gk/practice'}
                 />
@@ -201,10 +216,10 @@ export default function FunScreen() {
                     emoji="🏆"
                     color="#FFFACD" // Lemon Chiffon
                     route='/games/gk/competitive'
-                    enabled={canPlayCompetitive}
+                    enabled={canPlayCompetitive && !isGameDisabled('gk_competitive')}
                     subtitle={canPlayCompetitive ? "Daily Rank Push" : "Come back tomorrow"}
                     badgeText="Win XP"
-                    lockedMessage="Played"
+                    lockedMessage={isGameDisabled('gk_competitive') ? "Disabled" : "Played"}
                     onPress={handleGamePress}
                     isLoading={loadingGame === '/games/gk/competitive'}
                 />
@@ -225,10 +240,10 @@ export default function FunScreen() {
                     emoji="🔡"
                     color="#E0F7FA" // Light Cyan
                     route='/games/wordle'
-                    enabled={canPlayWordle}
+                    enabled={canPlayWordle && !isGameDisabled('wordle')}
                     subtitle="Daily Guess"
                     badgeText="Daily"
-                    lockedMessage="Solved"
+                    lockedMessage={isGameDisabled('wordle') ? "Disabled" : "Solved"}
                     onPress={handleGamePress}
                     isLoading={loadingGame === '/games/wordle'}
                 />
@@ -239,6 +254,8 @@ export default function FunScreen() {
                     route='/games/grammar-detective'
                     subtitle="Grammar Detective"
                     badgeText="Rush"
+                    enabled={!isGameDisabled('grammar_detective')}
+                    lockedMessage="Disabled"
                     onPress={handleGamePress}
                     isLoading={loadingGame === '/games/grammar-detective'}
                 />
@@ -259,10 +276,10 @@ export default function FunScreen() {
                     emoji="🧩"
                     color="#E8F5E9" // Green Light
                     route='/games/word-finder?mode=easy'
-                    enabled={canPlayWordFinderEasy}
+                    enabled={canPlayWordFinderEasy && !isGameDisabled('word_finder_easy')}
                     subtitle="Relaxed Search"
                     badgeText="50 XP"
-                    lockedMessage="Done"
+                    lockedMessage={isGameDisabled('word_finder_easy') ? "Disabled" : "Done"}
                     onPress={handleGamePress}
                     isLoading={loadingGame === '/games/word-finder?mode=easy'}
                 />
@@ -271,10 +288,10 @@ export default function FunScreen() {
                     emoji="⚡"
                     color="#FFF3E0" // Orange Light
                     route='/games/word-finder?mode=hard'
-                    enabled={canPlayWordFinderHard}
+                    enabled={canPlayWordFinderHard && !isGameDisabled('word_finder_hard')}
                     subtitle="Timed Challenge"
                     badgeText="200 XP"
-                    lockedMessage="Done"
+                    lockedMessage={isGameDisabled('word_finder_hard') ? "Disabled" : "Done"}
                     onPress={handleGamePress}
                     isLoading={loadingGame === '/games/word-finder?mode=hard'}
                 />
@@ -300,6 +317,8 @@ export default function FunScreen() {
                     subtitle={`${explorerRemaining} remaining • Explore States`}
                     badgeText="Explore"
                     isWide={true}
+                    enabled={!isGameDisabled('india_explorer')}
+                    lockedMessage="Disabled"
                     onPress={handleGamePress}
                     isLoading={loadingGame === '/games/explorer/india'}
                 />
@@ -311,10 +330,10 @@ export default function FunScreen() {
                     emoji="🌶️"
                     color="#FFCCBC" // Deep Orange extraction
                     route='/games/let-em-cook'
-                    enabled={gameLimits.canPlayLetEmCook && !gameLimits.lecCompleted}
+                    enabled={gameLimits.canPlayLetEmCook && !gameLimits.lecCompleted && !isGameDisabled('let_em_cook')}
                     subtitle="Spice Matching"
                     badgeText="300 XP"
-                    lockedMessage="Cooked"
+                    lockedMessage={isGameDisabled('let_em_cook') ? "Disabled" : "Cooked"}
                     onPress={handleGamePress}
                     isLoading={loadingGame === '/games/let-em-cook'}
                 />
@@ -323,10 +342,10 @@ export default function FunScreen() {
                     emoji="🚩"
                     color="#B2DFDB" // Teal Light
                     route='/games/flag-champs'
-                    enabled={gameLimits.canPlayFlagChamps && !gameLimits.fcCompleted}
+                    enabled={gameLimits.canPlayFlagChamps && !gameLimits.fcCompleted && !isGameDisabled('flag_champs')}
                     subtitle="Flags Quiz"
                     badgeText="975 XP"
-                    lockedMessage="Won"
+                    lockedMessage={isGameDisabled('flag_champs') ? "Disabled" : "Won"}
                     onPress={handleGamePress}
                     isLoading={loadingGame === '/games/flag-champs'}
                 />
@@ -411,6 +430,11 @@ const styles = StyleSheet.create({
       borderRadius: 40,
       opacity: 0.3,
       zIndex: -1,
+  },
+  coinBalanceContainer: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
   },
 
   // Section Headers

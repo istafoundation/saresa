@@ -62,6 +62,7 @@ export default defineSchema({
     // Currency
     weaponShards: v.number(),
     weaponDuplicates: v.record(v.string(), v.number()),
+    coins: v.optional(v.number()), // Coin currency earned from successful game completions
 
     // GK Quiz Stats
     gkPracticeTotal: v.number(),
@@ -209,6 +210,9 @@ export default defineSchema({
     wordFinderHardDailyLimit: v.optional(v.number()), // Default 1
     letEmCookDailyLimit: v.optional(v.number()), // Default 1
     lecQuestionsPerGame: v.optional(v.number()), // Default 10
+
+    // Disabled Games
+    disabledGames: v.optional(v.record(v.string(), v.boolean())), // { "wordle": true }
 
     // Metadata
     updatedBy: v.optional(v.id("parents")),
