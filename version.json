@@ -1,9 +1,9 @@
 {
   "android": {
-    "versionCode": 81
+    "versionCode": 82
   },
-  "latestVersion": "1.0.80",
-  "downloadUrl": "https://github.com/istafoundation/saresa/releases/download/v1.0.80/ista-english-v1.0.80.apk",
+  "latestVersion": "1.0.81",
+  "downloadUrl": "https://github.com/istafoundation/saresa/releases/download/v1.0.81/ista-english-v1.0.81.apk",
   "updateUrl": "https://github.com/istafoundation/saresa/releases/latest",
   "forceUpdate": false,
   "isUpdateEnabled": true,
