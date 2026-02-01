@@ -91,7 +91,8 @@ export default function CompetitiveScreen() {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      resetQuiz();
+      // Don't reset quiz on unmount (prevents glitch on remount/background refresh)
+      // resetQuiz(); 
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, []);
@@ -248,7 +249,7 @@ export default function CompetitiveScreen() {
             </Text>
           </View>
 
-          <Pressable style={styles.doneButton} onPress={() => { triggerTap(); safeBack(); }}>
+          <Pressable style={styles.doneButton} onPress={() => { triggerTap(); resetQuiz(); safeBack(); }}>
             <LinearGradient
               colors={[COLORS.primary, COLORS.primaryDark]}
               style={styles.doneButtonGradient}

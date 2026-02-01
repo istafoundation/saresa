@@ -98,18 +98,7 @@ export default function PracticeScreen() {
     if (quizState === 'idle' && allQuestions && allQuestions.length > 0) {
       startQuiz('practice', allQuestions as Question[]);
     }
-    // Cleanup only on unmount (not on re-render) is handled by empty dependency return, 
-    // BUT we want to reset if component unmounts.
-    // The previous code had `return () => resetQuiz()` which runs on dependency change too.
-    // That was PART of the problem (resetting when allQuestions updated).
-    // Use a separate effect for cleanup.
   }, [allQuestions, quizState, questionsStatus]);
-
-  useEffect(() => {
-    return () => {
-      resetQuiz();
-    };
-  }, []);
 
   // OPTIMIZATION: Sync function uses refs - never recreated, stable reference
   // This prevents interval/AppState effects from re-registering
@@ -205,6 +194,8 @@ export default function PracticeScreen() {
 
   const handleEnd = () => {
     triggerTap();
+    // Explicitly reset on exit
+    resetQuiz();
     safeBack();
   };
 
