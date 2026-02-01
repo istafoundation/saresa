@@ -14,6 +14,7 @@ interface VersionConfig {
   updateUrl: string;    // Fallback URL (e.g., store or releases page)
   forceUpdate?: boolean;
   updateMessage?: string;
+  isUpdateEnabled?: boolean; // Whether auto-update feature is enabled
 }
 
 function compareVersions(a: string, b: string): number {
@@ -45,6 +46,7 @@ export function useVersionCheck() {
     version: string;
     downloadUrl: string;
   } | null>(null);
+  const [isUpdateEnabled, setIsUpdateEnabled] = useState<boolean | null>(null);
 
   const checkVersion = useCallback(async () => {
     // Version check usually only makes sense for native mobile apps, 
@@ -59,6 +61,9 @@ export function useVersionCheck() {
       if (!response.ok) return;
 
       const config: VersionConfig = await response.json();
+      
+      // Store whether updates are enabled (default to true if not specified)
+      setIsUpdateEnabled(config.isUpdateEnabled !== false);
       
       // Get current version from Expo config or Native application
       const currentVersion = Constants.expoConfig?.version || Application.nativeApplicationVersion || "0.0.0";
@@ -135,5 +140,7 @@ export function useVersionCheck() {
     showDownloader,
     closeDownloader,
     updateInfo,
+    /** Whether auto-updates are enabled (from remote config, null if not yet checked) */
+    isUpdateEnabled,
   };
 }

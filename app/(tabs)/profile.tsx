@@ -1,5 +1,5 @@
 // Profile Screen - User stats and settings - Now reads from Convex!
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Switch } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Switch, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,6 +12,8 @@ import { getLevelForXP, getXPProgressToNextLevel, LEVELS } from '../../constants
 import { useTapFeedback } from '../../utils/useTapFeedback';
 import Mascot from '../../components/Mascot';
 import { useChildAuth } from '../../utils/childAuth';
+import { useInstallPermission } from '../../hooks/useInstallPermission';
+import { useVersionCheck } from '../../hooks/useVersionCheck';
 
 export default function ProfileScreen() {
   const { logout } = useChildAuth();
@@ -29,6 +31,10 @@ export default function ProfileScreen() {
   const levelInfo = getLevelForXP(xp);
   const xpProgress = getXPProgressToNextLevel(xp);
   const { triggerTap, triggerSelection } = useTapFeedback();
+  
+  // Install permission for auto-updates (Android only)
+  const { canInstall, requestPermission } = useInstallPermission();
+  const { isUpdateEnabled } = useVersionCheck();
   
   const handleSignOut = () => {
     triggerTap('heavy');
@@ -362,6 +368,48 @@ export default function ProfileScreen() {
           </View>
         </MotiView>
 
+        {/* App Updates - Only show on Android when updates are enabled */}
+        {Platform.OS === 'android' && isUpdateEnabled !== false && (
+          <MotiView
+            from={{ opacity: 0, translateY: 20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ type: 'spring', delay: 525 }}
+          >
+            <Text style={styles.sectionTitle}>App Updates</Text>
+            
+            <Pressable 
+              style={styles.settingItem} 
+              onPress={() => {
+                triggerTap('medium');
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                requestPermission();
+              }}
+            >
+              <View style={styles.settingContent}>
+                <Ionicons 
+                  name={canInstall ? "checkmark-circle" : "download-outline"} 
+                  size={22} 
+                  color={canInstall ? COLORS.success : COLORS.primary} 
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.settingText}>Enable Auto Updates</Text>
+                  <Text style={styles.settingHint}>
+                    {canInstall 
+                      ? "Permission granted for seamless updates" 
+                      : "Tap to allow installing updates"
+                    }
+                  </Text>
+                </View>
+              </View>
+              <Ionicons 
+                name="chevron-forward" 
+                size={20} 
+                color={COLORS.textMuted} 
+              />
+            </Pressable>
+          </MotiView>
+        )}
+
         {/* Account Actions */}
         <MotiView
           from={{ opacity: 0, translateY: 20 }}
@@ -610,6 +658,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: COLORS.text,
+  },
+  settingHint: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: 2,
   },
   soundSettingCard: {
     backgroundColor: COLORS.surface,
