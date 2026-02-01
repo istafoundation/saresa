@@ -1,6 +1,6 @@
 {
   "name": "ista-english",
-  "version": "1.0.66",
+  "version": "1.0.68",
   "main": "expo-router/entry",
   "scripts": {
     "start": "env-cmd -f .env.development expo start",
