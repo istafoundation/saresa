@@ -13,6 +13,8 @@ import { useChildAuth } from '../utils/childAuth';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { ActivationPopup } from '../components/ActivationPopup';
 import { useGlobalBackgroundMusic } from '../utils/sound-manager';
+import { useVersionCheck } from '../hooks/useVersionCheck';
+import { UpdateDownloader } from '../components/UpdateDownloader';
 
 // Loading screen while checking auth
 function LoadingScreen() {
@@ -134,9 +136,25 @@ export default function RootLayout() {
         <GestureHandlerRootView style={styles.container}>
           <StatusBar style="dark" />
           <InitialLayout />
+          <UpdateWrapper />
         </GestureHandlerRootView>
       </ConvexClientProvider>
     </ErrorBoundary>
+  );
+}
+
+function UpdateWrapper() {
+  const { showDownloader, closeDownloader, updateInfo } = useVersionCheck();
+
+  return (
+    <>
+      <UpdateDownloader 
+        visible={showDownloader}
+        onClose={closeDownloader}
+        updateUrl={updateInfo?.downloadUrl || ''}
+        version={updateInfo?.version || ''}
+      />
+    </>
   );
 }
 

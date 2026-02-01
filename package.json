@@ -2,6 +2,13 @@
   "name": "ista-english",
   "version": "1.0.69",
   "main": "expo-router/entry",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/istafoundation/saresa"
+  },
+  "config": {
+    "apkName": "ista-english"
+  },
   "scripts": {
     "start": "env-cmd -f .env.development expo start",
     "android": "cross-env APP_VARIANT=dev env-cmd -f .env.development expo run:android",
@@ -32,12 +39,15 @@
     "compromise": "^14.14.5",
     "convex": "^1.31.4",
     "expo": "~54.0.31",
+    "expo-application": "^7.0.8",
     "expo-audio": "~1.1.1",
     "expo-auth-session": "^7.0.10",
     "expo-blur": "~15.0.8",
     "expo-constants": "~18.0.13",
     "expo-crypto": "^15.0.8",
+    "expo-file-system": "^19.0.21",
     "expo-haptics": "~15.0.8",
+    "expo-intent-launcher": "^13.0.8",
     "expo-linear-gradient": "~15.0.8",
     "expo-linking": "~8.0.11",
     "expo-router": "~6.0.21",

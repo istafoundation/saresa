@@ -31,7 +31,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     package: IS_DEV ? "in.istafoundation.english.dev" : "in.istafoundation.english",
     versionCode: versionCode.android.versionCode,
     permissions: [
-      "android.permission.RECORD_AUDIO"
+      "android.permission.RECORD_AUDIO",
+      "android.permission.REQUEST_INSTALL_PACKAGES"
     ]
   },
   web: {
@@ -48,5 +49,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         "microphonePermission": "Allow Saresa to access your microphone to recognize your speech."
       }
     ]
-  ]
+  ],
+  extra: {
+    githubRepo: pkg.repository?.url?.replace("https://github.com/", "") || "istafoundation/saresa",
+    apkName: pkg.config?.apkName || "ista-english"
+  }
 });
