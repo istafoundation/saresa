@@ -1,5 +1,5 @@
 // GK Competitive Mode - 10 questions, 30s timer, XP rewards
-import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
 import { useState, useEffect, useRef } from 'react';
@@ -17,6 +17,8 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 import { COLORS, SPACING, BORDER_RADIUS } from '../../../constants/theme';
 import { useGKStore, type Question } from '../../../stores/gk-store';
+import CoinRewardAnimation from '../../../components/animations/CoinRewardAnimation';
+import CoinBalance from '../../../components/CoinBalance';
 import { useUserStore } from '../../../stores/user-store';
 import { useUserActions, useGameStatsActions } from '../../../utils/useUserActions';
 import { useGameAudio } from '../../../utils/sound-manager';
@@ -34,6 +36,7 @@ import FillInBlanksRenderer from '../../../components/questions/FillInBlanksRend
 
 const TIME_LIMIT = 30;
 const TOTAL_QUESTIONS = 10;
+const { width, height } = Dimensions.get('window');
 
 export default function CompetitiveScreen() {
   const { safeBack } = useSafeNavigation();
@@ -69,6 +72,10 @@ export default function CompetitiveScreen() {
     xpEarned: number;
     coinsEarned: number;
   } | null>(null);
+
+  // Coin Animation
+  const [showCoinAnimation, setShowCoinAnimation] = useState(false);
+  const [earnedCoins, setEarnedCoins] = useState(0);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const timerProgress = useSharedValue(1);
@@ -305,6 +312,13 @@ export default function CompetitiveScreen() {
             timeLeft <= 5 && styles.timerBarDanger,
           ]} 
         />
+        {/* Coin Animation Overlay */}
+        {showCoinAnimation && (
+            <CoinRewardAnimation 
+                coinsEarned={earnedCoins}
+                onComplete={() => setShowCoinAnimation(false)}
+            />
+        )}
       </View>
 
       {/* Progress Dots */}

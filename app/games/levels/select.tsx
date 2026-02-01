@@ -12,6 +12,7 @@ import { useChildAuth } from '../../../utils/childAuth';
 import { useTapFeedback } from '../../../utils/useTapFeedback';
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../../../constants/theme';
 import type { Id } from '../../../convex/_generated/dataModel';
+import { hasLevelProgress } from '../../../utils/storage';
 
 interface Difficulty {
   name: string;
@@ -95,12 +96,48 @@ export default function DifficultySelectScreen() {
     safeBack();
   };
   
+  // Determine if this is the last unlocked level
+  const isLastUnlockedLevel = levels?.every(l => {
+    // If a level has a higher number and is unlocked/completed, then this is NOT the last unlocked level
+    if (l.levelNumber > level.levelNumber && (l.state === 'unlocked' || l.state === 'completed')) {
+      return false;
+    }
+    return true;
+  }) ?? false;
+
+  // Find the index of the last unlocked difficulty
+  // Iterate and find the last one that returns true for isDifficultyUnlocked
+  let lastUnlockedDifficultyIndex = -1;
+  sortedDifficulties.forEach((d, i) => {
+    if (isDifficultyUnlocked(d, i)) {
+      lastUnlockedDifficultyIndex = i;
+    }
+  });
+
   const handleSelectDifficulty = (difficulty: Difficulty, index: number) => {
     if (isDifficultyUnlocked(difficulty, index)) {
       triggerTap('medium');
+      
+      // Check if we can resume:
+      // 1. Must be last unlocked level
+      // 2. Must be last unlocked difficulty
+      // 3. Must have saved progress
+      let canResume = false;
+      if (isLastUnlockedLevel && index === lastUnlockedDifficultyIndex) {
+        // We use require here to avoid import cycles or just import at top. 
+        // Better to import at top, but for minimal diff in replace_file_content, I'll add import at top in a separate call or use require if possible.
+        // Actually, I'll allow the error "hasLevelProgress not found" and fix it by adding import. 
+        // Wait, I should add the import first or do it all in one multi_replace.
+        // I will use multi_replace to add import as well.
+      }
+      
       safePush({
         pathname: '/games/levels/game',
-        params: { levelId, difficulty: difficulty.name },
+        params: { 
+          levelId, 
+          difficulty: difficulty.name,
+          canResume: (isLastUnlockedLevel && index === lastUnlockedDifficultyIndex).toString() 
+        },
       });
     } else {
       triggerTap('light');

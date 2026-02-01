@@ -1,11 +1,12 @@
 // Unified Game Engine - Handles level gameplay with all question types
 // Optimized for smooth performance with proper state resets
 import { useEffect, useState, useCallback, useRef, memo } from 'react';
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, InteractionManager } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, InteractionManager, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useMutation } from 'convex/react';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../../convex/_generated/api';
 import { useSafeNavigation } from '../../../utils/useSafeNavigation';
@@ -14,6 +15,12 @@ import { useTapFeedback } from '../../../utils/useTapFeedback';
 import { useGameAudio } from '../../../utils/sound-manager';
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../../../constants/theme';
 import type { Id } from '../../../convex/_generated/dataModel';
+import CoinRewardAnimation from '../../../components/animations/CoinRewardAnimation';
+import CoinBalance from '../../../components/CoinBalance';
+import { saveLevelProgress, loadLevelProgress, clearLevelProgress, hasLevelProgress } from '../../../utils/storage';
+import { useUserStore } from '../../../stores/user-store';
+
+
 
 // Question renderers - lazy loaded
 import MCQRenderer from '../../../components/questions/MCQRenderer';
@@ -35,14 +42,25 @@ type Question = {
 
 export default function LevelGameScreen() {
   const { safeBack } = useSafeNavigation();
-  const { levelId, difficulty } = useLocalSearchParams<{ 
+  const router = useRouter();
+  const { levelId, difficulty, canResume } = useLocalSearchParams<{ 
     levelId: string; 
     difficulty: string;
+    canResume?: string;
   }>();
   const { token } = useChildAuth();
   const { triggerTap } = useTapFeedback();
   const { playCorrect, playWrong, playWin } = useGameAudio();
   
+  // Access store for optimistic updates
+  const setSyncedData = useUserStore(state => state.setSyncedData);
+  const coins = useUserStore(state => state.coins);
+  const syncedData = useUserStore(state => state.syncedData);
+  
+  // Coin Animation
+  const [showCoinAnimation, setShowCoinAnimation] = useState(false);
+  const [earnedCoins, setEarnedCoins] = useState(0);
+
   // State
   const [currentIndex, setCurrentIndex] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
@@ -57,6 +75,7 @@ export default function LevelGameScreen() {
     passed: boolean;
     isNewHighScore: boolean;
     levelCompleted: boolean;
+    coinsEarned?: number; // Add coinsEarned to gameResult type
   } | null>(null);
   
   // Refs for avoiding stale closures
@@ -85,6 +104,72 @@ export default function LevelGameScreen() {
   
 
   const totalQuestions = questions?.length ?? 0;
+  
+  // Resume Game Logic
+  useEffect(() => {
+    if (canResume === 'true' && levelId && difficulty) {
+      if (hasLevelProgress(levelId, difficulty)) {
+        Alert.alert(
+          'Resume Game',
+          'Do you want to continue where you left off?',
+          [
+            {
+              text: 'Start Over',
+              style: 'destructive',
+              onPress: () => {
+                clearLevelProgress(levelId, difficulty);
+              }
+            },
+            {
+              text: 'Continue',
+              onPress: () => {
+                const state = loadLevelProgress(levelId, difficulty);
+                if (state) {
+                   // Ensure we don't go out of bounds if questions changed
+                   if (questions && state.currentIndex < questions.length) {
+                       setCurrentIndex(state.currentIndex);
+                       setCorrectCount(state.correctCount);
+                       correctCountRef.current = state.correctCount;
+                       // Also need to set key to force re-render of current question type
+                       setQuestionKey(state.currentIndex);
+                   } else if (!questions) {
+                       // If questions aren't loaded yet, we might have a race condition.
+                       // Ideally we wait for questions. But this effect runs when deps change.
+                       // We can check if questions is defined.
+                       // If questions are NOT defined, we probably shouldn't be here or we wait.
+                       // Actually this effect depends on 'questions' implicitely if we use it?
+                       // No, we should probably set a "pending resume" state if questions aren't ready?
+                       // Or simple hack: The query hook handles loading.
+                       // If questions is undefined, we can't validate bounds.
+                       // Let's safe guard:
+                       // We can just set the state. If questions load later, currentIndex will be applied.
+                       setCurrentIndex(state.currentIndex);
+                       setCorrectCount(state.correctCount);
+                       correctCountRef.current = state.correctCount;
+                       setQuestionKey(state.currentIndex);
+                   }
+                }
+              }
+            }
+          ]
+        );
+      }
+    }
+  }, [canResume, levelId, difficulty, /* run once on mount effectively, but canResume ensures we check */]);
+
+  // Auto-save progress
+  useEffect(() => {
+      // Only save if we are in verifiable "resume" mode and have actually started playing
+      if (canResume === 'true' && levelId && difficulty && currentIndex > 0) {
+          // Don't save if finished
+          if (currentIndex < totalQuestions) {
+              saveLevelProgress(levelId, difficulty, {
+                  currentIndex,
+                  correctCount
+              });
+          }
+      }
+  }, [currentIndex, correctCount, canResume, levelId, difficulty, totalQuestions]);
   
 
   
@@ -149,6 +234,13 @@ export default function LevelGameScreen() {
     setShowQuestionResult(true);
   }, [showQuestionResult, triggerTap]);
   
+  // Handle coin landing for animation synchronization
+  const handleCoinLand = useCallback(() => {
+    // This could be used to trigger local visual updates if we weren't fully relying on the store
+    // For now, the CoinBalance component watches the store which updates via sync
+    triggerTap('light');
+  }, [triggerTap]);
+
   // Finish game and submit score - wrapped in useCallback to be a stable dependency
   const finishGameWithScore = useCallback(async () => {
     // correctCountRef.current already contains the final correct count
@@ -156,7 +248,18 @@ export default function LevelGameScreen() {
     const finalCorrect = correctCountRef.current;
     const score = Math.round((finalCorrect / totalQuestions) * 100);
     
-    if (!token || !levelId || !difficulty) return;
+    console.log('[LevelGame] Finishing game', { 
+      levelId, 
+      difficulty, 
+      finalCorrect, 
+      score,
+      token: token ? 'present' : 'missing' 
+    });
+
+    if (!token || !levelId || !difficulty) {
+        console.error('[LevelGame] Missing required params', { token, levelId, difficulty });
+        return;
+    }
     
     try {
       const result = await submitAttempt({
@@ -166,18 +269,45 @@ export default function LevelGameScreen() {
         score,
       });
       
+      console.log('[LevelGame] Submit success', result);
+
+      // Clear progress on completion (pass or fail)
+      if (canResume === 'true' && levelId && difficulty) {
+          clearLevelProgress(levelId, difficulty);
+      }
+      
       setGameResult({
         score,
         passed: result.passed,
         isNewHighScore: result.isNewHighScore,
         levelCompleted: result.levelCompleted,
+        coinsEarned: result.coinsEarned,
       });
       
+      if (result.coinsEarned && result.coinsEarned > 0) {
+          console.log('[LevelGame] Earned coins:', result.coinsEarned);
+          setEarnedCoins(result.coinsEarned);
+          
+          // Optimistically update coin balance immediately
+          if (syncedData) {
+            setSyncedData({
+                ...syncedData,
+                coins: (coins ?? 0) + result.coinsEarned
+            });
+          }
+
+          // Small delay to allow result screen to mount/animate in
+          setTimeout(() => {
+            setShowCoinAnimation(true);
+          }, 500);
+      }
+      
+      triggerTap(result.passed ? 'heavy' : 'medium');
       if (result.passed) {
-        requestAnimationFrame(() => playWin());
+        playWin();
       }
     } catch (error) {
-      console.error('Failed to submit attempt:', error);
+      console.error('[LevelGame] Failed to submit level attempt:', error);
       setGameResult({
         score,
         passed: score >= (currentDifficulty?.requiredScore ?? 0),
@@ -189,7 +319,7 @@ export default function LevelGameScreen() {
     setShowResult(true);
     setIsTransitioning(false);
     isProcessingRef.current = false;
-  }, [token, levelId, difficulty, totalQuestions, submitAttempt, playWin, currentDifficulty?.requiredScore]);
+  }, [token, levelId, difficulty, totalQuestions, submitAttempt, playWin, triggerTap, currentDifficulty?.requiredScore]);
   
   // Handle back
   const handleBack = useCallback(() => {
@@ -250,8 +380,17 @@ export default function LevelGameScreen() {
   
   // Result screen
   if (showResult && gameResult) {
+    const progress = (currentIndex + 1) / totalQuestions;
     return (
       <SafeAreaView style={styles.container}>
+        <View style={styles.resultHeader}>
+          <Pressable onPress={handleBack} style={styles.closeButton}>
+            <Ionicons name="close" size={24} color={COLORS.text} />
+          </Pressable>
+          <View style={{ flex: 1 }} />
+          <CoinBalance size="medium" />
+        </View>
+
         <View style={styles.resultContainer}>
           <MotiView
             from={{ opacity: 0, scale: 0.8 }}
@@ -266,12 +405,23 @@ export default function LevelGameScreen() {
               {gameResult.passed ? 'Great Job!' : 'Keep Trying!'}
             </Text>
             
-            <View style={styles.scoreCircle}>
-              <Text style={styles.scoreText}>{gameResult.score}%</Text>
-              <Text style={styles.scoreLabel}>Score</Text>
+            <View style={styles.resultStatsRow}>
+              <View style={styles.resultStat}>
+                 <Text style={styles.resultStatLabel}>Score</Text>
+                 <Text style={styles.resultStatValue}>{gameResult.score}%</Text>
+              </View>
+              {/* Always show coins for debug/verification, default to 0 if undefined */}
+              <View style={[styles.resultStat, styles.coinStat]}>
+                 <Text style={styles.resultStatLabel}>Coins</Text>
+                 <Text style={[styles.resultStatValue, { color: COLORS.accentGold }]}>
+                    +{gameResult.coinsEarned ?? 0}
+                 </Text>
+              </View>
             </View>
-            
-            <View style={styles.resultInfo}>
+
+            {/* Debug Info removed */}
+
+            <View style={styles.resultActions}>
               <View style={styles.resultInfoItem}>
                 <Text style={styles.resultInfoValue}>
                   {correctCountRef.current}/{totalQuestions}
@@ -294,7 +444,7 @@ export default function LevelGameScreen() {
             
             {gameResult.levelCompleted && (
               <View style={styles.levelCompleteBadge}>
-                <Ionicons name="star" size={20} color={COLORS.accentGold} />
+                <Ionicons name="star" size={20} color={COLORS.success} />
                 <Text style={styles.levelCompleteText}>Level Complete!</Text>
               </View>
             )}
@@ -313,53 +463,44 @@ export default function LevelGameScreen() {
             </Pressable>
           </MotiView>
         </View>
+        
+        {/* Coin Animation Overlay */}
+        {showCoinAnimation && (
+            <CoinRewardAnimation 
+                coinsEarned={earnedCoins}
+                onComplete={() => setShowCoinAnimation(false)}
+                onCoinLand={handleCoinLand}
+            />
+        )}
       </SafeAreaView>
     );
   }
   
   // Game screen
+  const progress = (currentIndex + 1) / totalQuestions;
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable onPress={handleBack} style={styles.closeButton}>
-          <Ionicons name="close" size={24} color={COLORS.text} />
-        </Pressable>
-        
-        <View style={styles.progressContainer}>
-          <Text style={styles.progressText}>
-            {currentIndex + 1} / {totalQuestions}
-          </Text>
-          <View style={styles.progressBar}>
-            <View 
-              style={[
-                styles.progressFill, 
-                { width: `${((currentIndex + 1) / totalQuestions) * 100}%` }
-              ]} 
-            />
-          </View>
-        </View>
-        
-
-        
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          {/* Skip Button - only visible when not showing question result */}
-          {!showQuestionResult && (
-            <Pressable onPress={handleSkip} style={styles.skipButton}>
-              <Text style={styles.skipButtonText}>Skip</Text>
-              <Ionicons name="play-skip-forward" size={16} color={COLORS.textSecondary} />
-            </Pressable>
-          )}
-          
-          {showQuestionResult && (
-            <View style={styles.difficultyBadge}>
-              <Text style={styles.difficultyText}>
-                {currentDifficulty?.displayName ?? difficulty}
-              </Text>
+          <Pressable onPress={() => router.back()} style={styles.closeButton}>
+            <Ionicons name="close" size={24} color={COLORS.text} />
+          </Pressable>
+          <View style={styles.progressContainer}>
+            <Text style={styles.progressText}>
+              {currentIndex + 1} / {totalQuestions}
+            </Text>
+            <View style={styles.progressBar}>
+              <View 
+                style={[
+                  styles.progressFill, 
+                  { width: `${progress * 100}%` }
+                ]} 
+              />
             </View>
-          )}
-        </View>
-      </View>
+          </View>
+
+          <CoinBalance size="small" />
+        </View> 
       
       {/* Question Renderer - key forces fresh state on question change */}
       {currentQuestion && !isTransitioning && (
@@ -377,6 +518,7 @@ export default function LevelGameScreen() {
               borderWidth: 1,
               borderColor: 'rgba(0,0,0,0.1)'
             }}>
+
               <Text style={{ fontSize: 10, color: COLORS.textMuted, opacity: 0.7 }}>
                 #{currentQuestion.questionCode}
               </Text>
@@ -468,6 +610,20 @@ export default function LevelGameScreen() {
               disabled={showQuestionResult}
             />
           )}
+        </View>
+      )}
+
+      {/* Bottom Skip Button */}
+      {!showQuestionResult && !isTransitioning && !showResult && (
+        <View style={styles.footer}>
+          <Pressable 
+            style={styles.bottomSkipButton} 
+            onPress={handleSkip}
+            disabled={isProcessingRef.current}
+          >
+            <Text style={styles.bottomSkipButtonText}>Skip</Text>
+            <Ionicons name="play-skip-forward-outline" size={20} color={COLORS.textSecondary} />
+          </Pressable>
         </View>
       )}
       
@@ -757,6 +913,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.text,
   },
+  resultHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: SPACING.md,
+    width: '100%',
+    zIndex: 10,
+  },
   skipButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -786,6 +950,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: SPACING.md,
     ...SHADOWS.lg,
+  },
+  resultStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.xl,
+    marginBottom: SPACING.lg,
+    width: '100%',
+  },
+  resultStat: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  coinStat: {
+    // Optional additional styling for coin stat
+  },
+  resultStatLabel: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    fontWeight: '700',
+  },
+  resultStatValue: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+  resultActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.lg,
+    padding: SPACING.md,
+    backgroundColor: COLORS.background,
+    borderRadius: BORDER_RADIUS.lg,
+    width: '100%',
   },
   questionResultCorrect: {
     borderWidth: 2,
@@ -827,5 +1028,27 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: COLORS.text,
+  },
+  footer: {
+    padding: SPACING.md,
+    paddingBottom: SPACING.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bottomSkipButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.full,
+    borderWidth: 1,
+    borderColor: COLORS.textMuted + '40',
+  },
+  bottomSkipButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
   },
 });

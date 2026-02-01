@@ -168,3 +168,54 @@ export const zustandStorage = {
     storage.delete(name);
   },
 };
+
+// ============================================
+// LEVEL PROGRESSION STORAGE
+// ============================================
+
+export interface LevelGameState {
+  currentIndex: number;
+  correctCount: number;
+  timestamp: number;
+}
+
+export const saveLevelProgress = (
+  levelId: string,
+  difficultyName: string,
+  state: Omit<LevelGameState, 'timestamp'>
+) => {
+  const key = `level_progress_${levelId}_${difficultyName}`;
+  const data: LevelGameState = {
+    ...state,
+    timestamp: Date.now(),
+  };
+  storage.set(key, JSON.stringify(data));
+};
+
+export const loadLevelProgress = (
+  levelId: string,
+  difficultyName: string
+): LevelGameState | null => {
+  const key = `level_progress_${levelId}_${difficultyName}`;
+  const data = storage.getString(key);
+  
+  if (data) {
+    try {
+      return JSON.parse(data) as LevelGameState;
+    } catch (e) {
+      console.error('Failed to parse game state', e);
+      return null;
+    }
+  }
+  return null;
+};
+
+export const clearLevelProgress = (levelId: string, difficultyName: string) => {
+  const key = `level_progress_${levelId}_${difficultyName}`;
+  storage.delete(key);
+};
+
+export const hasLevelProgress = (levelId: string, difficultyName: string): boolean => {
+  const key = `level_progress_${levelId}_${difficultyName}`;
+  return !!storage.getString(key);
+};

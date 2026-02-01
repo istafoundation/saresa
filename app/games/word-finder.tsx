@@ -17,6 +17,8 @@ import { useGameAudio } from '../../utils/sound-manager';
 import { useTapFeedback } from '../../utils/useTapFeedback';
 import { useChildAuth } from '../../utils/childAuth';
 import { useWordFinderSets, useWordFinderHardQuestions } from '../../utils/content-hooks';
+import CoinRewardAnimation from '../../components/animations/CoinRewardAnimation';
+import CoinBalance from '../../components/CoinBalance';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GRID_SIZE = 8;
@@ -81,7 +83,11 @@ export default function WordFinderScreen() {
   const [showResult, setShowResult] = useState(false);
   const [lastFoundWord, setLastFoundWord] = useState<string | null>(null);
   const [hintText, setHintText] = useState<string | null>(null);
-  const [result, setResult] = useState<{ xpEarned: number; wordsFound: number; total: number } | null>(null);
+  const [result, setResult] = useState<{ xpEarned: number; wordsFound: number; total: number; coinsEarned: number } | null>(null);
+  
+  // Coin Animation
+  const [showCoinAnimation, setShowCoinAnimation] = useState(false);
+  const [earnedCoins, setEarnedCoins] = useState(0);
   
   // Local selection state for smooth updates
   const [localSelection, setLocalSelection] = useState<CellPosition[]>([]);
@@ -113,6 +119,8 @@ export default function WordFinderScreen() {
         setLastFoundWord(null);
         setHintText(null);
         setLocalSelection([]);
+        setShowCoinAnimation(false);
+        setEarnedCoins(0);
       }
       
       // Use direct store access to get current state (avoids stale closure)
@@ -173,20 +181,37 @@ export default function WordFinderScreen() {
   
   const handleGameEnd = async () => {
     const gameResult = finishGame();
-    setResult(gameResult);
+    // Initial result without coins
+    setResult({ ...gameResult, coinsEarned: 0 });
     setShowResult(true);
     
-    // ALWAYS Save stats to Convex to record the attempt (even if 0 XP)
-    // This ensures daily limits work correctly
-    await updateWordFinderStats({
-      mode: mode,
-      wordsFound: gameResult.wordsFound,
-      xpEarned: gameResult.xpEarned, // kept for backward compatibility but ignored
-      correctAnswers: mode === 'hard' ? gameResult.wordsFound : undefined,
-      timeRemaining: useWordFinderStore.getState().timeRemaining,
-      hintUsed: hintUsed,
-    });
-
+    // Submit to backend
+    try {
+        const mutationResult = await updateWordFinderStats({
+          mode: mode === 'easy' ? 'easy' : 'hard',
+          wordsFound: gameResult.wordsFound,
+          xpEarned: gameResult.xpEarned, // Included for backward compat, ignored by server
+          correctAnswers: gameResult.wordsFound, // For hard mode
+          timeRemaining: useWordFinderStore.getState().timeRemaining,
+          hintUsed: hintUsed,
+        });
+        
+        // Add coins to result
+        const coinsFromBackend = mutationResult?.coinsEarned ?? 0;
+        
+        setResult({
+            ...gameResult,
+            coinsEarned: coinsFromBackend
+        });
+        
+        if (coinsFromBackend > 0) {
+            setEarnedCoins(coinsFromBackend);
+            setShowCoinAnimation(true);
+        }
+    } catch (error) {
+        console.error("Failed to submit stats:", error);
+    }
+    
     if (gameResult.xpEarned > 0) {
       await addXP(gameResult.xpEarned);
       playWin();
@@ -208,6 +233,8 @@ export default function WordFinderScreen() {
       setLastFoundWord(null);
       setHintText(null);
       setLocalSelection([]);
+      setShowCoinAnimation(false);
+      setEarnedCoins(0);
     }
   };
   
@@ -226,6 +253,8 @@ export default function WordFinderScreen() {
     setShowModeSelect(true);
     setShowResult(false);
     setResult(null);
+    setShowCoinAnimation(false);
+    setEarnedCoins(0);
   };
   
   const handleUseHint = () => {
@@ -544,12 +573,12 @@ export default function WordFinderScreen() {
         <View style={styles.modeSelectContainer}>
           {/* Header */}
           <View style={styles.header}>
-            <Pressable style={styles.backButton} onPress={handleBack}>
-              <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-            </Pressable>
-            <Text style={styles.title}>Word Finder</Text>
-            <View style={styles.placeholder} />
-          </View>
+          <Pressable onPress={handleBack} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+          </Pressable>
+          <Text style={styles.title}>Word Finder</Text>
+          <CoinBalance /> 
+        </View>
           
           {/* Game description */}
           <MotiView
@@ -688,12 +717,23 @@ export default function WordFinderScreen() {
             <View style={styles.resultStats}>
               <View style={styles.resultStatItem}>
                 <Text style={styles.resultStatValue}>{result.wordsFound}/{result.total}</Text>
-                <Text style={styles.resultStatLabel}>Words Found</Text>
-              </View>
-              <View style={styles.resultStatDivider} />
-              <View style={styles.resultStatItem}>
-                <Text style={[styles.resultStatValue, styles.xpValue]}>+{result.xpEarned}</Text>
-                <Text style={styles.resultStatLabel}>XP Earned</Text>
+                  <Text style={styles.resultStatLabel}>Words Found</Text>
+                </View>
+                {result.coinsEarned > 0 && (
+                    <>
+                        <View style={styles.resultStatDivider} />
+                        <View style={styles.resultStatItem}>
+                            <Text style={[styles.resultStatValue, { color: COLORS.accentGold }]}>
+                                +{result.coinsEarned}
+                            </Text>
+                            <Text style={styles.resultStatLabel}>Coins</Text>
+                        </View>
+                    </>
+                )}
+                <View style={styles.resultStatDivider} />
+                <View style={styles.resultStatItem}>
+                  <Text style={[styles.resultStatValue, { color: COLORS.primary }]}>+{result.xpEarned}</Text>
+                  <Text style={styles.resultStatLabel}>XP Earned</Text>
               </View>
             </View>
             
@@ -710,16 +750,20 @@ export default function WordFinderScreen() {
                   <Text style={styles.resultInfoText}>Come back tomorrow!</Text>
                 </View>
               )}
-              <Pressable 
-                style={[styles.resultButton, styles.resultButtonPrimary]} 
-                onPress={handleBack}
-              >
-                <Ionicons name="home" size={20} color={COLORS.text} />
-                <Text style={styles.resultButtonText}>Home</Text>
+              <Pressable style={styles.closeResultButton} onPress={handleBack}>
+                <Text style={styles.closeResultText}>Done</Text>
               </Pressable>
             </View>
           </MotiView>
         </View>
+        
+        {/* Coin Animation */}
+        {showCoinAnimation && (
+            <CoinRewardAnimation 
+                coinsEarned={earnedCoins}
+                onComplete={() => setShowCoinAnimation(false)}
+            />
+        )}
       </SafeAreaView>
     );
   }
@@ -1305,5 +1349,15 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.textSecondary,
     fontWeight: '500',
+  },
+  closeResultButton: {
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.full,
+  },
+  closeResultText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
   },
 });

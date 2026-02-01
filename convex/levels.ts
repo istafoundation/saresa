@@ -391,6 +391,36 @@ export const submitLevelAttempt = mutation({
     const wasCompleted = progress.isCompleted;
     const isNewHighScore = args.score > (existingDiff?.highScore ?? 0);
     
+    // ---- Coin Rewards (Server-side) ----
+    // Only award coins if passed and NOT previously passed? 
+    // Or award every time they pass? 
+    // Implementation Plan implies awarding upon passing.
+    // For replayability, maybe small coins? 
+    // Standard logic: 
+    // Easy: 50, Medium: 100, Hard: 150
+    let coinsEarned = 0;
+    if (passed) {
+        const baseCoins: Record<string, number> = {
+            "easy": 50,
+            "medium": 100,
+            "hard": 150
+        };
+        coinsEarned = baseCoins[args.difficultyName] ?? 50;
+    }
+    
+    // Optimization: Fetch user once at start? No, need to fetch user to update coins.
+    // We already have progress, but not user doc.
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_child_id", (q) => q.eq("childId", session.childId))
+      .first();
+
+    if (user && coinsEarned > 0) {
+        await ctx.db.patch(user._id, {
+            coins: (user.coins ?? 0) + coinsEarned
+        });
+    }
+
     await ctx.db.patch(progress._id, {
       difficultyProgress: updatedDifficultyProgress,
       isCompleted: allPassed,
@@ -403,6 +433,7 @@ export const submitLevelAttempt = mutation({
       score: args.score, 
       isNewHighScore,
       levelCompleted: allPassed && !wasCompleted,
+      coinsEarned,
     };
   },
 });

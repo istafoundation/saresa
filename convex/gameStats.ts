@@ -11,6 +11,8 @@ export const updateGKStats = mutation({
     practiceTotal: v.optional(v.number()),
     practiceCorrect: v.optional(v.number()),
     playedCompetitive: v.optional(v.boolean()),
+    // New param to support server-side coin awarding for competitive
+    competitiveCorrect: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const childId = await getChildIdFromSession(ctx, args.token);
@@ -44,7 +46,18 @@ export const updateGKStats = mutation({
     }
 
     if (Object.keys(updates).length > 0) {
+      // Award coins for Competitive (10 per correct answer)
+      if (args.playedCompetitive && args.competitiveCorrect !== undefined && args.competitiveCorrect > 0) {
+          const coinsEarned = args.competitiveCorrect * 10;
+          updates.coins = (user.coins ?? 0) + coinsEarned;
+      }
+      
       await ctx.db.patch(user._id, updates);
+      
+      // Return coins earned for UI feedback
+      return { 
+          coinsEarned: (args.playedCompetitive && args.competitiveCorrect) ? args.competitiveCorrect * 10 : 0 
+      };
     }
   },
 });
@@ -429,7 +442,25 @@ export const updateWordFinderStats = mutation({
       updates.wfLastHardDate = today;
     }
 
+    // ---- COIN REWARDS ----
+    // Easy: 1 coin per word
+    // Hard: 2 coins per word (correctAnswer count)
+    let coinsEarned = 0;
+    if (args.mode === "easy") {
+        coinsEarned = args.wordsFound * 1; 
+    } else {
+        coinsEarned = (args.correctAnswers ?? 0) * 2;
+    }
+
+    if (coinsEarned > 0) {
+        updates.coins = (user.coins ?? 0) + coinsEarned;
+    }
+
     await ctx.db.patch(user._id, updates);
+
+    return {
+        coinsEarned
+    };
   },
 });
 
@@ -609,6 +640,8 @@ export const updateExplorerStats = mutation({
 
     if (args.correct) {
       updates.expCorrectAnswers = (user.expCorrectAnswers ?? 0) + 1;
+      // Coins: 5 per correct region
+      updates.coins = (user.coins ?? 0) + 5;
     }
 
     await ctx.db.patch(user._id, updates);
@@ -617,6 +650,7 @@ export const updateExplorerStats = mutation({
       guessedToday,
       remaining: TOTAL_EXPLORER_REGIONS - guessedToday.length,
       isComplete: guessedToday.length >= TOTAL_EXPLORER_REGIONS,
+      coinsEarned: args.correct ? 5 : 0,
     };
   },
 });
@@ -713,6 +747,8 @@ export const finishLetEmCook = mutation({
       lecTotalGamesPlayed: (user.lecTotalGamesPlayed ?? 0) + 1,
       xp: newXP,
       ...(artifactsUpdated ? { unlockedArtifacts } : {}),
+      // Coins: 1 per correct match
+      coins: (user.coins ?? 0) + args.correctCount,
     });
 
     return {
@@ -721,6 +757,7 @@ export const finishLetEmCook = mutation({
       correctCount: args.correctCount,
       totalQuestions: args.totalQuestions,
       artifactsUnlocked: artifactsUpdated ? unlockedArtifacts : null,
+      coinsEarned: args.correctCount,
     };
   },
 });
@@ -852,6 +889,8 @@ export const syncFlagChampsStats = mutation({
       fcTotalGamesCompleted: totalGamesCompleted,
       xp: newXP,
       ...(artifactsUpdated ? { unlockedArtifacts } : {}),
+      // Coins: 2 per correct flag (newCorrect only)
+      ...(args.newCorrect > 0 ? { coins: (user.coins ?? 0) + (args.newCorrect * 2) } : {}),
     });
 
     return {
@@ -861,7 +900,8 @@ export const syncFlagChampsStats = mutation({
       dailyXP,
       bestScore: newBestScore,
       isComplete: guessedToday.length >= 195,
-      xpAwarded: validatedXP
+      xpAwarded: validatedXP,
+      coinsEarned: args.newCorrect > 0 ? args.newCorrect * 2 : 0,
     };
   },
 });

@@ -212,13 +212,16 @@ const COIN_SIZE = 32;
 const styles = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: 9999,
+    zIndex: 99999, // Increased zIndex
+    elevation: 100, // Add high elevation for Android
     pointerEvents: 'none',
   },
   coin: {
     position: 'absolute',
     width: COIN_SIZE,
     height: COIN_SIZE,
+    zIndex: 100000, 
+    elevation: 101, // Ensure individual coins are above container
   },
   coinInner: {
     width: COIN_SIZE,

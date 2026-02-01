@@ -15,6 +15,8 @@ import { useGameAudio } from '../../utils/sound-manager';
 import { useUserStore } from '../../stores/user-store';
 import MatchRenderer from '../../components/questions/MatchRenderer';
 import Mascot from '../../components/Mascot';
+import CoinRewardAnimation from '../../components/animations/CoinRewardAnimation';
+import CoinBalance from '../../components/CoinBalance';
 
 // Constants
 const SPICES_PER_QUESTION = 4;
@@ -42,6 +44,11 @@ export default function LetEmCookScreen() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [questionKey, setQuestionKey] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
+  const [resultData, setResultData] = useState<any>(null);
+  
+  // Coin Animation
+  const [showCoinAnimation, setShowCoinAnimation] = useState(false);
+  const [earnedCoins, setEarnedCoins] = useState(0);
   
   // Refs
   const correctCountRef = useRef(0);
@@ -164,11 +171,19 @@ export default function LetEmCookScreen() {
     
     if (token) {
       try {
-        await finishLetEmCookMutation({
+        const result = await finishLetEmCookMutation({
           token,
           correctCount: finalCorrect,
           totalQuestions: totalSpices,
-        });
+        }); // Capture result
+        
+        setResultData(result);
+        
+        if (result.coinsEarned && result.coinsEarned > 0) {
+            setEarnedCoins(result.coinsEarned);
+            setShowCoinAnimation(true);
+        }
+
         playWin();
         setShowResult(true);
       } catch (error) {
@@ -233,13 +248,24 @@ export default function LetEmCookScreen() {
                 {canPlay.stats.correctAnswers}/{totalSpices || '?'} correct
               </Text>
               <Text style={styles.previousStatsXp}>
-                +{canPlay.stats.totalXPEarned} XP earned
+                Correct: {correctCountRef.current} / {totalSpices}
               </Text>
+              <Text style={styles.modalStatsText}>
+                Points: +{resultData?.xpEarned ?? (correctCountRef.current * XP_PER_CORRECT)} XP
+              </Text>
+              {resultData?.coinsEarned > 0 && (
+                <Text style={[styles.modalStatsText, { color: COLORS.accentGold }]}>
+                  Coins: +{resultData.coinsEarned} 🪙
+                </Text>
+              )}
             </View>
           )}
           
-          <Pressable style={styles.backToGamesButton} onPress={handleBack}>
-            <Text style={styles.backToGamesText}>Back to Games</Text>
+          <Pressable
+            style={styles.modalButton}
+            onPress={handleBack}
+          >
+            <Text style={styles.modalButtonText}>Finish Cooking</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -356,6 +382,14 @@ export default function LetEmCookScreen() {
             </Pressable>
           </MotiView>
         </View>
+
+        {/* Coin Animation Overlay */}
+        {showCoinAnimation && (
+            <CoinRewardAnimation 
+                coinsEarned={earnedCoins}
+                onComplete={() => setShowCoinAnimation(false)}
+            />
+        )}
       </SafeAreaView>
     );
   }
@@ -731,6 +765,26 @@ const styles = StyleSheet.create({
   },
   nextButtonText: {
     fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  
+  // Modal Styles (Manual Add)
+  modalStatsText: {
+    fontSize: 18,
+    color: COLORS.text,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  modalButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    marginTop: SPACING.lg,
+  },
+  modalButtonText: {
+    fontSize: 16,
     fontWeight: '700',
     color: COLORS.text,
   },

@@ -249,18 +249,18 @@ export function useGameStatsActions() {
       correctAnswers?: number;
       timeRemaining?: number;
       hintUsed?: boolean;
-    }): Promise<boolean> => {
+    }): Promise<{ success: boolean; coinsEarned: number }> => {
       logSync('updateWordFinderStats', data);
       const authToken = getAuthToken();
-      if (!authToken) return false;
+      if (!authToken) return { success: false, coinsEarned: 0 };
 
       try {
-        await updateWordFinderStatsMutation({ ...data, token: authToken });
-        logSync('updateWordFinderStats SUCCESS');
-        return true;
+        const result = await updateWordFinderStatsMutation({ ...data, token: authToken });
+        logSync('updateWordFinderStats SUCCESS', result);
+        return { success: true, coinsEarned: result.coinsEarned };
       } catch (error) {
         logError('updateWordFinderStats', error);
-        return false;
+        return { success: false, coinsEarned: 0 };
       }
     },
 

@@ -18,6 +18,8 @@ import { useUserStore } from '../../../stores/user-store';
 import { TOTAL_REGIONS, XP_PER_CORRECT, MAX_XP, calculateXP, INDIA_REGIONS } from '../../../data/india-states';
 import IndiaMap from '../../../components/IndiaMap';
 import Mascot from '../../../components/Mascot';
+import CoinRewardAnimation from '../../../components/animations/CoinRewardAnimation';
+import CoinBalance from '../../../components/CoinBalance';
 import { getISTDate } from '../../../utils/dates';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -35,6 +37,10 @@ export default function IndiaExplorerScreen() {
   const { mascot } = useUserStore();
   const [isStarting, setIsStarting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Coin Animation
+  const [showCoinAnimation, setShowCoinAnimation] = useState(false);
+  const [earnedCoins, setEarnedCoins] = useState(0);
   
   // Audio debounce guard - prevents rapid-fire sound effects
   const lastSoundTimeRef = useRef<number>(0);
@@ -184,6 +190,11 @@ export default function IndiaExplorerScreen() {
         correct: isCorrect,
         xpEarned: isCorrect ? XP_PER_CORRECT : 0,
       });
+
+      if (isCorrect) {
+          setEarnedCoins(5);
+          setShowCoinAnimation(true);
+      }
     } catch (error) {
       console.error('Failed to update stats:', error);
     } finally {
@@ -234,7 +245,7 @@ export default function IndiaExplorerScreen() {
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
           </Pressable>
           <Text style={styles.title}>India Explorer</Text>
-          <View style={{ width: 40 }} />
+          <CoinBalance />
         </View>
         
         <View style={styles.completedContainer}>
@@ -422,9 +433,12 @@ export default function IndiaExplorerScreen() {
                   {wasCorrect ? 'Excellent!' : 'Not quite!'}
                 </Text>
                 {wasCorrect ? (
-                  <Text style={styles.feedbackSubtitle}>
-                    You found {currentRegion?.name}
-                  </Text>
+                  <View>
+                    <Text style={styles.feedbackSubtitle}>
+                        You found {currentRegion?.name}
+                    </Text>
+                    <Text style={styles.feedbackCoins}>+5 Coins 🪙</Text>
+                  </View>
                 ) : (
                   <Text style={styles.feedbackSubtitle}>
                     That was {selectedRegionName}
@@ -455,6 +469,13 @@ export default function IndiaExplorerScreen() {
             </Pressable>
           </LinearGradient>
         </MotiView>
+      )}
+      {/* Coin Animation Overlay */}
+      {showCoinAnimation && (
+          <CoinRewardAnimation 
+              coinsEarned={earnedCoins}
+              onComplete={() => setShowCoinAnimation(false)}
+          />
       )}
     </SafeAreaView>
   );
@@ -793,6 +814,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: COLORS.text,
+  },
+  
+  // Feedback Overlay
+  feedbackOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: SPACING.md,
+    paddingBottom: SPACING.xl,
+    zIndex: 100,
+  },
+  feedbackEmojiWrong: {
+    opacity: 0.8,
+  },
+  feedbackCoins: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.accentGold,
+    marginTop: 4,
   },
   
   // Result

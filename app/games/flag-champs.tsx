@@ -28,6 +28,8 @@ import {
   shuffleCountries,
   type Country 
 } from '../../data/world-flags';
+import CoinRewardAnimation from '../../components/animations/CoinRewardAnimation';
+import CoinBalance from '../../components/CoinBalance';
 
 // Constants
 const SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
@@ -86,6 +88,10 @@ export default function FlagChampsScreen() {
   const xpRef = useRef(0);
   const lastSyncedRef = useRef({ guessed: [] as string[], correct: 0, xp: 0 });
   const syncMutationRef = useRef<typeof syncStats | null>(null);
+  
+  // Coin Animation
+  const [showCoinAnimation, setShowCoinAnimation] = useState(false);
+  const [earnedCoins, setEarnedCoins] = useState(0);
   
   // Convex
   const progress = useQuery(api.gameStats.getFlagChampsProgress,
@@ -177,13 +183,31 @@ export default function FlagChampsScreen() {
     };
     
     if (unsynced.newGuessed.length > 0) {
+      // Just fire and forget sync, response handled by callback/effect if needed
+      // But for coins, we might want to capture result if it's the final sync?
+      // Since this is throttled/background, we can't easily show animation for every sync.
+      // We'll show animation only at the END of the game or rely on CoinBalance updating.
+      // Actually, syncMutationRef returns a Promise.
+      
       syncMutationRef.current({
         token,
         newGuessed: unsynced.newGuessed,
         newCorrect: unsynced.newCorrect,
         newXP: unsynced.newXP,
         isGameComplete: guessedRef.current.length >= TOTAL_COUNTRIES,
+      }).then((result) => {
+          if (result && result.coinsEarned > 0) {
+              // Only simple toast or just let CoinBalance update?
+              // The user asked for "animation at some point". 
+              // If we are playing, maybe we shouldn't show full screen animation.
+              // But if it's game complete, we should.
+              if (result.isComplete) {
+                  setEarnedCoins(result.coinsEarned);
+                  setShowCoinAnimation(true);
+              }
+          }
       });
+
       lastSyncedRef.current = {
         guessed: [...guessedRef.current],
         correct: correctRef.current,
@@ -333,7 +357,7 @@ export default function FlagChampsScreen() {
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
           </Pressable>
           <Text style={styles.title}>Flag Champs</Text>
-          <View style={{ width: 40 }} />
+          <CoinBalance />
         </View>
         
         <View style={styles.completedContainer}>
@@ -647,6 +671,14 @@ export default function FlagChampsScreen() {
               </Pressable>
             </LinearGradient>
           </MotiView>
+        )}
+
+        {/* Coin Animation Overlay */}
+        {showCoinAnimation && (
+            <CoinRewardAnimation 
+                coinsEarned={earnedCoins}
+                onComplete={() => setShowCoinAnimation(false)}
+            />
         )}
       </KeyboardAvoidingView>
     </SafeAreaView>
