@@ -3,6 +3,20 @@ import { v, ConvexError } from "convex/values";
 import { getISTDate } from "./lib/dates";
 import { getChildIdFromSession, getAuthenticatedUser } from "./lib/auth";
 import { LEVELS, getUnlockedArtifactsForXP } from "./lib/levels";
+import {
+  calculateCompetitiveGKCoins,
+  calculateWordleCoins,
+  calculateWordFinderCoins,
+  calculateExplorerCoins,
+  calculateLetEmCookCoins,
+  calculateFlagChampsCoins,
+  calculateNewCoins,
+} from "./lib/coins";
+import {
+  TOTAL_EXPLORER_REGIONS,
+  TOTAL_FLAGS,
+  LEC_XP_PER_CORRECT,
+} from "./lib/constants";
 
 // Update GK stats
 export const updateGKStats = mutation({
@@ -48,17 +62,20 @@ export const updateGKStats = mutation({
     if (Object.keys(updates).length > 0) {
       // Award coins for Competitive (10 per correct answer)
       if (args.playedCompetitive && args.competitiveCorrect !== undefined && args.competitiveCorrect > 0) {
-          const coinsEarned = args.competitiveCorrect * 10;
-          updates.coins = (user.coins ?? 0) + coinsEarned;
+          const coinsEarned = calculateCompetitiveGKCoins(args.competitiveCorrect);
+          updates.coins = calculateNewCoins(user, coinsEarned);
       }
       
       await ctx.db.patch(user._id, updates);
       
       // Return coins earned for UI feedback
       return { 
-          coinsEarned: (args.playedCompetitive && args.competitiveCorrect) ? args.competitiveCorrect * 10 : 0 
+          coinsEarned: (args.playedCompetitive && args.competitiveCorrect) ? calculateCompetitiveGKCoins(args.competitiveCorrect) : 0 
       };
     }
+
+    // Always return a consistent object
+    return { coinsEarned: 0 };
   },
 });
 
@@ -192,26 +209,8 @@ function calculateWordleXP(won: boolean, guessCount?: number, usedHint?: boolean
   return usedHint ? Math.floor(xp * 0.5) : xp;
 }
 
-/**
- * Calculate Wordle coin reward server-side
- * Only awarded on successful completion
- */
-function calculateWordleCoins(won: boolean, guessCount?: number, usedHint?: boolean): number {
-  if (!won) return 0; // No coins for losing
-  
-  // Base coins by guess count (fewer guesses = more coins)
-  const baseCoins: Record<number, number> = {
-    1: 100, // Perfect!
-    2: 80,
-    3: 60,
-    4: 50,
-    5: 40,
-    6: 30,
-  };
-  
-  const coins = baseCoins[guessCount ?? 6] ?? 30;
-  return usedHint ? Math.floor(coins * 0.5) : coins; // 50% penalty for hint
-}
+// NOTE: calculateWordleCoins is now imported from ./lib/coins.ts
+// This eliminates duplicate code and ensures consistent coin calculations
 
 /**
  * BATCHED: Finish Wordle game - handles XP, coins, and stats in one atomic operation
@@ -224,9 +223,6 @@ export const finishWordleGame = mutation({
     won: v.boolean(),
     guessCount: v.optional(v.number()), // 1-6 if won
     usedHint: v.boolean(),
-    // Client values are IGNORED for security - kept for backward compatibility
-    xpReward: v.optional(v.number()),
-    coinReward: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const childId = await getChildIdFromSession(ctx, args.token);
@@ -277,7 +273,7 @@ export const finishWordleGame = mutation({
     
     // ---- Calculate Coins (only on win) ----
     const coinReward = calculateWordleCoins(args.won, args.guessCount, args.usedHint);
-    const newCoins = (user.coins ?? 0) + coinReward;
+    const newCoins = calculateNewCoins(user, coinReward);
 
     // ---- Single Atomic Database Update ----
     await ctx.db.patch(user._id, {
@@ -443,17 +439,11 @@ export const updateWordFinderStats = mutation({
     }
 
     // ---- COIN REWARDS ----
-    // Easy: 1 coin per word
-    // Hard: 2 coins per word (correctAnswer count)
-    let coinsEarned = 0;
-    if (args.mode === "easy") {
-        coinsEarned = args.wordsFound * 1; 
-    } else {
-        coinsEarned = (args.correctAnswers ?? 0) * 2;
-    }
+    // Uses centralized coin calculation from lib/coins.ts
+    const coinsEarned = calculateWordFinderCoins(args.mode, args.wordsFound, args.correctAnswers);
 
     if (coinsEarned > 0) {
-        updates.coins = (user.coins ?? 0) + coinsEarned;
+        updates.coins = calculateNewCoins(user, coinsEarned);
     }
 
     await ctx.db.patch(user._id, updates);
@@ -564,9 +554,7 @@ export const getGrammarDetectiveProgress = query({
 // EXPLORER (India Explorer) STATS
 // ============================================
 
-// Total regions in India Explorer (28 states + 8 UTs)
-// CRITICAL: Keep in sync with data/india-states.ts TOTAL_REGIONS via Shared Code or manual update
-const TOTAL_EXPLORER_REGIONS = 36;
+// TOTAL_EXPLORER_REGIONS imported from ./lib/constants.ts
 
 // Get Explorer progress for today (which states/UTs have been guessed)
 export const getExplorerProgress = query({
@@ -640,8 +628,8 @@ export const updateExplorerStats = mutation({
 
     if (args.correct) {
       updates.expCorrectAnswers = (user.expCorrectAnswers ?? 0) + 1;
-      // Coins: 5 per correct region
-      updates.coins = (user.coins ?? 0) + 5;
+      // Coins: uses centralized calculation from lib/coins.ts
+      updates.coins = calculateNewCoins(user, calculateExplorerCoins(true));
     }
 
     await ctx.db.patch(user._id, updates);
@@ -650,7 +638,7 @@ export const updateExplorerStats = mutation({
       guessedToday,
       remaining: TOTAL_EXPLORER_REGIONS - guessedToday.length,
       isComplete: guessedToday.length >= TOTAL_EXPLORER_REGIONS,
-      coinsEarned: args.correct ? 5 : 0,
+      coinsEarned: calculateExplorerCoins(args.correct),
     };
   },
 });
@@ -660,8 +648,7 @@ export const updateExplorerStats = mutation({
 // One-time game - user can only attempt once ever
 // ============================================
 
-const TOTAL_SPICES = 30;
-const LEC_XP_PER_CORRECT = 10;
+// LEC_XP_PER_CORRECT imported from ./lib/constants.ts
 
 // Check if user can play Let'em Cook (Daily Challenge)
 export const canPlayLetEmCook = query({
@@ -739,6 +726,7 @@ export const finishLetEmCook = mutation({
     );
 
     // Update user stats
+    const coinsEarned = calculateLetEmCookCoins(args.correctCount);
     await ctx.db.patch(user._id, {
       lecLastPlayedDate: today,
       lecDailyScore: args.correctCount,
@@ -747,8 +735,8 @@ export const finishLetEmCook = mutation({
       lecTotalGamesPlayed: (user.lecTotalGamesPlayed ?? 0) + 1,
       xp: newXP,
       ...(artifactsUpdated ? { unlockedArtifacts } : {}),
-      // Coins: 1 per correct match
-      coins: (user.coins ?? 0) + args.correctCount,
+      // Coins: uses centralized calculation from lib/coins.ts
+      coins: calculateNewCoins(user, coinsEarned),
     });
 
     return {
@@ -757,7 +745,7 @@ export const finishLetEmCook = mutation({
       correctCount: args.correctCount,
       totalQuestions: args.totalQuestions,
       artifactsUnlocked: artifactsUpdated ? unlockedArtifacts : null,
-      coinsEarned: args.correctCount,
+      coinsEarned,
     };
   },
 });
@@ -767,7 +755,7 @@ export const finishLetEmCook = mutation({
 // Daily challenge with batched syncing (every 5 mins)
 // ============================================
 
-const TOTAL_FLAGS = 195;
+// TOTAL_FLAGS imported from ./lib/constants.ts
 
 // Get Flag Champs progress (called once on mount for resume capability)
 export const getFlagChampsProgress = query({
@@ -874,7 +862,7 @@ export const syncFlagChampsStats = mutation({
       }
       // Only increment if this is a new completion (not a repeat sync)
       // We check if we JUST reached 195 with this sync
-      if (guessedToday.length === 195 && (user.fcGuessedToday?.length ?? 0) < 195) {
+      if (guessedToday.length === TOTAL_FLAGS && (user.fcGuessedToday?.length ?? 0) < TOTAL_FLAGS) {
         totalGamesCompleted += 1;
       }
     }
@@ -889,10 +877,11 @@ export const syncFlagChampsStats = mutation({
       fcTotalGamesCompleted: totalGamesCompleted,
       xp: newXP,
       ...(artifactsUpdated ? { unlockedArtifacts } : {}),
-      // Coins: 2 per correct flag (newCorrect only)
-      ...(args.newCorrect > 0 ? { coins: (user.coins ?? 0) + (args.newCorrect * 2) } : {}),
+      // Coins: uses centralized calculation from lib/coins.ts
+      ...(args.newCorrect > 0 ? { coins: calculateNewCoins(user, calculateFlagChampsCoins(args.newCorrect)) } : {}),
     });
 
+    const coinsEarned = calculateFlagChampsCoins(args.newCorrect);
     return {
       synced: args.newGuessed.length,
       totalGuessed: guessedToday.length,
@@ -901,7 +890,7 @@ export const syncFlagChampsStats = mutation({
       bestScore: newBestScore,
       isComplete: guessedToday.length >= 195,
       xpAwarded: validatedXP,
-      coinsEarned: args.newCorrect > 0 ? args.newCorrect * 2 : 0,
+      coinsEarned,
     };
   },
 });

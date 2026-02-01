@@ -62,7 +62,7 @@ export default defineSchema({
     // Currency
     weaponShards: v.number(),
     weaponDuplicates: v.record(v.string(), v.number()),
-    coins: v.optional(v.number()), // Coin currency earned from successful game completions
+    coins: v.number(), // Coin currency earned from successful game completions
 
     // GK Quiz Stats
     gkPracticeTotal: v.number(),

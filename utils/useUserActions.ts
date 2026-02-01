@@ -283,13 +283,12 @@ export function useGameStatsActions() {
     /**
      * BATCHED: Complete Wordle game with XP, coins, and stats in one call
      * Reduces 3 API calls to 1, improving performance and preventing race conditions
+     * Note: Rewards are calculated server-side for security
      */
     finishWordleGame: async (data: {
       won: boolean;
       guessCount?: number;
       usedHint: boolean;
-      xpReward: number;
-      coinReward: number;
     }): Promise<{
       success: boolean;
       stats?: {

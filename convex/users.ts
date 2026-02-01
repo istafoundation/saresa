@@ -4,13 +4,11 @@ import { getISTDate, getYesterdayIST } from "./lib/dates";
 import { getChildIdFromSession, getAuthenticatedUser } from "./lib/auth";
 import { checkRateLimit } from "./lib/rateLimit";
 import { LEVELS, VALID_ARTIFACT_IDS, getUnlockedArtifactsForXP } from "./lib/levels";
+import { MAX_COINS_PER_OPERATION, MAX_COINS_PER_SPEND_OPERATION, getCurrentCoins } from "./lib/coins";
+import { TOTAL_EXPLORER_REGIONS } from "./lib/constants";
 
 // Maximum XP that can be added in a single operation (prevents exploits)
 const MAX_XP_PER_OPERATION = 100;
-// Maximum coins that can be added/spent in a single operation
-const MAX_COINS_PER_SPEND_OPERATION = 200;
-// Maximum coins that can be added in a single operation
-const MAX_COINS_PER_OPERATION = 200;
 
 // Get current user data (for child app)
 // OPTIMIZED: Returns pre-computed daily limits to eliminate separate queries
@@ -47,7 +45,7 @@ export const getMyData = query({
 
     // Pre-compute all daily limits (IST-based) to avoid separate queries
     const today = getISTDate();
-    const TOTAL_REGIONS = 36; // Sync with data/india-states.ts
+
 
     return {
       ...user,
@@ -71,10 +69,10 @@ export const getMyData = query({
           ? (user.expGuessedToday ?? []) 
           : [],
         explorerRemaining: user.expLastPlayedDate === today 
-          ? TOTAL_REGIONS - (user.expGuessedToday?.length ?? 0) 
-          : TOTAL_REGIONS,
+          ? TOTAL_EXPLORER_REGIONS - (user.expGuessedToday?.length ?? 0) 
+          : TOTAL_EXPLORER_REGIONS,
         explorerIsComplete: user.expLastPlayedDate === today 
-          ? (user.expGuessedToday?.length ?? 0) >= TOTAL_REGIONS
+          ? (user.expGuessedToday?.length ?? 0) >= TOTAL_EXPLORER_REGIONS
           : false,
       },
     };
@@ -403,7 +401,7 @@ export const updateCoins = mutation({
 
     if (!user) throw new ConvexError("User not found");
 
-    const currentCoins = user.coins ?? 0;
+    const currentCoins = getCurrentCoins(user);
     const newAmount = args.operation === "add"
       ? currentCoins + args.amount
       : currentCoins - args.amount;
@@ -451,7 +449,7 @@ export const addCoins = mutation({
 
     if (!user) throw new ConvexError("User not found");
 
-    const newCoins = (user.coins ?? 0) + args.amount;
+    const newCoins = getCurrentCoins(user) + args.amount;
 
     await ctx.db.patch(user._id, {
       coins: newCoins,

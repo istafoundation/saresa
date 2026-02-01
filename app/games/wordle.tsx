@@ -234,8 +234,6 @@ export default function WordleScreen() {
           won: true,
           guessCount: guesses.length + 1,
           usedHint: hintUsed,
-          xpReward,
-          coinReward,
         });
         
         // Use returned stats directly to avoid race condition
@@ -261,8 +259,6 @@ export default function WordleScreen() {
         const statsResult = await finishWordleGame({
           won: false,
           usedHint: hintUsed,
-          xpReward: 0,
-          coinReward: 0,
         });
         
         // Use returned stats directly to avoid race condition
