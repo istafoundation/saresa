@@ -497,6 +497,8 @@ export const canPlayWordFinder = query({
     }
   },
 });
+// Grammar Detective: XP per correct answer (server-side calculation)
+const GD_XP_PER_CORRECT = 10;
 
 // Update Grammar Detective stats
 export const updateGrammarDetectiveStats = mutation({
@@ -504,12 +506,20 @@ export const updateGrammarDetectiveStats = mutation({
     token: v.string(),
     questionsAnswered: v.number(),
     correctAnswers: v.number(),
-    xpEarned: v.number(),
+    // xpEarned removed - now calculated server-side to prevent manipulation
     currentQuestionIndex: v.number(),
   },
   handler: async (ctx, args) => {
     const childId = await getChildIdFromSession(ctx, args.token);
     if (!childId) throw new ConvexError("Not authenticated");
+
+    // Validate inputs
+    if (args.questionsAnswered < 0 || args.questionsAnswered > 20) {
+      throw new ConvexError("Invalid questionsAnswered value");
+    }
+    if (args.correctAnswers < 0 || args.correctAnswers > args.questionsAnswered) {
+      throw new ConvexError("Invalid correctAnswers value");
+    }
 
     const user = await ctx.db
       .query("users")
@@ -518,12 +528,17 @@ export const updateGrammarDetectiveStats = mutation({
 
     if (!user) throw new ConvexError("User not found");
 
+    // Calculate XP server-side to prevent manipulation
+    const xpEarned = args.correctAnswers * GD_XP_PER_CORRECT;
+
     await ctx.db.patch(user._id, {
       gdQuestionsAnswered: (user.gdQuestionsAnswered ?? 0) + args.questionsAnswered,
       gdCorrectAnswers: (user.gdCorrectAnswers ?? 0) + args.correctAnswers,
-      gdTotalXPEarned: (user.gdTotalXPEarned ?? 0) + args.xpEarned,
+      gdTotalXPEarned: (user.gdTotalXPEarned ?? 0) + xpEarned,
       gdCurrentQuestionIndex: args.currentQuestionIndex,
     });
+
+    return { xpEarned };
   },
 });
 
@@ -589,17 +604,32 @@ export const getExplorerProgress = query({
   },
 });
 
+// Explorer: Valid region IDs (28 states + 8 UTs)
+const VALID_EXPLORER_REGIONS = new Set([
+  'IN-AP', 'IN-AR', 'IN-AS', 'IN-BR', 'IN-CT', 'IN-GA', 'IN-GJ', 'IN-HR',
+  'IN-HP', 'IN-JH', 'IN-KA', 'IN-KL', 'IN-MP', 'IN-MH', 'IN-MN', 'IN-ML',
+  'IN-MZ', 'IN-NL', 'IN-OR', 'IN-PB', 'IN-RJ', 'IN-SK', 'IN-TN', 'IN-TG',
+  'IN-TR', 'IN-UP', 'IN-UT', 'IN-WB', 'IN-AN', 'IN-CH', 'IN-DH', 'IN-DL',
+  'IN-JK', 'IN-LA', 'IN-LD', 'IN-PY',
+]);
+const EXPLORER_XP_PER_CORRECT = 10;
+
 // Update Explorer stats after answering a question
 export const updateExplorerStats = mutation({
   args: {
     token: v.string(),
     regionId: v.string(),    // e.g., "IN-MH"
     correct: v.boolean(),
-    xpEarned: v.number(),
+    // xpEarned removed - now calculated server-side to prevent manipulation
   },
   handler: async (ctx, args) => {
     const childId = await getChildIdFromSession(ctx, args.token);
     if (!childId) throw new ConvexError("Not authenticated");
+
+    // Validate region ID against whitelist
+    if (!VALID_EXPLORER_REGIONS.has(args.regionId)) {
+      throw new ConvexError("Invalid region ID");
+    }
 
     const user = await ctx.db
       .query("users")
@@ -620,10 +650,13 @@ export const updateExplorerStats = mutation({
       guessedToday.push(args.regionId);
     }
 
+    // Calculate XP server-side
+    const xpEarned = args.correct ? EXPLORER_XP_PER_CORRECT : 0;
+
     const updates: Record<string, any> = {
       expLastPlayedDate: today,
       expGuessedToday: guessedToday,
-      expTotalXPEarned: (user.expTotalXPEarned ?? 0) + args.xpEarned,
+      expTotalXPEarned: (user.expTotalXPEarned ?? 0) + xpEarned,
     };
 
     if (args.correct) {
@@ -639,6 +672,7 @@ export const updateExplorerStats = mutation({
       remaining: TOTAL_EXPLORER_REGIONS - guessedToday.length,
       isComplete: guessedToday.length >= TOTAL_EXPLORER_REGIONS,
       coinsEarned: calculateExplorerCoins(args.correct),
+      xpEarned,
     };
   },
 });

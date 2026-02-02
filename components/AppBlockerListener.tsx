@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, BackHandler, AppState, Modal, TouchableOpacity, Platform, PermissionsAndroid } from 'react-native';
 import { COLORS, FONTS } from '../constants/theme';
 import { StatusBar } from 'expo-status-bar';
@@ -16,12 +16,13 @@ export function AppBlockerListener() {
   const [showOverlayModal, setShowOverlayModal] = useState(false);
   
   const [isMonitoringStarted, setIsMonitoringStarted] = useState(false);
+  const startingRef = useRef(false); // Prevent race condition in service start
 
   // Child auth context
-  const { childId } = useChildAuth();
+  const { token } = useChildAuth();
   
-  // Fetch my config (blocked apps)
-  const myConfig = useQuery(api.parents.getMyConfigSecure, childId ? { childId: childId as any } : "skip");
+  // Fetch my config (blocked apps) - now requires token instead of childId
+  const myConfig = useQuery(api.parents.getMyConfigSecure, token ? { token } : "skip");
   const syncAppsMutation = useMutation(api.parents.updateInstalledApps);
 
   // Check usage stats permission
@@ -60,17 +61,20 @@ export function AppBlockerListener() {
 
   // Start monitoring service with delay to ensure app is in foreground
   const startMonitoringService = useCallback(async () => {
-    if (Platform.OS !== 'android' || !AppBlocker?.startMonitoring || isMonitoringStarted) {
+    // Use ref to prevent race condition from closure stale state
+    if (Platform.OS !== 'android' || !AppBlocker?.startMonitoring || isMonitoringStarted || startingRef.current) {
       return;
     }
+    startingRef.current = true;
     // Delay to ensure app is fully in foreground (Android 12+ restriction)
     setTimeout(async () => {
       try {
-        await AppBlocker.startMonitoring();
+        await AppBlocker?.startMonitoring();
         setIsMonitoringStarted(true);
         console.log('App monitoring service started');
       } catch (e: any) {
         console.error('Failed to start monitoring service:', e?.message || e);
+        startingRef.current = false; // Reset on failure so retry is possible
       }
     }, 500);
   }, [isMonitoringStarted]);
@@ -78,14 +82,14 @@ export function AppBlockerListener() {
   // Request Usage permission
   const requestPermission = useCallback(() => {
     if (AppBlocker?.requestUsagePermission) {
-      AppBlocker.requestUsagePermission();
+      AppBlocker?.requestUsagePermission();
     }
   }, []);
 
   // Request Overlay permission
   const requestOverlayPermission = useCallback(() => {
     if (AppBlocker?.requestOverlayPermission) {
-      AppBlocker.requestOverlayPermission();
+      AppBlocker?.requestOverlayPermission();
     }
   }, []);
 
@@ -93,7 +97,7 @@ export function AppBlockerListener() {
 
   // Check permissions on load / auth
   useEffect(() => {
-    if (!childId || Platform.OS !== 'android') return;
+    if (!token || Platform.OS !== 'android') return;
 
     const initPermission = async () => {
       // 1. Usage Stats
@@ -122,11 +126,11 @@ export function AppBlockerListener() {
     };
 
     initPermission();
-  }, [childId, checkPermission, checkOverlayPermission, startMonitoringService]);
+  }, [token, checkPermission, checkOverlayPermission, startMonitoringService]);
 
   // Re-check permission when app becomes active
   useEffect(() => {
-    if (!childId || Platform.OS !== 'android') return;
+    if (!token || Platform.OS !== 'android') return;
 
     const subscription = AppState.addEventListener('change', async (nextAppState) => {
       if (nextAppState === 'active') {
@@ -143,17 +147,18 @@ export function AppBlockerListener() {
     });
 
     return () => subscription.remove();
-  }, [childId, checkPermission, checkOverlayPermission, startMonitoringService, isMonitoringStarted]);
+  }, [token, checkPermission, checkOverlayPermission, startMonitoringService, isMonitoringStarted]);
 
   // Sync Installed Apps
   useEffect(() => {
     const syncApps = async () => {
-      if (childId && AppBlocker?.getInstalledApps && hasUsagePermission) {
+      if (token && AppBlocker?.getInstalledApps && hasUsagePermission) {
         try {
-          const apps = await AppBlocker.getInstalledApps();
+          const apps = await AppBlocker?.getInstalledApps();
+          if (!apps) return;
           console.log(`Syncing ${apps.length} installed apps to server`);
           syncAppsMutation({
-            childId: childId as any,
+            token, // Now using token-based auth
             apps: apps
           }).catch(err => console.error("App sync failed", err));
         } catch (e) {
@@ -162,15 +167,15 @@ export function AppBlockerListener() {
       }
     };
 
-    if (childId && hasUsagePermission) {
+    if (token && hasUsagePermission) {
       syncApps();
     }
-  }, [childId, hasUsagePermission, syncAppsMutation]);
+  }, [token, hasUsagePermission, syncAppsMutation]);
 
   // Sync Block List
   useEffect(() => {
     if (myConfig?.blockedApps && AppBlocker?.setBlockedApps) {
-      AppBlocker.setBlockedApps(myConfig.blockedApps);
+      AppBlocker?.setBlockedApps(myConfig.blockedApps);
     }
   }, [myConfig]);
 

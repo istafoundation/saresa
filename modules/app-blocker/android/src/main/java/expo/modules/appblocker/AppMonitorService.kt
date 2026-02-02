@@ -34,10 +34,36 @@ class AppMonitorService : Service() {
     companion object {
         var isServiceRunning = false
         private var blockedPackages: List<String> = ArrayList()
+        private const val PREFS_NAME = "app_blocker_prefs"
+        private const val KEY_BLOCKED_APPS = "blocked_apps"
 
-        fun setBlockedApps(apps: List<String>) {
+        fun setBlockedApps(apps: List<String>, context: Context? = null) {
             blockedPackages = apps
             android.util.Log.d("AppMonitorService", "Blocked apps set: $apps (count: ${apps.size})")
+            
+            // Persist to SharedPreferences if context is available
+            context?.let { ctx ->
+                try {
+                    ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                        .edit()
+                        .putStringSet(KEY_BLOCKED_APPS, apps.toSet())
+                        .apply()
+                    android.util.Log.d("AppMonitorService", "Blocked apps persisted to storage")
+                } catch (e: Exception) {
+                    android.util.Log.e("AppMonitorService", "Failed to persist blocked apps", e)
+                }
+            }
+        }
+
+        fun loadBlockedApps(context: Context) {
+            try {
+                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                val savedApps = prefs.getStringSet(KEY_BLOCKED_APPS, emptySet()) ?: emptySet()
+                blockedPackages = savedApps.toList()
+                android.util.Log.d("AppMonitorService", "Loaded ${blockedPackages.size} blocked apps from storage")
+            } catch (e: Exception) {
+                android.util.Log.e("AppMonitorService", "Failed to load blocked apps", e)
+            }
         }
     }
 
@@ -54,6 +80,9 @@ class AppMonitorService : Service() {
         usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         createNotificationChannel()
+        
+        // Load persisted blocked apps on service start
+        loadBlockedApps(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

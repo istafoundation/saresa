@@ -94,7 +94,8 @@ class AppBlockerModule : Module() {
         }
 
         AsyncFunction("setBlockedApps") { blockedApps: List<String> ->
-            AppMonitorService.setBlockedApps(blockedApps)
+            val context = appContext.reactContext
+            AppMonitorService.setBlockedApps(blockedApps, context)
             true
         }
 

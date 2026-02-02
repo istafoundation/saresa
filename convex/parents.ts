@@ -80,7 +80,7 @@ export const getMyParentData = query({
   },
 });
 
-// Get current user's role 
+// Get current user's role
 export const getMyRole = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -112,7 +112,7 @@ export const isAdmin = query({
 
 // Admin: Search children by username or name (limited results)
 export const adminSearchChildren = query({
-  args: { 
+  args: {
     searchQuery: v.string(),
     limit: v.optional(v.number()),
   },
@@ -135,27 +135,30 @@ export const adminSearchChildren = query({
 
     // Search all children (we filter in memory for text search)
     const allChildren = await ctx.db.query("children").collect();
-    
+
     const matched = allChildren
-      .filter(c => 
-        c.username.toLowerCase().includes(query) ||
-        c.name.toLowerCase().includes(query)
+      .filter(
+        (c) =>
+          c.username.toLowerCase().includes(query) ||
+          c.name.toLowerCase().includes(query),
       )
       .slice(0, limit);
 
     // Get parent info for each matched child
-    return Promise.all(matched.map(async (child) => {
-      const childParent = await ctx.db.get(child.parentId);
-      return {
-        _id: child._id,
-        name: child.name,
-        username: child.username,
-        parentName: childParent?.name || "Unknown",
-        parentEmail: childParent?.email || "",
-        createdAt: child.createdAt,
-        lastLoginAt: child.lastLoginAt,
-      };
-    }));
+    return Promise.all(
+      matched.map(async (child) => {
+        const childParent = await ctx.db.get(child.parentId);
+        return {
+          _id: child._id,
+          name: child.name,
+          username: child.username,
+          parentName: childParent?.name || "Unknown",
+          parentEmail: childParent?.email || "",
+          createdAt: child.createdAt,
+          lastLoginAt: child.lastLoginAt,
+        };
+      }),
+    );
   },
 });
 
@@ -178,7 +181,7 @@ export const adminGetChildStats = query({
     if (!child) return null;
 
     const childParent = await ctx.db.get(child.parentId);
-    
+
     // Get subscription details
     const subscription = await ctx.db
       .query("subscriptions")
@@ -186,14 +189,16 @@ export const adminGetChildStats = query({
       .order("desc")
       .first();
 
-    const subscriptionData = subscription ? {
-        status: subscription.status,
-        plan: "ISTA English", // hardcoded for now as per single plan
-        amount: subscription.amount,
-        createdAt: subscription.createdAt,
-        currentPeriodEnd: subscription.currentPeriodEnd,
-        couponCode: subscription.couponCode,
-    } : null;
+    const subscriptionData = subscription
+      ? {
+          status: subscription.status,
+          plan: "ISTA English", // hardcoded for now as per single plan
+          amount: subscription.amount,
+          createdAt: subscription.createdAt,
+          currentPeriodEnd: subscription.currentPeriodEnd,
+          couponCode: subscription.couponCode,
+        }
+      : null;
 
     const userData = await ctx.db
       .query("users")
@@ -239,9 +244,12 @@ export const adminGetChildStats = query({
       gkStats: {
         practiceTotal: userData.gkPracticeTotal,
         practiceCorrect: userData.gkPracticeCorrect,
-        accuracy: userData.gkPracticeTotal > 0
-          ? Math.round((userData.gkPracticeCorrect / userData.gkPracticeTotal) * 100)
-          : 0,
+        accuracy:
+          userData.gkPracticeTotal > 0
+            ? Math.round(
+                (userData.gkPracticeCorrect / userData.gkPracticeTotal) * 100,
+              )
+            : 0,
       },
       wordleStats: {
         gamesPlayed: userData.wordleGamesPlayed,
@@ -257,7 +265,7 @@ export const adminGetChildStats = query({
       explorerStats: {
         guessedTodayCount:
           userData.expLastPlayedDate === getISTDate()
-            ? userData.expGuessedToday?.length ?? 0
+            ? (userData.expGuessedToday?.length ?? 0)
             : 0,
         totalRegions: 36, // Total regions (states + UTs)
         lastPlayedDate: userData.expLastPlayedDate ?? null,
@@ -273,7 +281,7 @@ export const checkUsernameAvailable = query({
     const existing = await ctx.db
       .query("children")
       .withIndex("by_username", (q) =>
-        q.eq("username", args.username.toLowerCase())
+        q.eq("username", args.username.toLowerCase()),
       )
       .first();
 
@@ -306,7 +314,7 @@ export const addChild = mutation({
     }
     if (!/^[a-z0-9_]+$/.test(username)) {
       throw new ConvexError(
-        "Username can only contain letters, numbers, and underscores"
+        "Username can only contain letters, numbers, and underscores",
       );
     }
 
@@ -392,13 +400,16 @@ export const getMyChildren = query({
         const currentLevel = userData ? getLevelForXP(currentXP) : 1;
         const nextLevelData = LEVELS.find((l) => l.level === currentLevel + 1);
         const currentLevelData = LEVELS.find((l) => l.level === currentLevel);
-        
+
         let xpProgress = 0;
         let xpToNextLevel = 0;
         if (nextLevelData && currentLevelData) {
           const xpInCurrentLevel = currentXP - currentLevelData.xpRequired;
-          const xpNeededForNextLevel = nextLevelData.xpRequired - currentLevelData.xpRequired;
-          xpProgress = Math.round((xpInCurrentLevel / xpNeededForNextLevel) * 100);
+          const xpNeededForNextLevel =
+            nextLevelData.xpRequired - currentLevelData.xpRequired;
+          xpProgress = Math.round(
+            (xpInCurrentLevel / xpNeededForNextLevel) * 100,
+          );
           xpToNextLevel = nextLevelData.xpRequired - currentXP;
         }
 
@@ -406,7 +417,9 @@ export const getMyChildren = query({
         const lastActiveAt = child.lastLoginAt || child.createdAt;
 
         // Determine subscription status
-        const isSubscriptionActive = subscription?.status === "active" || subscription?.status === "authenticated";
+        const isSubscriptionActive =
+          subscription?.status === "active" ||
+          subscription?.status === "authenticated";
 
         return {
           _id: child._id,
@@ -436,13 +449,12 @@ export const getMyChildren = query({
           installedApps: child.installedApps || [],
           lastAppSync: child.lastAppSync, // Timestamp when apps were last synced
         };
-      })
+      }),
     );
 
     return childrenWithStats;
   },
 });
-
 
 // Get child credentials (for sharing)
 export const getChildCredentials = query({
@@ -555,6 +567,46 @@ export const deleteChild = mutation({
       await ctx.db.delete(session._id);
     }
 
+    // Delete subscriptions (cascade)
+    const subscriptions = await ctx.db
+      .query("subscriptions")
+      .withIndex("by_child", (q) => q.eq("childId", args.childId))
+      .collect();
+
+    for (const subscription of subscriptions) {
+      // Delete subscription payments
+      const payments = await ctx.db
+        .query("subscriptionPayments")
+        .withIndex("by_subscription", (q) => q.eq("subscriptionId", subscription._id))
+        .collect();
+      
+      for (const payment of payments) {
+        await ctx.db.delete(payment._id);
+      }
+      
+      await ctx.db.delete(subscription._id);
+    }
+
+    // Delete level progress (cascade)
+    const levelProgress = await ctx.db
+      .query("levelProgress")
+      .withIndex("by_child", (q) => q.eq("childId", args.childId))
+      .collect();
+
+    for (const progress of levelProgress) {
+      await ctx.db.delete(progress._id);
+    }
+
+    // Delete rate limit events (cascade - prevent orphaned data)
+    const rateLimitEvents = await ctx.db
+      .query("rateLimitEvents")
+      .filter((q) => q.eq(q.field("identifier"), args.childId))
+      .collect();
+
+    for (const event of rateLimitEvents) {
+      await ctx.db.delete(event._id);
+    }
+
     // Delete child
     await ctx.db.delete(args.childId);
 
@@ -588,11 +640,11 @@ export const getChildStats = query({
     const subscription = await ctx.db
       .query("subscriptions")
       .withIndex("by_child", (q) => q.eq("childId", args.childId))
-      .filter((q) => 
+      .filter((q) =>
         q.or(
           q.eq(q.field("status"), "active"),
-          q.eq(q.field("status"), "authenticated")
-        )
+          q.eq(q.field("status"), "authenticated"),
+        ),
       )
       .first();
 
@@ -633,7 +685,7 @@ export const getChildStats = query({
         accuracy:
           userData.gkPracticeTotal > 0
             ? Math.round(
-                (userData.gkPracticeCorrect / userData.gkPracticeTotal) * 100
+                (userData.gkPracticeCorrect / userData.gkPracticeTotal) * 100,
               )
             : 0,
       },
@@ -653,14 +705,19 @@ export const getChildStats = query({
         questionsAnswered: userData.gdQuestionsAnswered ?? 0,
         correctAnswers: userData.gdCorrectAnswers ?? 0,
         totalXPEarned: userData.gdTotalXPEarned ?? 0,
-        accuracy: (userData.gdQuestionsAnswered ?? 0) > 0
-          ? Math.round(((userData.gdCorrectAnswers ?? 0) / (userData.gdQuestionsAnswered ?? 0)) * 100)
-          : 0,
+        accuracy:
+          (userData.gdQuestionsAnswered ?? 0) > 0
+            ? Math.round(
+                ((userData.gdCorrectAnswers ?? 0) /
+                  (userData.gdQuestionsAnswered ?? 0)) *
+                  100,
+              )
+            : 0,
       },
       explorerStats: {
         guessedTodayCount:
           userData.expLastPlayedDate === getISTDate()
-            ? userData.expGuessedToday?.length ?? 0
+            ? (userData.expGuessedToday?.length ?? 0)
             : 0,
         totalRegions: 36, // Total regions (states + UTs)
         lastPlayedDate: userData.expLastPlayedDate ?? null,
@@ -699,7 +756,7 @@ export const getRecentActivities = query({
 
     const today = getISTDate();
     const todayDate = new Date(today);
-    
+
     for (const child of children) {
       const userData = await ctx.db
         .query("users")
@@ -765,8 +822,10 @@ export const getRecentActivities = query({
       // Check for inactivity (3+ days without playing)
       if (userData.lastLoginDate) {
         const lastPlayed = new Date(userData.lastLoginDate);
-        const diffDays = Math.floor((todayDate.getTime() - lastPlayed.getTime()) / (1000 * 60 * 60 * 24));
-        
+        const diffDays = Math.floor(
+          (todayDate.getTime() - lastPlayed.getTime()) / (1000 * 60 * 60 * 24),
+        );
+
         if (diffDays >= 3) {
           activities.push({
             id: `${child._id}-inactive-${diffDays}`,
@@ -782,9 +841,7 @@ export const getRecentActivities = query({
     }
 
     // Sort by timestamp (most recent first) and limit to 10
-    return activities
-      .sort((a, b) => b.timestamp - a.timestamp)
-      .slice(0, 10);
+    return activities.sort((a, b) => b.timestamp - a.timestamp).slice(0, 10);
   },
 });
 
@@ -855,7 +912,7 @@ export const updateBlockedApps = mutation({
     }
 
     await ctx.db.patch(args.childId, {
-        blockedApps: args.blockedApps,
+      blockedApps: args.blockedApps,
     });
 
     return { success: true };
@@ -865,19 +922,36 @@ export const updateBlockedApps = mutation({
 // Sync installed apps from device
 export const updateInstalledApps = mutation({
   args: {
-    childId: v.id("children"),
-    apps: v.array(v.object({
-      name: v.string(),
-      packageName: v.string(),
-      isSystemApp: v.optional(v.boolean()),
-    })),
+    token: v.string(), // Session token for authentication
+    apps: v.array(
+      v.object({
+        name: v.string(),
+        packageName: v.string(),
+        isSystemApp: v.optional(v.boolean()),
+      }),
+    ),
   },
   handler: async (ctx, args) => {
-    // We allow this to be called by the child (via session) OR the parent
-    // For now, let's assume it's called by the child's device
-    await ctx.db.patch(args.childId, {
-        installedApps: args.apps,
-        lastAppSync: Date.now(), // Track when apps were last synced
+    // Validate session token to get childId
+    const session = await ctx.db
+      .query("childSessions")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
+      .first();
+
+    if (!session || session.expiresAt < Date.now()) {
+      throw new ConvexError("Not authenticated");
+    }
+
+    const childId = session.childId;
+
+    // Limit apps array size to prevent abuse
+    if (args.apps.length > 500) {
+      throw new ConvexError("Too many apps in list");
+    }
+
+    await ctx.db.patch(childId, {
+      installedApps: args.apps,
+      lastAppSync: Date.now(),
     });
 
     return { success: true, syncedAt: Date.now() };
@@ -886,14 +960,25 @@ export const updateInstalledApps = mutation({
 
 // Get secure config for child app
 export const getMyConfigSecure = query({
-    args: { childId: v.id("children") },
-    handler: async (ctx, args) => {
-        const child = await ctx.db.get(args.childId);
-        if (!child) return null;
-        
-        return {
-            blockedApps: child.blockedApps || [],
-            installedApps: child.installedApps || [],
-        };
+  args: { token: v.string() }, // Session token for authentication
+  handler: async (ctx, args) => {
+    // Validate session token
+    const session = await ctx.db
+      .query("childSessions")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
+      .first();
+
+    if (!session || session.expiresAt < Date.now()) {
+      return null;
     }
+
+    const child = await ctx.db.get(session.childId);
+    if (!child) return null;
+
+    return {
+      blockedApps: child.blockedApps || [],
+      installedApps: child.installedApps || [],
+    };
+  },
 });
+
