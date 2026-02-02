@@ -41,7 +41,17 @@ yarn-error.*
 
 # generated native folders
 /ios
-/android
+# /android
+# Explicitly ignore sensitive Android files
+*.keystore
+*.jks
+keystore.properties
+local.properties
+google-services.json
+# Ignore Android build directories
+android/app/build/
+android/build/
+android/.gradle/
 
 # Release builds output
 /builds
@@ -55,3 +65,4 @@ docs
 
 #temp
 temp*
+*.txt
