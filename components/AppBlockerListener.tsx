@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, NativeModules, BackHandler, AppState, Modal, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, NativeModules, BackHandler, AppState, Modal, TouchableOpacity, Platform, PermissionsAndroid } from 'react-native';
 import { COLORS, FONTS } from '../constants/theme';
 import { StatusBar } from 'expo-status-bar';
 
@@ -10,9 +10,12 @@ import { useChildAuth } from '../utils/childAuth';
 const { AppBlocker } = NativeModules;
 
 export function AppBlockerListener() {
-  const [isBlocked, setIsBlocked] = useState(false);
   const [hasUsagePermission, setHasUsagePermission] = useState<boolean | null>(null);
+  const [hasOverlayPermission, setHasOverlayPermission] = useState<boolean | null>(null);
+  
   const [showPermissionModal, setShowPermissionModal] = useState(false);
+  const [showOverlayModal, setShowOverlayModal] = useState(false);
+  
   const [isMonitoringStarted, setIsMonitoringStarted] = useState(false);
 
   // Child auth context
@@ -38,6 +41,24 @@ export function AppBlockerListener() {
     }
   }, []);
 
+  // Check Overlay Permission (System Alert Window)
+  const checkOverlayPermission = useCallback(async () => {
+    if (Platform.OS !== 'android' || !AppBlocker?.checkOverlayPermission) {
+      setHasOverlayPermission(true);
+      return true;
+    }
+    try {
+      const granted = await AppBlocker.checkOverlayPermission();
+      setHasOverlayPermission(granted);
+      return granted;
+    } catch (e) {
+      console.error('Failed to check overlay permission', e);
+      return false;
+    }
+  }, []);
+
+
+
   // Start monitoring service with delay to ensure app is in foreground
   const startMonitoringService = useCallback(async () => {
     if (Platform.OS !== 'android' || !AppBlocker?.startMonitoring || isMonitoringStarted) {
@@ -51,96 +72,81 @@ export function AppBlockerListener() {
         console.log('App monitoring service started');
       } catch (e: any) {
         console.error('Failed to start monitoring service:', e?.message || e);
-        // On Android 12+, this may fail if app isn't in foreground
-        // Will retry on next app state change
       }
     }, 500);
   }, [isMonitoringStarted]);
 
-  // Request permission (opens settings)
+  // Request Usage permission
   const requestPermission = useCallback(() => {
     if (AppBlocker?.requestUsagePermission) {
       AppBlocker.requestUsagePermission();
     }
   }, []);
 
-  // Check if launched from blocked app trigger
-  useEffect(() => {
-    const checkBlocking = async () => {
-      if (AppBlocker?.isBlockedLaunch) {
-        const blocked = await AppBlocker.isBlockedLaunch();
-        if (blocked) {
-          setIsBlocked(true);
-        }
-      }
-    };
-
-    checkBlocking();
-
-    const subscription = AppState.addEventListener('change', nextAppState => {
-      if (nextAppState === 'active') {
-        checkBlocking();
-      } else if (nextAppState === 'background' || nextAppState === 'inactive') {
-        // Clear blocked state when app goes to background
-        // This prevents the blocked screen from showing when returning to our app normally
-        setIsBlocked(false);
-      }
-    });
-
-    return () => subscription.remove();
+  // Request Overlay permission
+  const requestOverlayPermission = useCallback(() => {
+    if (AppBlocker?.requestOverlayPermission) {
+      AppBlocker.requestOverlayPermission();
+    }
   }, []);
 
-  // Disable back button when blocked
-  useEffect(() => {
-    if (isBlocked) {
-      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => true);
-      return () => backHandler.remove();
-    }
-  }, [isBlocked]);
 
-  // Check permission and show modal on child login
+
+  // Check permissions on load / auth
   useEffect(() => {
     if (!childId || Platform.OS !== 'android') return;
 
     const initPermission = async () => {
-      const granted = await checkPermission();
-      if (!granted) {
+      // 1. Usage Stats
+      const usageGranted = await checkPermission();
+      if (!usageGranted) {
         setShowPermissionModal(true);
+        return;
       } else {
-        // Permission already granted, start monitoring
-        startMonitoringService();
+        setShowPermissionModal(false);
       }
+
+      // 2. Overlay Permission
+      const overlayGranted = await checkOverlayPermission();
+      if (!overlayGranted) {
+        setShowOverlayModal(true);
+        return;
+      } else {
+        setShowOverlayModal(false);
+      }
+
+      // 3. Notification (Optional-ish but good practice)
+      // Removed notification permission check as we want to suppress it
+
+      // Start Service
+      startMonitoringService();
     };
 
     initPermission();
-  }, [childId, checkPermission, startMonitoringService]);
+  }, [childId, checkPermission, checkOverlayPermission, startMonitoringService]);
 
-  // Re-check permission when app becomes active (returning from settings)
+  // Re-check permission when app becomes active
   useEffect(() => {
     if (!childId || Platform.OS !== 'android') return;
 
     const subscription = AppState.addEventListener('change', async (nextAppState) => {
       if (nextAppState === 'active') {
-        // Re-check permission
-        if (showPermissionModal) {
-          const granted = await checkPermission();
-          if (granted) {
-            setShowPermissionModal(false);
-            // Delay service start to ensure app is fully in foreground
-            startMonitoringService();
-          }
-        } else if (hasUsagePermission && !isMonitoringStarted) {
-          // Retry starting service when app comes to foreground
+        const usageGranted = await checkPermission();
+        if (usageGranted) setShowPermissionModal(false);
+        
+        const overlayGranted = await checkOverlayPermission();
+        if (overlayGranted) setShowOverlayModal(false);
+
+        if (usageGranted && overlayGranted && !isMonitoringStarted) {
           startMonitoringService();
         }
       }
     });
 
     return () => subscription.remove();
-  }, [childId, showPermissionModal, hasUsagePermission, isMonitoringStarted, checkPermission, startMonitoringService]);
+  }, [childId, checkPermission, checkOverlayPermission, startMonitoringService, isMonitoringStarted]);
 
-  // Sync Installed Apps (Send to Server)
-  // Re-sync when permission is granted to ensure full app list is fetched
+  // Sync Installed Apps
   useEffect(() => {
     const syncApps = async () => {
       if (childId && AppBlocker?.getInstalledApps && hasUsagePermission) {
@@ -162,14 +168,14 @@ export function AppBlockerListener() {
     }
   }, [childId, hasUsagePermission, syncAppsMutation]);
 
-  // Sync Block List from Server to Native
+  // Sync Block List
   useEffect(() => {
     if (myConfig?.blockedApps && AppBlocker?.setBlockedApps) {
       AppBlocker.setBlockedApps(myConfig.blockedApps);
     }
   }, [myConfig]);
 
-  // Permission Request Modal
+  // Usage Config Modal
   const renderPermissionModal = () => (
     <Modal
       visible={showPermissionModal}
@@ -182,40 +188,51 @@ export function AppBlockerListener() {
           <Text style={styles.modalEmoji}>🔐</Text>
           <Text style={styles.modalTitle}>Permission Required</Text>
           <Text style={styles.modalMessage}>
-            To enable parental controls, this app needs access to usage statistics. 
-            This allows us to monitor which apps are being used and enforce blocking rules.
+            To enable parental controls, this app needs access to usage statistics.
           </Text>
           <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
             <Text style={styles.permissionButtonText}>Grant Permission</Text>
           </TouchableOpacity>
           <Text style={styles.modalHint}>
-            Find "Saresa" in the list and enable access
+            Find "Saresa" &rarr; Enable Access
           </Text>
         </View>
       </View>
     </Modal>
   );
 
-  // Blocked App Screen
-  if (isBlocked) {
-    return (
-      <View style={styles.container}>
-        <StatusBar style="light" backgroundColor={COLORS.error} />
-        <View style={styles.content}>
-          <Text style={styles.emoji}>⛔</Text>
-          <Text style={styles.title}>Access Blocked</Text>
-          <Text style={styles.message}>
-            This app has been blocked by your parent.
+  // Overlay Config Modal
+  const renderOverlayModal = () => (
+    <Modal
+      visible={showOverlayModal}
+      transparent
+      animationType="fade"
+      onRequestClose={() => {}}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <Text style={styles.modalEmoji}>📺</Text>
+          <Text style={styles.modalTitle}>Overlay Required</Text>
+          <Text style={styles.modalMessage}>
+             To block apps effectively, "Display over other apps" permission is required.
           </Text>
-          <Text style={styles.subMessage}>
-            Go do something productive instead!
+          <TouchableOpacity style={[styles.permissionButton, {backgroundColor: COLORS.accent}]} onPress={requestOverlayPermission}>
+            <Text style={styles.permissionButtonText}>Grant Overlay</Text>
+          </TouchableOpacity>
+           <Text style={styles.modalHint}>
+            Find "Saresa" &rarr; Enable "Allow display over other apps"
           </Text>
         </View>
       </View>
-    );
-  }
+    </Modal>
+  );
 
-  return <>{renderPermissionModal()}</>;
+  return (
+    <>
+      {renderPermissionModal()}
+      {renderOverlayModal()}
+    </>
+  );
 }
 
 const styles = StyleSheet.create({
