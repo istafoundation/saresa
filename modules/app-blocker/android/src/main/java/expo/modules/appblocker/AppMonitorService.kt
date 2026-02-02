@@ -21,30 +21,46 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
+import android.content.SharedPreferences
+import android.os.HandlerThread
 
 class AppMonitorService : Service() {
 
-    private val handler = Handler(Looper.getMainLooper())
-    private val checkInterval = 500L // Check every 0.5 second for faster response
+    private val handler by lazy {
+        val thread = HandlerThread("AppMonitorThread")
+        thread.start()
+        Handler(thread.looper)
+    }
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val checkInterval = 500L // Check every 0.5 second
     private lateinit var usageStatsManager: UsageStatsManager
     private lateinit var windowManager: WindowManager
     private var blockingView: View? = null
     private val TAG = "AppMonitorService"
+    private val PREFS_NAME = "AppBlockerPrefs"
+    private val KEY_BLOCKED_APPS = "blocked_apps"
 
     companion object {
         var isServiceRunning = false
-        private var blockedPackages: List<String> = ArrayList()
+        private var blockedPackages: MutableList<String> = ArrayList()
 
         fun setBlockedApps(apps: List<String>) {
-            blockedPackages = apps
-            android.util.Log.d("AppMonitorService", "Blocked apps set: $apps (count: ${apps.size})")
+            synchronized(blockedPackages) {
+                blockedPackages.clear()
+                blockedPackages.addAll(apps)
+            }
+            android.util.Log.d("AppMonitorService", "Blocked apps updated in memory: $apps")
         }
     }
 
     private val monitorRunnable = object : Runnable {
         override fun run() {
             if (!isServiceRunning) return
-            checkCurrentApp()
+            try {
+                checkCurrentApp()
+            } catch (e: Exception) {
+                android.util.Log.e(TAG, "Error in monitor loop", e)
+            }
             handler.postDelayed(this, checkInterval)
         }
     }
@@ -54,6 +70,7 @@ class AppMonitorService : Service() {
         usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         createNotificationChannel()
+        loadBlockedApps()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -69,7 +86,8 @@ class AppMonitorService : Service() {
         super.onDestroy()
         isServiceRunning = false
         handler.removeCallbacks(monitorRunnable)
-        removeBlockingView()
+        handler.looper.quit() // Stop the background thread
+        mainHandler.post { removeBlockingView() }
     }
 
     override fun onBind(intent: Intent?): IBinder? {
@@ -77,8 +95,12 @@ class AppMonitorService : Service() {
     }
 
     private fun checkCurrentApp() {
-        if (blockedPackages.isEmpty()) {
-            removeBlockingView()
+        val currentBlockedPackages = synchronized(blockedPackages) {
+            ArrayList(blockedPackages)
+        }
+
+        if (currentBlockedPackages.isEmpty()) {
+            mainHandler.post { removeBlockingView() }
             return
         }
 
@@ -105,14 +127,14 @@ class AppMonitorService : Service() {
                 return
             }
 
-            if (blockedPackages.contains(currentForegroundApp)) {
+            if (currentBlockedPackages.contains(currentForegroundApp)) {
                 // It is a blocked app -> Show Overlay
                 android.util.Log.d(TAG, "Blocking app: $currentForegroundApp")
-                showBlockingView(currentForegroundApp)
+                mainHandler.post { showBlockingView(currentForegroundApp!!) }
             } else {
                 // It is NOT a blocked app -> Remove Overlay
                 // Only remove if we are sure we moved to a safe app
-                removeBlockingView()
+                mainHandler.post { removeBlockingView() }
             }
         }
     }
@@ -217,5 +239,13 @@ class AppMonitorService : Service() {
             .setSmallIcon(android.R.drawable.ic_menu_view)
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .build()
+    }
+    private fun loadBlockedApps() {
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val savedApps = prefs.getStringSet(KEY_BLOCKED_APPS, emptySet())
+        if (savedApps != null) {
+            setBlockedApps(savedApps.toList())
+            android.util.Log.d(TAG, "Restored blocked apps: $savedApps")
+        }
     }
 }

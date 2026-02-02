@@ -94,6 +94,12 @@ class AppBlockerModule : Module() {
         }
 
         AsyncFunction("setBlockedApps") { blockedApps: List<String> ->
+            val context = appContext.reactContext
+            if (context != null) {
+                val prefs = context.getSharedPreferences("AppBlockerPrefs", Context.MODE_PRIVATE)
+                prefs.edit().putStringSet("blocked_apps", blockedApps.toSet()).apply()
+            }
+            
             AppMonitorService.setBlockedApps(blockedApps)
             true
         }

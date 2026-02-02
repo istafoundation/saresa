@@ -31,6 +31,7 @@
     "convex:dev": "node ./scripts/convex-dev.js"
   },
   "dependencies": {
+    "app-blocker": "file:./modules/app-blocker",
     "@expo/vector-icons": "^15.0.3",
     "@react-native-community/slider": "^5.0.1",
     "@shopify/flash-list": "2.0.2",
