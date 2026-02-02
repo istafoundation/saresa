@@ -101,6 +101,33 @@ class AppMonitorService : Service() {
         removeBlockingView()
     }
 
+    /**
+     * Called when the user swipes the app away from recents.
+     * We restart the service to maintain protection.
+     */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        android.util.Log.d(TAG, "App removed from recents - scheduling restart")
+        
+        // Check if monitoring is supposed to be enabled
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val monitoringEnabled = prefs.getBoolean("monitoring_enabled", false)
+        
+        if (monitoringEnabled) {
+            // Restart the service
+            val restartIntent = Intent(applicationContext, AppMonitorService::class.java)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                try {
+                    applicationContext.startForegroundService(restartIntent)
+                } catch (e: Exception) {
+                    android.util.Log.e(TAG, "Failed to restart service: ${e.message}")
+                }
+            } else {
+                applicationContext.startService(restartIntent)
+            }
+        }
+    }
+
     override fun onBind(intent: Intent?): IBinder? {
         return null
     }

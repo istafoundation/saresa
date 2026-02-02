@@ -104,20 +104,31 @@ class AppBlockerModule : Module() {
             if (context == null) {
                 false
             } else if (AppMonitorService.isServiceRunning) {
+                // Ensure watchdog is scheduled even if service already running
+                ServiceWatchdogWorker.schedule(context)
                 true
             } else {
+                // Save monitoring state for boot receiver
+                context.getSharedPreferences("app_blocker_prefs", android.content.Context.MODE_PRIVATE)
+                    .edit()
+                    .putBoolean("monitoring_enabled", true)
+                    .apply()
+                
                 val intent = Intent(context, AppMonitorService::class.java)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    try {
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         context.startForegroundService(intent)
-                        true
-                    } catch (e: Exception) {
-                        android.util.Log.e("AppBlocker", "Failed to start foreground service: ${e.message}")
-                        false
+                    } else {
+                        context.startService(intent)
                     }
-                } else {
-                    context.startService(intent)
+                    
+                    // Schedule the WorkManager watchdog
+                    ServiceWatchdogWorker.schedule(context)
+                    android.util.Log.d("AppBlocker", "Monitoring started and watchdog scheduled")
                     true
+                } catch (e: Exception) {
+                    android.util.Log.e("AppBlocker", "Failed to start foreground service: ${e.message}")
+                    false
                 }
             }
         }
@@ -127,8 +138,18 @@ class AppBlockerModule : Module() {
             if (context == null) {
                 false
             } else {
+                // Clear monitoring state
+                context.getSharedPreferences("app_blocker_prefs", android.content.Context.MODE_PRIVATE)
+                    .edit()
+                    .putBoolean("monitoring_enabled", false)
+                    .apply()
+                
+                // Cancel the WorkManager watchdog
+                ServiceWatchdogWorker.cancel(context)
+                
                 val intent = Intent(context, AppMonitorService::class.java)
                 context.stopService(intent)
+                android.util.Log.d("AppBlocker", "Monitoring stopped and watchdog cancelled")
                 true
             }
         }
