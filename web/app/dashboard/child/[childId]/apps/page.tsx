@@ -4,7 +4,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { ArrowLeft, ShieldAlert, Smartphone, Save } from "lucide-react";
+import { ArrowLeft, ShieldAlert, Smartphone, Save, RefreshCw, Clock } from "lucide-react";
 import { Id } from "@convex/_generated/dataModel";
 
 export default function BlockedAppsPage() {
@@ -19,6 +19,7 @@ export default function BlockedAppsPage() {
   const currentChild = myChildren?.find((c) => c._id === childId);
   const [blockedApps, setBlockedApps] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Sync state when data loads
   useEffect(() => {
@@ -32,6 +33,12 @@ export default function BlockedAppsPage() {
   }
 
   const installedApps = currentChild.installedApps || [];
+  
+  // Filter apps by search query
+  const filteredApps = installedApps.filter(app => 
+    app.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    app.packageName.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const toggleApp = (packageName: string) => {
     setBlockedApps((prev) =>
@@ -48,12 +55,27 @@ export default function BlockedAppsPage() {
         childId,
         blockedApps,
       });
-      // Optional: Show toast
     } catch (error) {
       console.error("Failed to save", error);
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // Format last sync time
+  const formatLastSync = (timestamp?: number) => {
+    if (!timestamp) return "Never synced";
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return `${diffDays}d ago`;
   };
 
   return (
@@ -87,28 +109,50 @@ export default function BlockedAppsPage() {
           </h3>
           <p className="text-slate-500 max-w-sm mx-auto">
             We haven't received a list of installed apps from {currentChild.name}
-            's device yet. Please open the "Blocked Apps" screen on their device
-            to sync the list.
+            's device yet. Please open the app on their device to sync the list.
           </p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-          <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center sticky top-0 md:static z-10">
-            <span className="text-sm font-medium text-slate-600">
-              {installedApps.length} Apps Installed
-            </span>
-            <button
-              onClick={handleSave}
-              disabled={isSaving}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50"
-            >
-              <Save size={16} />
-              {isSaving ? "Saving..." : "Save Changes"}
-            </button>
+          <div className="p-4 bg-slate-50 border-b border-slate-200 space-y-3">
+            {/* Search bar */}
+            <input
+              type="text"
+              placeholder="Search apps..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            
+            {/* Stats and actions row */}
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-4">
+                <span className="text-sm font-medium text-slate-600">
+                  {filteredApps.length} of {installedApps.length} Apps
+                </span>
+                <span className="text-xs text-slate-400 flex items-center gap-1">
+                  <Clock size={12} />
+                  Last sync: {formatLastSync(currentChild.lastLoginAt)}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500">
+                  {blockedApps.length} blocked
+                </span>
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50"
+                >
+                  <Save size={16} />
+                  {isSaving ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </div>
           </div>
 
           <div className="divide-y divide-slate-100">
-            {installedApps
+            {filteredApps
               .slice()
               .sort((a, b) => a.name.localeCompare(b.name))
               .map((app) => {

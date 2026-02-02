@@ -868,6 +868,7 @@ export const updateInstalledApps = mutation({
     apps: v.array(v.object({
       name: v.string(),
       packageName: v.string(),
+      isSystemApp: v.optional(v.boolean()),
     })),
   },
   handler: async (ctx, args) => {

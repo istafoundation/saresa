@@ -26,6 +26,7 @@ export default defineSchema({
     installedApps: v.optional(v.array(v.object({
       name: v.string(),
       packageName: v.string(),
+      isSystemApp: v.optional(v.boolean()),
     }))),
   })
     .index("by_parent", ["parentId"])
