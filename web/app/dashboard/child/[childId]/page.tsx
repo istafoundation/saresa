@@ -60,8 +60,15 @@ export default function ChildStatsPage() {
           </div>
         </div>
         
-        <div className="flex gap-3">
-          <div className="text-right hidden md:block">
+        <div className="flex gap-3 items-center">
+          <Link href={`/dashboard/child/${childId}/apps`}>
+            <button className="px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm shadow-indigo-200">
+              <Gamepad2 size={18} />
+              Manage Apps
+            </button>
+          </Link>
+
+          <div className="text-right hidden md:block pl-2 border-l border-slate-200">
             <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">Total XP</p>
             <p className="text-2xl font-bold text-emerald-600">
               {detailedStats ? (detailedStats.profile?.xp ?? 0).toLocaleString() : 0}

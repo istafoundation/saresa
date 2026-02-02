@@ -622,8 +622,8 @@ export const getChildStats = query({
         lastLoginDate: userData.lastLoginDate,
       },
       collections: {
-        artifacts: userData.unlockedArtifacts.length,
-        weapons: userData.unlockedWeapons.length,
+        artifacts: userData.unlockedArtifacts?.length ?? 0,
+        weapons: userData.unlockedWeapons?.length ?? 0,
         coins: userData.coins ?? 0,
       },
       gkStats: {
