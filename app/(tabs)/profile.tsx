@@ -14,9 +14,11 @@ import Mascot from '../../components/Mascot';
 import { useChildAuth } from '../../utils/childAuth';
 import { useInstallPermission } from '../../hooks/useInstallPermission';
 import { useVersionCheck } from '../../hooks/useVersionCheck';
+import { useRouter } from 'expo-router';
 
 export default function ProfileScreen() {
   const { logout } = useChildAuth();
+  const router = useRouter();
   
   const { 
     name, mascot, xp, streak, unlockedArtifacts, unlockedWeapons, coins,
@@ -417,6 +419,8 @@ export default function ProfileScreen() {
           transition={{ type: 'spring', delay: 550 }}
         >
           <Text style={styles.sectionTitle}>Account</Text>
+
+
           
           <Pressable style={styles.settingItem} onPress={handleSignOut}>
             <View style={styles.settingContent}>

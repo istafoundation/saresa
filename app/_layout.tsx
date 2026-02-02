@@ -15,6 +15,7 @@ import { ActivationPopup } from '../components/ActivationPopup';
 import { useGlobalBackgroundMusic } from '../utils/sound-manager';
 import { useVersionCheck } from '../hooks/useVersionCheck';
 import { UpdateDownloader } from '../components/UpdateDownloader';
+import { AppBlockerListener } from '../components/AppBlockerListener';
 
 // Loading screen while checking auth
 function LoadingScreen() {
@@ -134,6 +135,7 @@ export default function RootLayout() {
     <ErrorBoundary>
       <ConvexClientProvider>
         <GestureHandlerRootView style={styles.container}>
+          <AppBlockerListener />
           <StatusBar style="dark" />
           <InitialLayout />
           <UpdateWrapper />

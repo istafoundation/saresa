@@ -22,6 +22,11 @@ export default defineSchema({
     // group: v.optional(v.string()),
     createdAt: v.number(),
     lastLoginAt: v.optional(v.number()),
+    blockedApps: v.optional(v.array(v.string())), // Package names of blocked apps
+    installedApps: v.optional(v.array(v.object({
+      name: v.string(),
+      packageName: v.string(),
+    }))),
   })
     .index("by_parent", ["parentId"])
     .index("by_username", ["username"]),

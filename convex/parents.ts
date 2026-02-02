@@ -432,6 +432,7 @@ export const getMyChildren = query({
           subscriptionStatus: subscription?.status || "none",
           activatedTill: subscription?.currentPeriodEnd,
           isSubscriptionActive,
+          blockedApps: child.blockedApps || [],
         };
       })
     );
@@ -827,4 +828,68 @@ export const updateChildName = mutation({
 
     return { success: true, name: trimmedName };
   },
+});
+
+// Update blocked apps for a child
+export const updateBlockedApps = mutation({
+  args: {
+    childId: v.id("children"),
+    blockedApps: v.array(v.string()), // Package names
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new ConvexError("Not authenticated");
+
+    const parent = await ctx.db
+      .query("parents")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    if (!parent) throw new ConvexError("Parent not found");
+
+    const child = await ctx.db.get(args.childId);
+    if (!child || child.parentId !== parent._id) {
+      throw new ConvexError("Child not found");
+    }
+
+    await ctx.db.patch(args.childId, {
+        blockedApps: args.blockedApps,
+    });
+
+    return { success: true };
+  },
+});
+
+// Sync installed apps from device
+export const updateInstalledApps = mutation({
+  args: {
+    childId: v.id("children"),
+    apps: v.array(v.object({
+      name: v.string(),
+      packageName: v.string(),
+    })),
+  },
+  handler: async (ctx, args) => {
+    // We allow this to be called by the child (via session) OR the parent
+    // For now, let's assume it's called by the child's device
+    await ctx.db.patch(args.childId, {
+        installedApps: args.apps,
+    });
+
+    return { success: true };
+  },
+});
+
+// Get secure config for child app
+export const getMyConfigSecure = query({
+    args: { childId: v.id("children") },
+    handler: async (ctx, args) => {
+        const child = await ctx.db.get(args.childId);
+        if (!child) return null;
+        
+        return {
+            blockedApps: child.blockedApps || [],
+            installedApps: child.installedApps || [],
+        };
+    }
 });
