@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Switch, ActivityIndicator, Alert, NativeModules, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Switch, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import { COLORS, FONTS } from '../../../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
-
-const { AppBlocker } = NativeModules;
+import { AppBlocker } from '../../../modules/app-blocker/src';
 
 export default function BlockedAppsScreen() {
     const { childId } = useLocalSearchParams<{ childId: string }>();

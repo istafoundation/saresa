@@ -43,7 +43,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-router",
     "expo-audio",
     "./plugins/withAndroidSigning",
-    "./plugins/withAppBlocking",
     [
       "expo-speech-recognition",
       {

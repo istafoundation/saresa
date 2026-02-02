@@ -1,13 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, NativeModules, BackHandler, AppState, Modal, TouchableOpacity, Platform, PermissionsAndroid } from 'react-native';
+import { View, Text, StyleSheet, BackHandler, AppState, Modal, TouchableOpacity, Platform, PermissionsAndroid } from 'react-native';
 import { COLORS, FONTS } from '../constants/theme';
 import { StatusBar } from 'expo-status-bar';
 
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../convex/_generated/api';
 import { useChildAuth } from '../utils/childAuth';
-
-const { AppBlocker } = NativeModules;
+import { AppBlocker } from '../modules/app-blocker/src';
 
 export function AppBlockerListener() {
   const [hasUsagePermission, setHasUsagePermission] = useState<boolean | null>(null);

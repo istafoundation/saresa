@@ -41,7 +41,7 @@ yarn-error.*
 
 # generated native folders
 /ios
-# /android
+/android
 # Explicitly ignore sensitive Android files
 *.keystore
 *.jks

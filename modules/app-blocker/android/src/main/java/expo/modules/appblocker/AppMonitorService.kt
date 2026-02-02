@@ -1,4 +1,4 @@
-package `in`.istafoundation.kids
+package expo.modules.appblocker
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -26,7 +26,6 @@ class AppMonitorService : Service() {
 
     private val handler = Handler(Looper.getMainLooper())
     private val checkInterval = 500L // Check every 0.5 second for faster response
-    // private var isRunning = false -> Moving to companion object for external check
     private lateinit var usageStatsManager: UsageStatsManager
     private lateinit var windowManager: WindowManager
     private var blockingView: View? = null
@@ -128,6 +127,7 @@ class AppMonitorService : Service() {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
                     WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                 else
+                    @Suppress("DEPRECATION")
                     WindowManager.LayoutParams.TYPE_PHONE,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                         WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
@@ -214,7 +214,7 @@ class AppMonitorService : Service() {
         return NotificationCompat.Builder(this, "AppMonitorChannel_v2")
             .setContentTitle("Saresa Parental Control")
             .setContentText("Monitoring active apps...")
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(android.R.drawable.ic_menu_view)
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .build()
     }
