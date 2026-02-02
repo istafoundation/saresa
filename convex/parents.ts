@@ -433,6 +433,7 @@ export const getMyChildren = query({
           activatedTill: subscription?.currentPeriodEnd,
           isSubscriptionActive,
           blockedApps: child.blockedApps || [],
+          installedApps: child.installedApps || [],
         };
       })
     );
