@@ -94,13 +94,13 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'in.istafoundation.english'
+    namespace 'in.istafoundation.kids'
     defaultConfig {
-        applicationId 'in.istafoundation.english'
+        applicationId 'in.istafoundation.kids'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 83
-        versionName "1.0.82"
+        versionCode 87
+        versionName "1.0.86"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }

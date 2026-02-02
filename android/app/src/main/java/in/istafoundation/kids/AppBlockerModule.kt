@@ -1,4 +1,4 @@
-package `in`.istafoundation.english
+package `in`.istafoundation.kids
 
 import android.app.AppOpsManager
 import android.content.Context

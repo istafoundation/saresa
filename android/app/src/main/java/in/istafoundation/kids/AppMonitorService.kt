@@ -1,4 +1,4 @@
-package `in`.istafoundation.english
+package `in`.istafoundation.kids
 
 import android.app.Notification
 import android.app.NotificationChannel

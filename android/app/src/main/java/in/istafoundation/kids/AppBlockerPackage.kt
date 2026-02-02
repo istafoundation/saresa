@@ -1,4 +1,4 @@
-package `in`.istafoundation.english
+package `in`.istafoundation.kids
 
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.NativeModule

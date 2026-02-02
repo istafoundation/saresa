@@ -1,4 +1,4 @@
-package `in`.istafoundation.english
+package `in`.istafoundation.kids
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build
