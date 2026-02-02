@@ -125,29 +125,43 @@ export default function BlockedAppsPage() {
             />
             
             {/* Stats and actions row */}
-            <div className="flex justify-between items-center">
-              <div className="flex items-center gap-4">
-                <span className="text-sm font-medium text-slate-600">
-                  {filteredApps.length} of {installedApps.length} Apps
-                </span>
-                <span className="text-xs text-slate-400 flex items-center gap-1">
-                  <Clock size={12} />
-                  Last sync: {formatLastSync(currentChild.lastLoginAt)}
-                </span>
+            <div className="flex flex-col gap-2">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-4">
+                  <span className="text-sm font-medium text-slate-600">
+                    {filteredApps.length} of {installedApps.length} Apps
+                  </span>
+                  <span className={`text-xs flex items-center gap-1 ${
+                    currentChild.lastAppSync 
+                      ? (Date.now() - currentChild.lastAppSync < 60 * 60 * 1000) 
+                        ? "text-emerald-600" // Less than 1 hour ago - green
+                        : (Date.now() - currentChild.lastAppSync < 24 * 60 * 60 * 1000)
+                          ? "text-amber-600" // Less than 24 hours ago - amber
+                          : "text-red-500" // More than 24 hours ago - red
+                      : "text-slate-400"
+                  }`}>
+                    <Clock size={12} />
+                    Last sync: {formatLastSync(currentChild.lastAppSync)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-500">
+                    {blockedApps.length} blocked
+                  </span>
+                  <button
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50"
+                  >
+                    <Save size={16} />
+                    {isSaving ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500">
-                  {blockedApps.length} blocked
-                </span>
-                <button
-                  onClick={handleSave}
-                  disabled={isSaving}
-                  className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50"
-                >
-                  <Save size={16} />
-                  {isSaving ? "Saving..." : "Save Changes"}
-                </button>
-              </div>
+              <p className="text-xs text-slate-400 flex items-center gap-1">
+                <RefreshCw size={10} />
+                App list syncs automatically when {currentChild.name} opens the app on their device
+              </p>
             </div>
           </div>
 

@@ -434,6 +434,7 @@ export const getMyChildren = query({
           isSubscriptionActive,
           blockedApps: child.blockedApps || [],
           installedApps: child.installedApps || [],
+          lastAppSync: child.lastAppSync, // Timestamp when apps were last synced
         };
       })
     );
@@ -876,9 +877,10 @@ export const updateInstalledApps = mutation({
     // For now, let's assume it's called by the child's device
     await ctx.db.patch(args.childId, {
         installedApps: args.apps,
+        lastAppSync: Date.now(), // Track when apps were last synced
     });
 
-    return { success: true };
+    return { success: true, syncedAt: Date.now() };
   },
 });
 

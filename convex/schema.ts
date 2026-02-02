@@ -28,6 +28,7 @@ export default defineSchema({
       packageName: v.string(),
       isSystemApp: v.optional(v.boolean()),
     }))),
+    lastAppSync: v.optional(v.number()), // Timestamp when apps were last synced from device
   })
     .index("by_parent", ["parentId"])
     .index("by_username", ["username"]),

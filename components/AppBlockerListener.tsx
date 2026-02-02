@@ -80,6 +80,10 @@ export function AppBlockerListener() {
     const subscription = AppState.addEventListener('change', nextAppState => {
       if (nextAppState === 'active') {
         checkBlocking();
+      } else if (nextAppState === 'background' || nextAppState === 'inactive') {
+        // Clear blocked state when app goes to background
+        // This prevents the blocked screen from showing when returning to our app normally
+        setIsBlocked(false);
       }
     });
 
@@ -136,11 +140,13 @@ export function AppBlockerListener() {
   }, [childId, showPermissionModal, hasUsagePermission, isMonitoringStarted, checkPermission, startMonitoringService]);
 
   // Sync Installed Apps (Send to Server)
+  // Re-sync when permission is granted to ensure full app list is fetched
   useEffect(() => {
     const syncApps = async () => {
-      if (childId && AppBlocker?.getInstalledApps) {
+      if (childId && AppBlocker?.getInstalledApps && hasUsagePermission) {
         try {
           const apps = await AppBlocker.getInstalledApps();
+          console.log(`Syncing ${apps.length} installed apps to server`);
           syncAppsMutation({
             childId: childId as any,
             apps: apps
@@ -151,10 +157,10 @@ export function AppBlockerListener() {
       }
     };
 
-    if (childId) {
+    if (childId && hasUsagePermission) {
       syncApps();
     }
-  }, [childId, syncAppsMutation]);
+  }, [childId, hasUsagePermission, syncAppsMutation]);
 
   // Sync Block List from Server to Native
   useEffect(() => {
