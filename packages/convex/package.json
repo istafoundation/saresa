@@ -1,0 +1,28 @@
+{
+  "name": "@ista/convex",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "dev": "convex dev",
+    "deploy": "convex deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "convex": "^1.31.4"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./_generated/*": {
+      "types": "./_generated/*.d.ts",
+      "default": "./_generated/*.js"
+    }
+  },
+  "devDependencies": {
+    "typescript": "~5.9.2"
+  }
+}

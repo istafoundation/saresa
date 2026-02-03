@@ -1,68 +1,123 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# dependencies
+# Dependencies
 node_modules/
+.pnpm-store/
+.npm/
+*.tsbuildinfo
 
-# Expo
+# Expo & Builds
 .expo/
 dist/
 web-build/
+build/
+builds/
+.expo-shared/
+*.expo
 expo-env.d.ts
 
-# Native
-.kotlin/
-*.orig.*
+# Vercel
+.vercel/
+
+# TurboRepo
+.turbo/
+
+# Next.js
+.next/
+out/
+next-env.d.ts
+
+# Testing
+coverage/
+junit.xml
+test-results/
+
+# React Native / Native Modules (Generated/Builds)
+# Ignore generated native folders in apps (CNG/Prebuild)
+apps/*/android/
+apps/*/ios/
+
+# Ignore build artifacts in packages (but KEEP the source code!)
+packages/*/android/build/
+packages/*/android/.gradle/
+packages/*/ios/build/
+packages/*/ios/Pods/
+
+# Android (General)
+*.keystore
 *.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
+*.pepk
+*.jar
+!libs/*.jar
+!gradle-wrapper.jar
+package-lock.json
+build/
+.gradle/
+local.properties
+keystore.properties
+google-services.json
+
+# iOS (General)
+*.navx
+*.user
+*.xsd
+*.xcworkspace
+!default.xcworkspace
+*.xcuserdatad
+*.xccheckout
+*.moved-aside
+DerivedData/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
 
 # Metro
 .metro-health-check*
 
-# debug
-npm-debug.*
-yarn-debug.*
-yarn-error.*
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+*.log.*
 
-# macOS
+# OS / Editor
 .DS_Store
-*.pem
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+.vscode/
+.idea/
+*.swp
+*.swo
 
-# local env files
+# Environment variables
 .env
-.env*.local
-.env*.development
-.env*.production
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.test
+!*.example
+!env.example
 
-# typescript
-*.tsbuildinfo
+# Private/Sensitive
+apps/child/certs/
+*.pem
+*.key
+*.mobileprovision
 
-# generated native folders
-/ios
-/android
-# Explicitly ignore sensitive Android files
-*.keystore
-*.jks
-keystore.properties
-local.properties
-google-services.json
-# Ignore Android build directories
-android/app/build/
-android/build/
-android/.gradle/
+# Files to ignore in docs (sensitive) but keep docs themselves
+# docs/  <-- Unignored to track markdown files
+*.txt    # Keeps docs/razorpay_api_key.txt ignored
 
-# Release builds output
-/builds
-
-# Signing certificates (KEEP PRIVATE!)
-/certs
-*.keystore
-
-#documentations
-docs
-
-#temp
+# Temp
 temp*
-*.txt
+tmp/
+docs
