@@ -1,6 +1,6 @@
 {
   "name": "@ista/child",
-  "version": "1.0.92",
+  "version": "1.0.93",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
