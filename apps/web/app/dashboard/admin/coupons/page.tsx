@@ -40,8 +40,7 @@ export default function CouponsPage() {
     try {
       await createCoupon({
         code: formData.code.toUpperCase(),
-        // razorpayOfferId is now generated automatically via API
-        // razorpayOfferId: formData.razorpayOfferId || undefined, 
+        razorpayOfferId: formData.razorpayOfferId || undefined,
         discountType: formData.discountType,
         discountAmount: formData.discountType === 'flat' 
           ? Number(formData.discountAmount) * 100 // Convert to paise
@@ -137,7 +136,15 @@ export default function CouponsPage() {
               </div>
               
               <div>
-                 {/* Placeholder for alignment or future field */}
+                <label className="block text-sm font-medium text-slate-700 mb-1">Razorpay Offer ID (Optional)</label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border rounded-lg font-mono text-sm"
+                  placeholder="offer_xxxxxxxxxx"
+                  value={formData.razorpayOfferId}
+                  onChange={e => setFormData({...formData, razorpayOfferId: e.target.value})}
+                />
+                <p className="text-xs text-slate-400 mt-1">Create offer in Razorpay Dashboard first, then paste the ID here</p>
               </div>
             </div>
 

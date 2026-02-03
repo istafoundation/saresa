@@ -188,7 +188,7 @@ export const adminGetChildStats = query({
 
     const subscriptionData = subscription ? {
         status: subscription.status,
-        plan: "ISTA English", // hardcoded for now as per single plan
+        plan: "ISTA Kids", // hardcoded for now as per single plan
         amount: subscription.amount,
         createdAt: subscription.createdAt,
         currentPeriodEnd: subscription.currentPeriodEnd,

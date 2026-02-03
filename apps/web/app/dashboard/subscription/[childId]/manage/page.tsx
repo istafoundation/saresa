@@ -99,7 +99,7 @@ export default function ManageSubscriptionPage() {
         <div className="flex items-start justify-between">
           <div>
             <p className="text-emerald-100 text-sm mb-1">Current Plan</p>
-            <h2 className="text-2xl font-bold mb-1">ISTA English</h2>
+            <h2 className="text-2xl font-bold mb-1">ISTA Kids</h2>
             <p className="text-emerald-200 text-sm font-semibold">Monthly Subscription</p>
           </div>
           <div className="text-right">
