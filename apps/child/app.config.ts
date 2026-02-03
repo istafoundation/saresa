@@ -43,6 +43,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-router",
     "expo-audio",
     "./plugins/withAndroidSigning",
+    "./plugins/withMonorepoAndroidFix",
     [
       "expo-speech-recognition",
       {
