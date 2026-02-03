@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cd ../../packages && npx convex codegen && cd ../apps/web && pnpm build",
+  "buildCommand": "cd ../../packages/convex && npx convex codegen && cd ../../apps/web && pnpm build",
   "installCommand": "cd ../.. && pnpm install",
   "framework": "nextjs"
 }
