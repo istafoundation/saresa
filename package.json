@@ -14,7 +14,7 @@
     "build:child:minor": "pnpm --filter @ista/child build:release:minor",
     "build:child:major": "pnpm --filter @ista/child build:release:major",
     "build:web": "pnpm --filter @ista/web build",
-    "deploy:convex": "pnpm --filter @ista/convex deploy",
+    "deploy:convex": "pnpm --filter @ista/convex run deploy",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
     "clean": "pnpm -r exec -- rm -rf node_modules && rm -rf node_modules",
