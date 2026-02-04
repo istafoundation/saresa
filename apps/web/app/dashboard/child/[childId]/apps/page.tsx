@@ -15,16 +15,21 @@ export default function BlockedAppsPage() {
   const childStats = useQuery(api.parents.getChildStats, { childId });
   const myChildren = useQuery(api.parents.getMyChildren);
   const updateBlockedApps = useMutation(api.parents.updateBlockedApps);
+  const setAppBlockingStatus = useMutation(api.parents.setAppBlockingStatus);
 
   const currentChild = myChildren?.find((c) => c._id === childId);
   const [blockedApps, setBlockedApps] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [blockingEnabled, setBlockingEnabled] = useState(false);
 
   // Sync state when data loads
   useEffect(() => {
-    if (currentChild?.blockedApps) {
-      setBlockedApps(currentChild.blockedApps);
+    if (currentChild) {
+      if (currentChild.blockedApps) {
+        setBlockedApps(currentChild.blockedApps);
+      }
+      setBlockingEnabled(currentChild.isAppBlockingEnabled ?? false);
     }
   }, [currentChild]);
 
@@ -54,6 +59,10 @@ export default function BlockedAppsPage() {
       await updateBlockedApps({
         childId,
         blockedApps,
+      });
+      await setAppBlockingStatus({
+        childId,
+        isEnabled: blockingEnabled,
       });
     } catch (error) {
       console.error("Failed to save", error);
@@ -96,6 +105,23 @@ export default function BlockedAppsPage() {
           <p className="text-slate-500">
             Control which apps {currentChild.name} can access on their device.
           </p>
+        </div>
+
+        <div className="flex-1" />
+
+        <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border border-slate-200">
+            <span className={`text-sm font-medium ${blockingEnabled ? "text-slate-900" : "text-slate-500"}`}>
+                {blockingEnabled ? "Blocking Enabled" : "Blocking Disabled"}
+            </span>
+            <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                type="checkbox"
+                className="sr-only peer"
+                checked={blockingEnabled}
+                onChange={(e) => setBlockingEnabled(e.target.checked)}
+                />
+                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+            </label>
         </div>
       </div>
 
@@ -175,8 +201,8 @@ export default function BlockedAppsPage() {
                   <div
                     key={app.packageName}
                     className={`flex items-center justify-between p-4 hover:bg-slate-50 transition-colors ${
-                      isBlocked ? "bg-red-50/50" : ""
-                    }`}
+                      isBlocked && blockingEnabled ? "bg-red-50/50" : ""
+                    } ${!blockingEnabled ? "opacity-60 grayscale" : ""}`}
                   >
                     <div className="flex items-center gap-4">
                       <div
@@ -203,8 +229,9 @@ export default function BlockedAppsPage() {
                         className="sr-only peer"
                         checked={isBlocked}
                         onChange={() => toggleApp(app.packageName)}
+                        disabled={!blockingEnabled}
                       />
-                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-500"></div>
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-500 peer-disabled:opacity-50"></div>
                     </label>
                   </div>
                 );

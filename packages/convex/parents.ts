@@ -435,6 +435,7 @@ export const getMyChildren = query({
           blockedApps: child.blockedApps || [],
           installedApps: child.installedApps || [],
           lastAppSync: child.lastAppSync, // Timestamp when apps were last synced
+          isAppBlockingEnabled: child.isAppBlockingEnabled ?? false,
         };
       })
     );
@@ -894,6 +895,37 @@ export const getMyConfigSecure = query({
         return {
             blockedApps: child.blockedApps || [],
             installedApps: child.installedApps || [],
+            isAppBlockingEnabled: child.isAppBlockingEnabled ?? false,
         };
     }
+});
+
+// Toggle app blocking status
+export const setAppBlockingStatus = mutation({
+  args: {
+    childId: v.id("children"),
+    isEnabled: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new ConvexError("Not authenticated");
+
+    const parent = await ctx.db
+      .query("parents")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    if (!parent) throw new ConvexError("Parent not found");
+
+    const child = await ctx.db.get(args.childId);
+    if (!child || child.parentId !== parent._id) {
+      throw new ConvexError("Child not found");
+    }
+
+    await ctx.db.patch(args.childId, {
+      isAppBlockingEnabled: args.isEnabled,
+    });
+
+    return { success: true };
+  },
 });

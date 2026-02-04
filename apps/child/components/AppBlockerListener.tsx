@@ -56,7 +56,18 @@ export function AppBlockerListener() {
     }
   }, []);
 
+  // Check if App Blocking is globally enabled
+  const isAppBlockingEnabled = myConfig?.isAppBlockingEnabled === true;
 
+  // Stop monitoring if disabled
+  useEffect(() => {
+    if (!isAppBlockingEnabled && isMonitoringStarted && AppBlocker?.stopMonitoring) {
+        AppBlocker.stopMonitoring().then(() => {
+            setIsMonitoringStarted(false);
+            console.log('App monitoring service stopped - Feature disabled');
+        });
+    }
+  }, [isAppBlockingEnabled, isMonitoringStarted]);
 
   // Start monitoring service with delay to ensure app is in foreground
   const startMonitoringService = useCallback(async () => {
@@ -92,9 +103,16 @@ export function AppBlockerListener() {
 
 
 
-  // Check permissions on load / auth
+  // Check permissions on load / auth (ONLY IF ENABLED)
   useEffect(() => {
     if (!childId || Platform.OS !== 'android') return;
+
+    if (!isAppBlockingEnabled) {
+        // If disabled, ensure modals are closed
+        setShowPermissionModal(false);
+        setShowOverlayModal(false);
+        return;
+    }
 
     const initPermission = async () => {
       // 1. Usage Stats
@@ -125,9 +143,11 @@ export function AppBlockerListener() {
     initPermission();
   }, [childId, checkPermission, checkOverlayPermission, startMonitoringService]);
 
-  // Re-check permission when app becomes active
+  // Re-check permission when app becomes active (ONLY IF ENABLED)
   useEffect(() => {
     if (!childId || Platform.OS !== 'android') return;
+      
+    if (!isAppBlockingEnabled) return;
 
     const subscription = AppState.addEventListener('change', async (nextAppState) => {
       if (nextAppState === 'active') {
