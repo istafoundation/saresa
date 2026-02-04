@@ -103,68 +103,61 @@ export function AppBlockerListener() {
 
 
 
-  // Check permissions on load / auth (ONLY IF ENABLED)
-  useEffect(() => {
-    if (!childId || Platform.OS !== 'android') return;
-
+  // Unified permission check function
+  const checkAndPromptPermissions = useCallback(async () => {
+    // 1. If disabled globally, ensure everything is off/closed
     if (!isAppBlockingEnabled) {
-        // If disabled, ensure modals are closed
-        setShowPermissionModal(false);
-        setShowOverlayModal(false);
-        return;
+      setShowPermissionModal(false);
+      setShowOverlayModal(false);
+      if (isMonitoringStarted) {
+        // Stop service if it was running
+         // (Handled by the other useEffect, but good to be safe)
+      }
+      return;
     }
 
-    const initPermission = async () => {
-      // 1. Usage Stats
-      const usageGranted = await checkPermission();
-      if (!usageGranted) {
-        setShowPermissionModal(true);
-        return;
-      } else {
-        setShowPermissionModal(false);
-      }
+    // 2. Check Usage Permission
+    const usageGranted = await checkPermission();
+    if (!usageGranted) {
+      setShowPermissionModal(true);
+      setShowOverlayModal(false); // Can't show overlay prompt until usage is fixed
+      return;
+    }
+    setShowPermissionModal(false);
 
-      // 2. Overlay Permission
-      const overlayGranted = await checkOverlayPermission();
-      if (!overlayGranted) {
-        setShowOverlayModal(true);
-        return;
-      } else {
-        setShowOverlayModal(false);
-      }
+    // 3. Check Overlay Permission
+    const overlayGranted = await checkOverlayPermission();
+    if (!overlayGranted) {
+      setShowOverlayModal(true);
+      return;
+    }
+    setShowOverlayModal(false);
 
-      // 3. Notification (Optional-ish but good practice)
-      // Removed notification permission check as we want to suppress it
-
-      // Start Service
+    // 4. All good? Start Service
+    if (!isMonitoringStarted) {
       startMonitoringService();
-    };
+    }
+  }, [isAppBlockingEnabled, checkPermission, checkOverlayPermission, isMonitoringStarted, startMonitoringService]);
 
-    initPermission();
-  }, [childId, checkPermission, checkOverlayPermission, startMonitoringService]);
-
-  // Re-check permission when app becomes active (ONLY IF ENABLED)
+  // Initial Check & Config Change
   useEffect(() => {
     if (!childId || Platform.OS !== 'android') return;
-      
-    if (!isAppBlockingEnabled) return;
+    checkAndPromptPermissions();
+  }, [childId, checkAndPromptPermissions, isAppBlockingEnabled]);
 
-    const subscription = AppState.addEventListener('change', async (nextAppState) => {
+  // App State Change (Resume from Settings)
+  useEffect(() => {
+    if (!childId || Platform.OS !== 'android') return;
+
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState === 'active') {
-        const usageGranted = await checkPermission();
-        if (usageGranted) setShowPermissionModal(false);
-        
-        const overlayGranted = await checkOverlayPermission();
-        if (overlayGranted) setShowOverlayModal(false);
-
-        if (usageGranted && overlayGranted && !isMonitoringStarted) {
-          startMonitoringService();
-        }
+        // Re-run the full check sequence when app comes to foreground
+        checkAndPromptPermissions();
       }
     });
 
     return () => subscription.remove();
-  }, [childId, checkPermission, checkOverlayPermission, startMonitoringService, isMonitoringStarted]);
+  }, [childId, checkAndPromptPermissions]);
 
   // Sync Installed Apps
   useEffect(() => {
