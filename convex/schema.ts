@@ -23,6 +23,7 @@ export default defineSchema({
     createdAt: v.number(),
     lastLoginAt: v.optional(v.number()),
     blockedApps: v.optional(v.array(v.string())), // Package names of blocked apps
+    appBlockerEnabled: v.optional(v.boolean()), // Parent toggle for app blocking feature (default: false/off)
     installedApps: v.optional(v.array(v.object({
       name: v.string(),
       packageName: v.string(),

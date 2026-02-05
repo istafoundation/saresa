@@ -92,9 +92,17 @@ export function AppBlockerListener() {
 
 
 
-  // Check permissions on load / auth
+  // Check permissions on load / auth - ONLY if app blocker is enabled
   useEffect(() => {
     if (!childId || Platform.OS !== 'android') return;
+    
+    // Skip entirely if feature is disabled by parent
+    if (myConfig?.appBlockerEnabled !== true) {
+      // Reset states when feature is disabled
+      setShowPermissionModal(false);
+      setShowOverlayModal(false);
+      return;
+    }
 
     const initPermission = async () => {
       // 1. Usage Stats
@@ -123,11 +131,14 @@ export function AppBlockerListener() {
     };
 
     initPermission();
-  }, [childId, checkPermission, checkOverlayPermission, startMonitoringService]);
+  }, [childId, myConfig?.appBlockerEnabled, checkPermission, checkOverlayPermission, startMonitoringService]);
 
-  // Re-check permission when app becomes active
+  // Re-check permission when app becomes active - ONLY if app blocker is enabled
   useEffect(() => {
     if (!childId || Platform.OS !== 'android') return;
+    
+    // Skip if feature is disabled by parent
+    if (myConfig?.appBlockerEnabled !== true) return;
 
     const subscription = AppState.addEventListener('change', async (nextAppState) => {
       if (nextAppState === 'active') {
@@ -144,7 +155,7 @@ export function AppBlockerListener() {
     });
 
     return () => subscription.remove();
-  }, [childId, checkPermission, checkOverlayPermission, startMonitoringService, isMonitoringStarted]);
+  }, [childId, myConfig?.appBlockerEnabled, checkPermission, checkOverlayPermission, startMonitoringService, isMonitoringStarted]);
 
   // Sync Installed Apps
   useEffect(() => {

@@ -56,3 +56,39 @@ export const addCoinsToUsers = mutation({
     };
   },
 });
+
+/**
+ * Migration: Remove old `isAppBlockingEnabled` field and migrate to `appBlockerEnabled`
+ * 
+ * Run this migration from the Convex dashboard:
+ * 1. Go to Convex Dashboard > Functions
+ * 2. Find this function under migrations > migrateAppBlockerField
+ * 3. Click "Run" to execute
+ * 
+ * NOTE: No auth required - this is a one-time data migration
+ */
+export const migrateAppBlockerField = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const children = await ctx.db.query("children").collect();
+    
+    let migratedCount = 0;
+    for (const child of children) {
+      const childDoc = child as any;
+      if ('isAppBlockingEnabled' in childDoc) {
+        // Copy old value to new field and remove old field
+        await ctx.db.patch(child._id, {
+          appBlockerEnabled: childDoc.isAppBlockingEnabled ?? false,
+          isAppBlockingEnabled: undefined, // Removes the field
+        } as any);
+        migratedCount++;
+      }
+    }
+    
+    return { 
+      total: children.length,
+      migratedCount,
+      message: `Migrated ${migratedCount} children from isAppBlockingEnabled to appBlockerEnabled`
+    };
+  },
+});

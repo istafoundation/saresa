@@ -4,7 +4,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { ArrowLeft, ShieldAlert, Smartphone, Save, RefreshCw, Clock } from "lucide-react";
+import { ArrowLeft, ShieldAlert, Smartphone, Save, RefreshCw, Clock, ToggleLeft, ToggleRight, AlertTriangle } from "lucide-react";
 import { Id } from "@convex/_generated/dataModel";
 
 export default function BlockedAppsPage() {
@@ -15,11 +15,13 @@ export default function BlockedAppsPage() {
   const childStats = useQuery(api.parents.getChildStats, { childId });
   const myChildren = useQuery(api.parents.getMyChildren);
   const updateBlockedApps = useMutation(api.parents.updateBlockedApps);
+  const updateAppBlockerEnabled = useMutation(api.parents.updateAppBlockerEnabled);
 
   const currentChild = myChildren?.find((c) => c._id === childId);
   const [blockedApps, setBlockedApps] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isTogglingFeature, setIsTogglingFeature] = useState(false);
 
   // Sync state when data loads
   useEffect(() => {
@@ -33,6 +35,7 @@ export default function BlockedAppsPage() {
   }
 
   const installedApps = currentChild.installedApps || [];
+  const appBlockerEnabled = currentChild.appBlockerEnabled ?? false;
   
   // Filter apps by search query
   const filteredApps = installedApps.filter(app => 
@@ -59,6 +62,20 @@ export default function BlockedAppsPage() {
       console.error("Failed to save", error);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleToggleFeature = async () => {
+    setIsTogglingFeature(true);
+    try {
+      await updateAppBlockerEnabled({
+        childId,
+        enabled: !appBlockerEnabled,
+      });
+    } catch (error) {
+      console.error("Failed to toggle feature", error);
+    } finally {
+      setIsTogglingFeature(false);
     }
   };
 
@@ -97,6 +114,42 @@ export default function BlockedAppsPage() {
             Control which apps {currentChild.name} can access on their device.
           </p>
         </div>
+      </div>
+
+      {/* Feature Toggle Card */}
+      <div className={`rounded-2xl border p-6 transition-colors ${appBlockerEnabled ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'}`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${appBlockerEnabled ? 'bg-red-100' : 'bg-slate-200'}`}>
+              <ShieldAlert className={appBlockerEnabled ? 'text-red-600' : 'text-slate-400'} size={24} />
+            </div>
+            <div>
+              <h3 className="font-semibold text-slate-900">App Blocking</h3>
+              <p className="text-sm text-slate-500">
+                {appBlockerEnabled 
+                  ? "Active - Permissions will be requested on child's device" 
+                  : "Disabled - No permissions required"}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleToggleFeature}
+            disabled={isTogglingFeature}
+            className="flex items-center gap-2 transition-opacity disabled:opacity-50"
+          >
+            {appBlockerEnabled ? (
+              <ToggleRight className="text-red-500" size={40} />
+            ) : (
+              <ToggleLeft className="text-slate-400" size={40} />
+            )}
+          </button>
+        </div>
+        {!appBlockerEnabled && (
+          <div className="mt-4 flex items-start gap-2 text-sm text-slate-500 bg-white/50 rounded-lg p-3">
+            <AlertTriangle size={16} className="text-amber-500 mt-0.5 shrink-0" />
+            <span>When enabled, {currentChild.name}'s device will prompt for Usage Access and Overlay permissions.</span>
+          </div>
+        )}
       </div>
 
       {installedApps.length === 0 ? (
