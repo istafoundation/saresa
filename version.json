@@ -1,9 +1,9 @@
 {
   "android": {
-    "versionCode": 102
+    "versionCode": 106
   },
-  "latestVersion": "1.0.101",
-  "downloadUrl": "https://github.com/istafoundation/saresa/releases/download/v1.0.101/ista-kids-v1.0.101.apk",
+  "latestVersion": "1.0.105",
+  "downloadUrl": "https://github.com/istafoundation/saresa/releases/download/v1.0.105/ista-kids-v1.0.105.apk",
   "updateUrl": "https://github.com/istafoundation/saresa/releases/latest",
   "forceUpdate": false,
   "isUpdateEnabled": true,
