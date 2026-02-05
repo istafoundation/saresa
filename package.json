@@ -1,13 +1,13 @@
 {
-  "name": "ista-english",
-  "version": "1.0.92",
+  "name": "ista-kids",
+  "version": "1.0.93",
   "main": "expo-router/entry",
   "repository": {
     "type": "git",
     "url": "https://github.com/istafoundation/saresa"
   },
   "config": {
-    "apkName": "ista-english"
+    "apkName": "ista-kids"
   },
   "scripts": {
     "start": "env-cmd -f .env.development expo start",

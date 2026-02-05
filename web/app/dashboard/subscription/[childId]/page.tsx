@@ -18,7 +18,7 @@ declare global {
 
 // Single plan details
 const PLAN = {
-  name: "ISTA English",
+  name: "ISTA Kids",
   price: 351,
   discountCode: "ISTA51",
   discountAmount: 51,

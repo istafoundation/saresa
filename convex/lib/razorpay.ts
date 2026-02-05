@@ -4,7 +4,7 @@
 export const RAZORPAY_PLAN = {
   planId: "plan_S9yMMepHixI2Ca",
   amount: 35100, // ₹351 in paise
-  name: "ISTA English Premium",
+  name: "ISTA Kids Premium",
   interval: "monthly" as const,
 } as const;
 
