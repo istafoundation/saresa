@@ -65,6 +65,7 @@ export function AppBlockerListener() {
     }
     // Delay to ensure app is fully in foreground (Android 12+ restriction)
     setTimeout(async () => {
+      if (!AppBlocker) return;
       try {
         await AppBlocker.startMonitoring();
         setIsMonitoringStarted(true);

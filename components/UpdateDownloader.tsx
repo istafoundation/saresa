@@ -38,7 +38,7 @@ export function UpdateDownloader({
   const [downloadedFileUri, setDownloadedFileUri] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const APK_NAME = Constants.expoConfig?.extra?.apkName || "ista-english";
+  const APK_NAME = Constants.expoConfig?.extra?.apkName || "ista-kids";
 
   const downloadUpdate = useCallback(async () => {
     if (Platform.OS !== "android") {
@@ -206,7 +206,7 @@ export function UpdateDownloader({
             <Text style={styles.message}>
               {downloadComplete 
                 ? "The update has been downloaded. Install now to get the latest magical features!" 
-                : "A new version of ISTA English is available! Update now to continue your learning journey."}
+                : "A new version of ISTA Kids is available! Update now to continue your learning journey."}
             </Text>
 
             {error && (

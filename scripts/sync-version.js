@@ -22,7 +22,7 @@ const currentVersionCode = versionJson.android.versionCode || 1;
 versionJson.android.versionCode = currentVersionCode + 1;
 
 // Sync auto-update fields
-const APK_NAME = packageJson.config?.apkName || "ista-english";
+const APK_NAME = packageJson.config?.apkName || "ista-kids";
 // Extract repo from URL (e.g. "https://github.com/user/repo" -> "user/repo")
 const GITHUB_REPO = packageJson.repository?.url?.replace("https://github.com/", "").replace(".git", "") || "istafoundation/saresa";
 

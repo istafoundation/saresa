@@ -1,11 +1,11 @@
 {
   "android": {
-    "versionCode": 92
+    "versionCode": 94
   },
-  "latestVersion": "1.0.91",
-  "downloadUrl": "https://github.com/istafoundation/saresa/releases/download/v1.0.91/ista-english-v1.0.91.apk",
+  "latestVersion": "1.0.93",
+  "downloadUrl": "https://github.com/istafoundation/saresa/releases/download/v1.0.93/ista-kids-v1.0.93.apk",
   "updateUrl": "https://github.com/istafoundation/saresa/releases/latest",
   "forceUpdate": false,
   "isUpdateEnabled": true,
-  "updateMessage": "A new version of ISTA English is available! Update now to continue your learning journey."
+  "updateMessage": "A new version of ISTA Kids is available! Update now to continue your learning journey."
 }
