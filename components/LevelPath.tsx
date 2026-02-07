@@ -28,11 +28,13 @@ import { useSafeNavigation } from "../utils/useSafeNavigation";
 import { COLORS, SPACING } from "../constants/theme";
 import LevelNode from "./LevelNode";
 import type { Id } from "../convex/_generated/dataModel";
+import { GroupBanner } from "./GroupBanner";
 
 // Constants for layout calculation
 const NODE_SIZE = 76;
 const LEVEL_MARGIN_VERTICAL = SPACING.lg + 4; // 28px
 const LEVEL_SPACING = LEVEL_MARGIN_VERTICAL * 2 + NODE_SIZE; // ~132px
+const GROUP_BANNER_HEIGHT = 80; // Approximate height of the banner + padding
 
 // Type for level data from query
 type LevelWithProgress = {
@@ -64,6 +66,7 @@ type LevelWithProgress = {
   groupId?: Id<"levelGroups">;
   group?: {
       name: string;
+      description?: string;
       order: number;
       theme?: {
           primaryColor: string;
@@ -113,16 +116,18 @@ const PathSegment = memo(function PathSegment({
   screenWidth,
   state,
   nextState,
+  endOffsetY = 0,
 }: {
   isLeft: boolean;
   screenWidth: number;
   state: "locked" | "unlocked" | "completed" | "coming_soon";
   nextState?: "locked" | "unlocked" | "completed" | "coming_soon";
+  endOffsetY?: number; // How much lower the next node is (due to banner)
 }) {
   const startX = isLeft ? screenWidth * 0.25 : screenWidth * 0.75;
   const endX = isLeft ? screenWidth * 0.75 : screenWidth * 0.25;
   const startY = NODE_SIZE / 2; // Start from center of node
-  const endY = LEVEL_SPACING + NODE_SIZE / 2; // End at center of next node
+  const endY = LEVEL_SPACING + NODE_SIZE / 2 + endOffsetY; // End at center of next node
 
   // Bezier curve
   const midY = (startY + endY) / 2;
@@ -130,11 +135,10 @@ const PathSegment = memo(function PathSegment({
   
   // Decide colors based on transition
   const isLockedTransition = state === 'locked' || nextState === 'locked';
-  const magicGradientUrl = "url(#connectorGlow)";
   
   return (
     <View style={[StyleSheet.absoluteFill, { zIndex: -1 }]}>
-      <Svg width={screenWidth} height={LEVEL_SPACING + NODE_SIZE}>
+      <Svg width={screenWidth} height={LEVEL_SPACING + NODE_SIZE + endOffsetY}>
         {/* Simplified Path - Single stroke instead of multiple layers/gradients */}
         {!isLockedTransition ? (
           <Path
@@ -170,6 +174,7 @@ const LevelListItem = memo(function LevelListItem({
   nextLevel,
   onPress,
   isGroupStart,
+  nextIsGroupStart,
 }: {
   level: LevelWithProgress;
   index: number;
@@ -178,6 +183,7 @@ const LevelListItem = memo(function LevelListItem({
   nextLevel?: LevelWithProgress;
   onPress: (level: LevelWithProgress) => void;
   isGroupStart?: boolean;
+  nextIsGroupStart?: boolean;
 }) {
   const isLeft = index % 2 === 0;
   
@@ -186,54 +192,69 @@ const LevelListItem = memo(function LevelListItem({
   const orbX = screenWidth / 2; 
   const orbY = LEVEL_SPACING * 0.65; // Slightly lower than center looks better visually
 
+  // If next item starts a group, we need to extend the path and push the next node down visually
+  // But wait, the banner is part of the NEXT item's rendering usually if we want it "between".
+  // Actually, if we render the banner at the TOP of the group start item, 
+  // then the path from THIS item needs to connect to the node of the NEXT item, 
+  // which is now pushed down by the banner height.
+  
+  const nextItemHasBanner = nextIsGroupStart; 
+  const extraPathHeight = nextItemHasBanner ? GROUP_BANNER_HEIGHT : 0;
+
   return (
-    <View style={{ height: LEVEL_SPACING, justifyContent: 'flex-start' }}>
-      {/* Group Header */}
+    <View style={{ marginBottom: 0 }}>
+      {/* Group Banner (if this level starts a group) */}
       {isGroupStart && level.group && (
-          <View style={{ position: 'absolute', top: -10, left: 20, right: 20, alignItems: isLeft ? 'flex-start' : 'flex-end', zIndex: 20 }}>
-             <View style={{ backgroundColor: level.group.theme?.primaryColor ?? COLORS.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 4, elevation: 3 }}>
-                 <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>
-                     {level.group.theme?.emoji} {level.group.name}
-                 </Text>
-             </View>
-          </View>
+          <GroupBanner 
+            name={level.group.name}
+            description={level.group.description}
+            theme={level.group.theme ? {
+                emoji: level.group.theme.emoji,
+                primaryColor: level.group.theme.primaryColor,
+                secondaryColor: level.group.theme.secondaryColor
+            } : undefined} 
+          />
       )}
 
-      {/* Path connecting to NEXT level (if exists) */}
-      {index < totalLevels - 1 && (
-        <PathSegment
-            isLeft={isLeft}
-            screenWidth={screenWidth}
-            state={level.state}
-            nextState={nextLevel?.state}
-        />
-      )}
-      
-      {/* Animated Level Node - Static View for performance */}
-      <View
-        style={{ zIndex: 10 }}
-      >
-        <LevelNode
-            levelNumber={level.levelNumber}
-            name={level.name}
-            state={level.state}
-            theme={level.theme}
-            progress={level.progress ?? undefined}
-            totalDifficulties={level.difficulties.length}
-            onPress={() => onPress(level)}
-            isLeft={isLeft}
-        />
+      <View style={{ height: LEVEL_SPACING, justifyContent: 'flex-start' }}>
+
+        {/* Path connecting to NEXT level (if exists) */}
+        {index < totalLevels - 1 && (
+          <PathSegment
+              isLeft={isLeft}
+              screenWidth={screenWidth}
+              state={level.state}
+              nextState={nextLevel?.state}
+              endOffsetY={extraPathHeight}
+          />
+        )}
+        
+        {/* Animated Level Node - Static View for performance */}
+        <View
+          style={{ zIndex: 10 }}
+        >
+          <LevelNode
+              levelNumber={level.levelNumber}
+              name={level.name}
+              state={level.state}
+              theme={level.theme}
+              progress={level.progress ?? undefined}
+              totalDifficulties={level.difficulties.length}
+              onPress={() => onPress(level)}
+              isLeft={isLeft}
+          />
+        </View>
+        
+        {/* Orb decoration halfway to next node */}
+        {index < totalLevels - 1 && (
+          <GlowingOrb
+              x={orbX}
+              y={orbY + (extraPathHeight / 2)} // Adjust orb position slightly if path is longer
+              delay={200}
+              color={level.state !== 'locked' ? COLORS.accentGold : '#A8A8A8'}
+          />
+        )}
       </View>
-      
-      {/* Orb decoration halfway to next node */}
-      {index < totalLevels - 1 && (
-        <GlowingOrb
-            x={orbX}
-            y={orbY}
-            delay={200}
-            color={level.state !== 'locked' ? COLORS.accentGold : '#A8A8A8'}
-        />
-      )}
     </View>
   );
 });
@@ -243,6 +264,7 @@ export default function LevelPath() {
   const { token } = useChildAuth();
   const { safePush } = useSafeNavigation();
   const { width: screenWidth } = useWindowDimensions();
+  const listRef = React.useRef<any>(null);
 
   // Fetch levels with progress
   const levels = useQuery(
@@ -250,12 +272,52 @@ export default function LevelPath() {
     token ? { token } : "skip",
   ) as LevelWithProgress[] | undefined;
 
+  const hasScrolledRef = React.useRef(false);
+
+  // Auto-scroll to current level
+  React.useEffect(() => {
+    if (levels && levels.length > 0 && listRef.current && !hasScrolledRef.current) {
+        hasScrolledRef.current = true;
+        // Find the index of the first unlocked level (or the first level that is NOT completed/locked if we want "current" to be the one they are working on)
+        // Logic:
+        // 1. Find the first 'unlocked' level. This is the one user is currently playing.
+        // 2. If no 'unlocked' level found, maybe they completed everything? Then show the last one.
+        // 3. Or maybe they are all locked (shouldn't happen)? Show first.
+        
+        let targetIndex = levels.findIndex(l => l.state === 'unlocked');
+        
+        // If everything is completed, targetIndex will be -1. Scroll to the last one.
+        if (targetIndex === -1) {
+            // Check if any check for completion
+             const allCompleted = levels.every(l => l.state === 'completed');
+             if (allCompleted) {
+                 targetIndex = levels.length - 1;
+             } else {
+                 // Fallback to 0 if weird state
+                 targetIndex = 0;
+             }
+        }
+
+        // Add a small delay for layout to stabilize if needed, 
+        // though usually with estimatedItemSize it should be okay-ish.
+        // FlashList recommends using initialScrollIndex if possible for initial mount,
+        // but since data is async, we use scrollToIndex.
+        setTimeout(() => {
+            listRef.current?.scrollToIndex({
+                index: targetIndex,
+                animated: false, // Instant scroll for initial load
+                viewPosition: 0.8, // 0 is top, 1 is bottom. 0.8 puts it near the bottom.
+            });
+        }, 100);
+    }
+  }, [levels]);
+
   const handleLevelPress = useCallback(
     (level: LevelWithProgress) => {
       if (level.state === "unlocked" || level.state === "completed") {
         safePush({
-          pathname: "/games/levels/select",
-          params: { levelId: level._id },
+            pathname: "/games/levels/select",
+            params: { levelId: level._id },
         });
       }
     },
@@ -263,15 +325,20 @@ export default function LevelPath() {
   );
 
   const renderItem: ListRenderItem<LevelWithProgress> = useCallback(({ item, index }) => {
+    const nextLevel = levels?.[index + 1];
+    const isGroupStart = index === 0 || (levels?.[index - 1]?.groupId !== item.groupId && !!item.groupId);
+    const nextIsGroupStart = nextLevel ? (item.groupId !== nextLevel.groupId && !!nextLevel.groupId) : false;
+
     return (
       <LevelListItem 
         level={item}
         index={index}
         totalLevels={levels?.length || 0}
         screenWidth={screenWidth}
-        nextLevel={levels?.[index + 1]}
+        nextLevel={nextLevel}
         onPress={handleLevelPress}
-        isGroupStart={index === 0 || levels?.[index - 1]?.groupId !== item.groupId}
+        isGroupStart={isGroupStart}
+        nextIsGroupStart={nextIsGroupStart}
       />
     );
   }, [levels, screenWidth, handleLevelPress]);
@@ -302,11 +369,12 @@ export default function LevelPath() {
   }
 
   // Fix for missing estimatedItemSize in definitions
-  const SafeFlashList = FlashList as unknown as React.ComponentType<FlashListProps<LevelWithProgress> & { estimatedItemSize: number }>;
+  const SafeFlashList = FlashList as unknown as React.ComponentType<FlashListProps<LevelWithProgress> & { estimatedItemSize: number; ref?: React.Ref<any> }>;
 
   return (
     <View style={styles.container}>
       <SafeFlashList
+        ref={listRef}
         data={levels}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
