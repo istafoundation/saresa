@@ -5,6 +5,8 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import Link from "next/link";
 import ImageUpload from "@/app/components/ImageUpload";
+import GroupManagement from "./GroupManagement";
+
 import {
   Plus,
   ArrowLeft,
@@ -43,6 +45,7 @@ const imagekit = new ImageKit({
 type Level = Doc<"levels"> & {
   questionCounts: Record<string, number>;
   totalQuestions: number;
+  groupId?: Id<"levelGroups">;
 };
 
 type LevelQuestion = Doc<"levelQuestions">;
@@ -126,9 +129,16 @@ function LevelsContent() {
   const reorderDifficulties = useMutation(api.levels.reorderDifficulties);
   const reorderQuestions = useMutation(api.levels.reorderQuestions);
 
+  const groups = useQuery(api.groups.getGroups);
+
+
+
+  // UI State
   // UI State
   const [expandedLevels, setExpandedLevels] = useState<Set<string>>(new Set());
   const [expandedDifficulties, setExpandedDifficulties] = useState<Set<string>>(new Set());
+  const [selectedGroupId, setSelectedGroupId] = useState<string>("all");
+
   
   // Modals
   const [showAddLevelModal, setShowAddLevelModal] = useState(false);
@@ -552,6 +562,13 @@ EXAMPLE ROWS
   const totalLevels = levels?.length ?? 0;
   const totalQuestions = levels?.reduce((sum, l) => sum + l.totalQuestions, 0) ?? 0;
 
+  const filteredLevels = levels?.filter(level => {
+      if (selectedGroupId === "all") return true;
+      if (selectedGroupId === "ungrouped") return !level.groupId;
+      return level.groupId === selectedGroupId;
+  });
+
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -605,7 +622,7 @@ EXAMPLE ROWS
         <div className={`p-4 rounded-lg flex items-start gap-3 ${
           uploadStatus.failed > 0 ? 'bg-red-50 text-red-800' : 'bg-green-50 text-green-800'
         }`}>
-          <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+          <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
           <div className="space-y-1">
             <p className="font-medium">
               Upload Complete: {uploadStatus.success} imported, {uploadStatus.failed} failed
@@ -627,7 +644,50 @@ EXAMPLE ROWS
         </div>
       )}
 
-        {/* Search Bar */}
+        {/* Group Management */}
+      <GroupManagement groups={groups ?? []} />
+
+      {/* Group Tabs */}
+      {groups && groups.length > 0 && (
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
+              <button
+                  onClick={() => setSelectedGroupId("all")}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                      selectedGroupId === "all" 
+                      ? "bg-slate-900 text-white" 
+                      : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200"
+                  }`}
+              >
+                  All Levels
+              </button>
+              {groups.map((group: Doc<"levelGroups">) => (
+                  <button
+                      key={group._id}
+                      onClick={() => setSelectedGroupId(group._id)}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors border ${
+                          selectedGroupId === group._id 
+                          ? "bg-indigo-600 text-white border-indigo-600" 
+                          : "bg-white text-slate-600 hover:bg-slate-50 border-slate-200"
+                      }`}
+                  >
+                      {group.theme?.emoji} {group.name}
+                  </button>
+              ))}
+              <button
+                  onClick={() => setSelectedGroupId("ungrouped")}
+                   className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors border ${
+                      selectedGroupId === "ungrouped" 
+                      ? "bg-slate-900 text-white border-slate-900" 
+                      : "bg-white text-slate-600 hover:bg-slate-50 border-slate-200"
+                  }`}
+              >
+                  Ungrouped
+              </button>
+          </div>
+      )}
+
+      {/* Search Bar */}
+
         <div className="relative z-10">
           <div className="relative">
             <input
@@ -692,7 +752,7 @@ EXAMPLE ROWS
 
       {/* Levels accordion */}
       <div className="space-y-4">
-        {levels?.map((level) => (
+        {filteredLevels?.map((level) => (
           <LevelAccordion
             key={level._id}
             level={level}
@@ -748,7 +808,7 @@ EXAMPLE ROWS
           />
         ))}
 
-        {(!levels || levels.length === 0) && (
+        {(!filteredLevels || filteredLevels.length === 0) && (
           <div className="text-center py-12 text-slate-500 bg-white rounded-xl border border-slate-200">
             <Layers className="w-12 h-12 mx-auto mb-4 opacity-30" />
             <p className="text-lg font-medium">No levels yet</p>
@@ -761,8 +821,10 @@ EXAMPLE ROWS
       {showAddLevelModal && (
         <AddLevelModal
           onClose={() => setShowAddLevelModal(false)}
-          onCreate={async (name, description) => {
-            await createLevel({ name, description });
+          groups={groups}
+          initialGroupId={selectedGroupId}
+          onCreate={async (name, description, groupId) => {
+            await createLevel({ name, description, groupId });
             setShowAddLevelModal(false);
           }}
         />
@@ -772,13 +834,15 @@ EXAMPLE ROWS
       {showEditLevelModal && (
         <EditLevelModal
           level={showEditLevelModal}
+          groups={groups}
           onClose={() => setShowEditLevelModal(null)}
-          onSave={async (name, description, theme) => {
+          onSave={async (name, description, theme, groupId) => {
             await updateLevel({
               levelId: showEditLevelModal._id,
               name,
               description,
               theme,
+              groupId
             });
             setShowEditLevelModal(null);
           }}
@@ -1366,19 +1430,22 @@ function LevelExpandedContent({
 }
 
 // Modals
-function AddLevelModal({ onClose, onCreate }: { 
+function AddLevelModal({ onClose, onCreate, groups, initialGroupId }: { 
   onClose: () => void; 
-  onCreate: (name: string, description: string) => Promise<void>;
+  onCreate: (name: string, description: string, groupId?: Id<"levelGroups">) => Promise<void>;
+  groups?: Doc<"levelGroups">[];
+  initialGroupId?: string;
 }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [groupId, setGroupId] = useState<string>(initialGroupId === "all" ? "" : (initialGroupId ?? ""));
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
     setIsSubmitting(true);
-    await onCreate(name.trim(), description.trim());
+    await onCreate(name.trim(), description.trim(), groupId ? groupId as Id<"levelGroups"> : undefined);
     setIsSubmitting(false);
   };
 
@@ -1406,8 +1473,25 @@ function AddLevelModal({ onClose, onCreate }: {
             className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
         </div>
+        
+        {groups && groups.length > 0 && (
+            <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Group (World)</label>
+            <select
+                value={groupId}
+                onChange={(e) => setGroupId(e.target.value)}
+                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+                <option value="">No Group</option>
+                {groups.map((g: Doc<"levelGroups">) => (
+                    <option key={g._id} value={g._id}>{g.name}</option>
+                ))}
+            </select>
+            </div>
+        )}
+
         <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-lg text-sm text-amber-700">
-          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <AlertCircle className="w-4 h-4 shrink-0" />
           <span>New levels are disabled by default. Enable them when ready.</span>
         </div>
         <div className="flex justify-end gap-2">
@@ -1427,13 +1511,15 @@ function AddLevelModal({ onClose, onCreate }: {
   );
 }
 
-function EditLevelModal({ level, onClose, onSave }: {
+function EditLevelModal({ level, onClose, onSave, groups }: {
   level: Level;
   onClose: () => void;
-  onSave: (name: string, description: string, theme?: { emoji: string; color: string }) => Promise<void>;
+  onSave: (name: string, description: string, theme?: { emoji: string; color: string }, groupId?: Id<"levelGroups">) => Promise<void>;
+  groups?: Doc<"levelGroups">[];
 }) {
   const [name, setName] = useState(level.name);
   const [description, setDescription] = useState(level.description ?? "");
+  const [groupId, setGroupId] = useState<string>(level.groupId ?? "");
   const [emoji, setEmoji] = useState(level.theme?.emoji ?? "");
   const [color, setColor] = useState(level.theme?.color ?? "#4CAF50");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1445,7 +1531,8 @@ function EditLevelModal({ level, onClose, onSave }: {
     await onSave(
       name.trim(),
       description.trim(),
-      emoji ? { emoji, color } : undefined
+      emoji ? { emoji, color } : undefined,
+      groupId ? groupId as Id<"levelGroups"> : undefined
     );
     setIsSubmitting(false);
   };
@@ -1471,6 +1558,23 @@ function EditLevelModal({ level, onClose, onSave }: {
             className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
         </div>
+
+        {groups && groups.length > 0 && (
+            <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Group (World)</label>
+            <select
+                value={groupId}
+                onChange={(e) => setGroupId(e.target.value)}
+                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+                <option value="">No Group</option>
+                {groups.map((g: Doc<"levelGroups">) => (
+                    <option key={g._id} value={g._id}>{g.name}</option>
+                ))}
+            </select>
+            </div>
+        )}
+
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Emoji</label>

@@ -393,12 +393,39 @@ export default defineSchema({
   // LEVEL PROGRESSION SYSTEM (Candy Crush Style)
   // ============================================
 
+  // Level Groups (Worlds)
+  levelGroups: defineTable({
+    name: v.string(), // "World 1: The Beginning"
+    description: v.optional(v.string()),
+    order: v.number(), // 1, 2, 3...
+    
+    // Visual theming
+    theme: v.optional(
+      v.object({
+        primaryColor: v.string(),
+        secondaryColor: v.optional(v.string()),
+        backgroundImage: v.optional(v.string()),
+        emoji: v.optional(v.string()),
+      })
+    ),
+
+    isEnabled: v.boolean(),
+    
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_order", ["order"])
+    .index("by_enabled", ["isEnabled"]),
+
   // Level configuration
   levels: defineTable({
     levelNumber: v.number(), // Display order (1, 2, 3...)
     name: v.string(), // "The Beginning"
     description: v.optional(v.string()),
     isEnabled: v.boolean(), // false = "Coming Soon" (default: false)
+
+    // Link to Group
+    groupId: v.optional(v.id("levelGroups")), // Make optional for migration, then enforce logic
 
     // Dynamic difficulties - admin can add/remove
     difficulties: v.array(
@@ -426,6 +453,7 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_level_number", ["levelNumber"])
+    .index("by_group_level", ["groupId", "levelNumber"]) // New index for querying by group
     .index("by_enabled", ["isEnabled"]),
 
   // Questions for each level

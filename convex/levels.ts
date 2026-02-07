@@ -60,31 +60,43 @@ async function generateUniqueQuestionCode(ctx: any): Promise<string> {
 
 // Get all levels with user's progress (for mobile home screen)
 export const getAllLevelsWithProgress = query({
-  args: { token: v.string() },
+  args: { token: v.string(), groupId: v.optional(v.id("levelGroups")) },
   handler: async (ctx, args) => {
     // Validate session
-    const session = await ctx.db
+    const sessionIdentity = await ctx.db
       .query("childSessions")
       .withIndex("by_token", (q) => q.eq("token", args.token))
       .first();
 
-    if (!session || session.expiresAt < Date.now()) {
+    if (!sessionIdentity || sessionIdentity.expiresAt < Date.now()) {
       throw new ConvexError("Invalid or expired session");
     }
 
-    // Get all enabled levels ordered by levelNumber
-    const levels = await ctx.db
-      .query("levels")
-      .withIndex("by_level_number")
-      .collect();
+    // Fetch data in parallel
+    const [levelsData, groups, progress] = await Promise.all([
+      ctx.db.query("levels").withIndex("by_level_number").collect(),
+      ctx.db.query("levelGroups").collect(),
+      ctx.db.query("levelProgress").withIndex("by_child", (q) => q.eq("childId", sessionIdentity.childId)).collect(),
+    ]);
 
-    // Get user's progress for all levels
-    const progress = await ctx.db
-      .query("levelProgress")
-      .withIndex("by_child", (q) => q.eq("childId", session.childId))
-      .collect();
+    let levels = levelsData;
 
+    // Filter by group if provided
+    if (args.groupId) {
+        levels = levels.filter(l => l.groupId === args.groupId);
+    }
+
+    const groupMap = new Map(groups.map((g) => [g._id, g]));
     const progressMap = new Map(progress.map((p) => [p.levelId, p]));
+
+    // Sort levels: Group Order -> Level Number
+    levels.sort((a, b) => {
+        const orderA = a.groupId ? groupMap.get(a.groupId)?.order ?? 9999 : 9999;
+        const orderB = b.groupId ? groupMap.get(b.groupId)?.order ?? 9999 : 9999;
+        
+        if (orderA !== orderB) return orderA - orderB;
+        return a.levelNumber - b.levelNumber;
+    });
 
     // Determine unlock status for each level
     let previousLevelCompleted = true; // Level 1 is always unlockable
@@ -106,6 +118,8 @@ export const getAllLevelsWithProgress = query({
       }
 
       // Update for next iteration
+      // Note: This logic assumes linear progression across ALL groups/levels.
+      // If we want gated groups, we'd need group-level logic, but typical sequential is fine.
       if (level.isEnabled) {
         previousLevelCompleted = levelProgress?.isCompleted ?? false;
       }
@@ -114,6 +128,7 @@ export const getAllLevelsWithProgress = query({
         ...level,
         state,
         progress: levelProgress ?? null,
+        group: level.groupId ? groupMap.get(level.groupId) : null
       };
     });
   },
@@ -500,9 +515,20 @@ export const getLevelsAdmin = query({
       .query("levels")
       .withIndex("by_level_number")
       .collect();
+    
+    // Sort by Group Order then Level Number
+    // Fetch all groups to get order
+    const groups = await ctx.db.query("levelGroups").collect();
+    const groupOrder = new Map(groups.map(g => [g._id, g.order]));
 
-    // Sort by levelNumber
-    levels.sort((a, b) => a.levelNumber - b.levelNumber);
+    // Sort: No Group (Legacy) -> Group 1 -> Group 2...
+    levels.sort((a, b) => {
+        const orderA = a.groupId ? (groupOrder.get(a.groupId) ?? 999) : 999; // Legacy levels go last or first? Let's say last if not migrated.
+        const orderB = b.groupId ? (groupOrder.get(b.groupId) ?? 999) : 999;
+        
+        if (orderA !== orderB) return orderA - orderB;
+        return a.levelNumber - b.levelNumber;
+    });
 
     // Calculate counts dynamically from actual questions to ensuring accuracy
     const levelsWithCounts = await Promise.all(
@@ -611,6 +637,7 @@ export const createLevel = mutation({
   args: {
     name: v.string(),
     description: v.optional(v.string()),
+    groupId: v.optional(v.id("levelGroups")),
     theme: v.optional(
       v.object({
         emoji: v.string(),
@@ -641,6 +668,7 @@ export const createLevel = mutation({
       levelNumber: nextNumber,
       name: args.name,
       description: args.description,
+      groupId: args.groupId,
       isEnabled: false, // Disabled by default
       difficulties: defaultDifficulties,
       theme: args.theme,
@@ -658,6 +686,7 @@ export const updateLevel = mutation({
     levelId: v.id("levels"),
     name: v.optional(v.string()),
     description: v.optional(v.string()),
+    groupId: v.optional(v.id("levelGroups")),
     theme: v.optional(
       v.object({
         emoji: v.string(),
@@ -674,9 +703,25 @@ export const updateLevel = mutation({
     if (updates.name !== undefined) filteredUpdates.name = updates.name;
     if (updates.description !== undefined)
       filteredUpdates.description = updates.description;
+    if (updates.groupId !== undefined) filteredUpdates.groupId = updates.groupId;
     if (updates.theme !== undefined) filteredUpdates.theme = updates.theme;
 
     await ctx.db.patch(levelId, filteredUpdates);
+  },
+});
+
+export const moveLevelToGroup = mutation({
+  args: {
+    levelId: v.id("levels"),
+    groupId: v.id("levelGroups"),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    
+    await ctx.db.patch(args.levelId, {
+        groupId: args.groupId,
+        updatedAt: Date.now(),
+    });
   },
 });
 

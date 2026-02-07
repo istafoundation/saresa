@@ -16,6 +16,7 @@ import type * as couponActions from "../couponActions.js";
 import type * as coupons from "../coupons.js";
 import type * as crons from "../crons.js";
 import type * as gameStats from "../gameStats.js";
+import type * as groups from "../groups.js";
 import type * as http from "../http.js";
 import type * as levels from "../levels.js";
 import type * as lib_auth from "../lib/auth.js";
@@ -48,6 +49,7 @@ declare const fullApi: ApiFromModules<{
   coupons: typeof coupons;
   crons: typeof crons;
   gameStats: typeof gameStats;
+  groups: typeof groups;
   http: typeof http;
   levels: typeof levels;
   "lib/auth": typeof lib_auth;

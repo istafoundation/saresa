@@ -1,94 +1,44 @@
-import { mutation } from "./_generated/server";
-import { v, ConvexError } from "convex/values";
-import type { Id } from "./_generated/dataModel";
+import { internalMutation } from "./_generated/server";
+import { v } from "convex/values";
 
-// Verify admin status (copied from levels.ts to keep migrations self-contained)
-async function requireAdmin(ctx: any): Promise<Id<"parents">> {
-  const identity = await ctx.auth.getUserIdentity();
-  if (!identity) {
-    throw new ConvexError("Must be logged in");
-  }
-
-  const parent = await ctx.db
-    .query("parents")
-    .withIndex("by_clerk_id", (q: any) => q.eq("clerkId", identity.subject))
-    .first();
-
-  if (!parent || parent.role !== "admin") {
-    throw new ConvexError("Admin access required");
-  }
-
-  return parent._id;
-}
-
-/**
- * Migration: Add coins field to all existing users
- * 
- * Run this migration from the Convex dashboard:
- * 1. Go to Convex Dashboard > Functions
- * 2. Find this function under migrations > addCoinsToUsers
- * 3. Click "Run" to execute (must be logged in as admin)
- * 
- * This adds coins: 0 to all users that don't have the field.
- */
-export const addCoinsToUsers = mutation({
+export const migrateLevelsToGroup1 = internalMutation({
   args: {},
   handler: async (ctx) => {
-    // Require admin access
-    await requireAdmin(ctx);
-    
-    // Get all users without coins field
-    const users = await ctx.db.query("users").collect();
-    
-    let updated = 0;
-    for (const user of users) {
-      // Check if coins is undefined/missing
-      if ((user as any).coins === undefined) {
-        await ctx.db.patch(user._id, { coins: 0 });
-        updated++;
-      }
+    // 1. Check if Group 1 exists, if not create it
+    const groups = await ctx.db.query("levelGroups").collect();
+    let group1Id;
+
+    if (groups.length === 0) {
+        console.log("Creating default Group 1...");
+        group1Id = await ctx.db.insert("levelGroups", {
+            name: "World 1",
+            description: "The Beginning",
+            order: 1,
+            isEnabled: true,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+        });
+    } else {
+        // Use the first group found or specifically one named "World 1"
+        const g1 = groups.find(g => g.order === 1) || groups[0];
+        group1Id = g1._id;
+        console.log("Using existing Group:", g1.name);
     }
-    
-    return { 
-      total: users.length,
-      updated,
-      message: `Added coins=0 to ${updated} users`
-    };
-  },
-});
 
-/**
- * Migration: Remove old `isAppBlockingEnabled` field and migrate to `appBlockerEnabled`
- * 
- * Run this migration from the Convex dashboard:
- * 1. Go to Convex Dashboard > Functions
- * 2. Find this function under migrations > migrateAppBlockerField
- * 3. Click "Run" to execute
- * 
- * NOTE: No auth required - this is a one-time data migration
- */
-export const migrateAppBlockerField = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const children = await ctx.db.query("children").collect();
-    
+    // 2. Find all levels without groupId
+    const levels = await ctx.db.query("levels").collect();
     let migratedCount = 0;
-    for (const child of children) {
-      const childDoc = child as any;
-      if ('isAppBlockingEnabled' in childDoc) {
-        // Copy old value to new field and remove old field
-        await ctx.db.patch(child._id, {
-          appBlockerEnabled: childDoc.isAppBlockingEnabled ?? false,
-          isAppBlockingEnabled: undefined, // Removes the field
-        } as any);
-        migratedCount++;
-      }
+
+    for (const level of levels) {
+        if (!level.groupId) {
+            await ctx.db.patch(level._id, {
+                groupId: group1Id,
+            });
+            migratedCount++;
+        }
     }
-    
-    return { 
-      total: children.length,
-      migratedCount,
-      message: `Migrated ${migratedCount} children from isAppBlockingEnabled to appBlockerEnabled`
-    };
+
+    console.log(`Migrated ${migratedCount} levels to Group ${group1Id}`);
+    return { success: true, migrated: migratedCount, groupId: group1Id };
   },
 });

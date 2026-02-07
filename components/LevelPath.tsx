@@ -61,6 +61,17 @@ type LevelWithProgress = {
     }>;
     isCompleted: boolean;
   } | null;
+  groupId?: Id<"levelGroups">;
+  group?: {
+      name: string;
+      order: number;
+      theme?: {
+          primaryColor: string;
+          secondaryColor?: string;
+          backgroundImage?: string;
+          emoji?: string;
+      }
+  } | null;
 };
 
 // Seeded random for consistent positions
@@ -158,6 +169,7 @@ const LevelListItem = memo(function LevelListItem({
   screenWidth,
   nextLevel,
   onPress,
+  isGroupStart,
 }: {
   level: LevelWithProgress;
   index: number;
@@ -165,6 +177,7 @@ const LevelListItem = memo(function LevelListItem({
   screenWidth: number;
   nextLevel?: LevelWithProgress;
   onPress: (level: LevelWithProgress) => void;
+  isGroupStart?: boolean;
 }) {
   const isLeft = index % 2 === 0;
   
@@ -175,6 +188,17 @@ const LevelListItem = memo(function LevelListItem({
 
   return (
     <View style={{ height: LEVEL_SPACING, justifyContent: 'flex-start' }}>
+      {/* Group Header */}
+      {isGroupStart && level.group && (
+          <View style={{ position: 'absolute', top: -10, left: 20, right: 20, alignItems: isLeft ? 'flex-start' : 'flex-end', zIndex: 20 }}>
+             <View style={{ backgroundColor: level.group.theme?.primaryColor ?? COLORS.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 4, elevation: 3 }}>
+                 <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>
+                     {level.group.theme?.emoji} {level.group.name}
+                 </Text>
+             </View>
+          </View>
+      )}
+
       {/* Path connecting to NEXT level (if exists) */}
       {index < totalLevels - 1 && (
         <PathSegment
@@ -247,6 +271,7 @@ export default function LevelPath() {
         screenWidth={screenWidth}
         nextLevel={levels?.[index + 1]}
         onPress={handleLevelPress}
+        isGroupStart={index === 0 || levels?.[index - 1]?.groupId !== item.groupId}
       />
     );
   }, [levels, screenWidth, handleLevelPress]);
