@@ -214,6 +214,63 @@ export const reorderLevels = mutation({
   },
 });
 
+// Reorder level within its group
+export const reorderLevelInGroup = mutation({
+  args: {
+    levelId: v.id("levels"),
+    direction: v.union(v.literal("up"), v.literal("down")),
+    groupId: v.optional(v.id("levelGroups")), // Optional Context
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
+    const level = await ctx.db.get(args.levelId);
+    if (!level) throw new ConvexError("Level not found");
+
+    // Fetch ALL levels to determine global order
+    // We need to swap levelNumbers, which are global.
+    // So we finding the "prev" or "next" level *in the same group* 
+    // and swapping levelNumbers with it.
+    
+    // 1. Get all levels
+    const allLevels = await ctx.db
+      .query("levels")
+      .withIndex("by_level_number")
+      .collect();
+    
+    // 2. Filter for siblings in same group (or no group)
+    // Note: Use the level's actual groupId, not just the arg (arg is for double check if needed)
+    const targetGroupId = level.groupId;
+    
+    // Sort by levelNumber
+    allLevels.sort((a, b) => a.levelNumber - b.levelNumber);
+
+    const siblings = allLevels.filter(l => l.groupId === targetGroupId);
+    
+    const currentIndex = siblings.findIndex(l => l._id === level._id);
+    if (currentIndex === -1) throw new ConvexError("Level not found in group");
+
+    // 3. Find swap target in siblings list
+    const targetIndex = args.direction === "up" ? currentIndex - 1 : currentIndex + 1;
+    
+    if (targetIndex < 0 || targetIndex >= siblings.length) {
+        return; // Cannot move further in this group
+    }
+
+    const swapTarget = siblings[targetIndex];
+
+    // 4. Swap their levelNumbers
+    // We only swap these two. This preserves their relative order in the group
+    // and also swaps their global position relative to each other.
+    // Other levels (in other groups) are unaffected.
+    const numA = level.levelNumber;
+    const numB = swapTarget.levelNumber;
+
+    await ctx.db.patch(level._id, { levelNumber: numB });
+    await ctx.db.patch(swapTarget._id, { levelNumber: numA });
+  },
+});
+
 // Reorder difficulties (swap order in array)
 export const reorderDifficulties = mutation({
   args: {

@@ -126,6 +126,7 @@ function LevelsContent() {
   const bulkReplaceDifficultyQuestions = useMutation(api.levels.bulkReplaceDifficultyQuestions);
   
   const reorderLevels = useMutation(api.levels.reorderLevels);
+  const reorderLevelsInGroup = useMutation(api.levels.reorderLevelInGroup);
   const reorderDifficulties = useMutation(api.levels.reorderDifficulties);
   const reorderQuestions = useMutation(api.levels.reorderQuestions);
 
@@ -137,7 +138,7 @@ function LevelsContent() {
   // UI State
   const [expandedLevels, setExpandedLevels] = useState<Set<string>>(new Set());
   const [expandedDifficulties, setExpandedDifficulties] = useState<Set<string>>(new Set());
-  const [selectedGroupId, setSelectedGroupId] = useState<string>("all");
+
 
   
   // Modals
@@ -562,11 +563,7 @@ EXAMPLE ROWS
   const totalLevels = levels?.length ?? 0;
   const totalQuestions = levels?.reduce((sum, l) => sum + l.totalQuestions, 0) ?? 0;
 
-  const filteredLevels = levels?.filter(level => {
-      if (selectedGroupId === "all") return true;
-      if (selectedGroupId === "ungrouped") return !level.groupId;
-      return level.groupId === selectedGroupId;
-  });
+
 
 
   return (
@@ -647,44 +644,192 @@ EXAMPLE ROWS
         {/* Group Management */}
       <GroupManagement groups={groups ?? []} />
 
-      {/* Group Tabs */}
-      {groups && groups.length > 0 && (
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
-              <button
-                  onClick={() => setSelectedGroupId("all")}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-                      selectedGroupId === "all" 
-                      ? "bg-slate-900 text-white" 
-                      : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200"
-                  }`}
-              >
-                  All Levels
-              </button>
-              {groups.map((group: Doc<"levelGroups">) => (
-                  <button
-                      key={group._id}
-                      onClick={() => setSelectedGroupId(group._id)}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors border ${
-                          selectedGroupId === group._id 
-                          ? "bg-indigo-600 text-white border-indigo-600" 
-                          : "bg-white text-slate-600 hover:bg-slate-50 border-slate-200"
-                      }`}
-                  >
-                      {group.theme?.emoji} {group.name}
-                  </button>
-              ))}
-              <button
-                  onClick={() => setSelectedGroupId("ungrouped")}
-                   className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors border ${
-                      selectedGroupId === "ungrouped" 
-                      ? "bg-slate-900 text-white border-slate-900" 
-                      : "bg-white text-slate-600 hover:bg-slate-50 border-slate-200"
-                  }`}
-              >
-                  Ungrouped
-              </button>
-          </div>
-      )}
+      {/* Levels List by Group */}
+      <div className="space-y-12">
+        {/* World Sections */}
+        {groups?.sort((a,b) => a.order - b.order).map((group) => {
+            const groupLevels = levels?.filter(l => l.groupId === group._id)
+                                      .sort((a,b) => a.levelNumber - b.levelNumber);
+            
+            return (
+                <div key={group._id} className="relative">
+                    {/* World Header */}
+                    <div className="flex items-center justify-between mb-4 sticky top-0 bg-slate-50/95 backdrop-blur z-20 py-4 border-b border-indigo-100">
+                         <div className="flex items-center gap-3">
+                            <span className="text-3xl filter drop-shadow-sm">{group.theme?.emoji ?? "🌍"}</span>
+                            <div>
+                                <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                                    {group.name}
+                                    {!group.isEnabled && <span className="text-xs bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full">Hidden</span>}
+                                </h2>
+                                <p className="text-sm text-slate-500">{group.description}</p>
+                            </div>
+                         </div>
+                         <div className="flex items-center gap-2">
+                             <button
+                                onClick={() => {
+                                    setUploadLevelId(null); 
+                                    // Pre-select group in modal if we had that capability, 
+                                    // but currently Create Level modal is generic. 
+                                    // We can just open it.
+                                    setShowAddLevelModal(true);
+                                    // Ideally, we should pass the groupId to the modal to pre-fill it.
+                                    // For now, user selects group in modal.
+                                }}
+                                className="text-sm text-indigo-600 font-medium hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors border border-indigo-200"
+                             >
+                                 + Add Level Here
+                             </button>
+                         </div>
+                    </div>
+
+                    {/* Levels List */}
+                    <div className="space-y-4 pl-4 border-l-2 border-slate-200/50">
+                        {groupLevels && groupLevels.length > 0 ? (
+                            groupLevels.map(level => (
+                                <LevelAccordion
+                                    key={level._id}
+                                    level={level}
+                                    isExpanded={expandedLevels.has(level._id)}
+                                    expandedDifficulties={expandedDifficulties}
+                                    onToggle={() => toggleLevel(level._id)}
+                                    onToggleDifficulty={toggleDifficulty}
+                                    onToggleEnabled={() => handleToggleEnabled(level._id)}
+                                    onEdit={() => setShowEditLevelModal(level)}
+                                    onDelete={() => handleDeleteLevel(level._id)}
+                                    onAddDifficulty={() => setShowAddDifficultyModal(level._id)}
+                                    onDeleteDifficulty={(diffName) => handleDeleteDifficulty(level._id, diffName)}
+                                    onAddQuestion={(diffName) => setShowAddQuestionModal({ levelId: level._id, difficultyName: diffName })}
+                                    onEditDifficulty={(diff) => setShowEditDifficultyModal({ levelId: level._id, difficulty: diff })}
+                                    onEditQuestion={(q) => setShowEditQuestionModal(q)}
+                                    onDeleteQuestion={handleDeleteQuestion}
+                                    onUploadCSV={() => {
+                                        setUploadLevelId(level._id);
+                                        setUploadDifficultyName(null);
+                                        fileInputRef.current?.click();
+                                    }}
+                                    onUploadDifficultyCSV={(diffName) => {
+                                        setUploadLevelId(level._id);
+                                        setUploadDifficultyName(diffName);
+                                        fileInputRef.current?.click();
+                                    }}
+
+                                    escapeCSV={escapeCSV} 
+                                    onReorderLevel={async (direction) => {
+                                        try {
+                                            // Use new mutation for in-group reordering
+                                            await reorderLevelsInGroup({ levelId: level._id, direction, groupId: group._id });
+                                        } catch (e) {
+                                            console.error("Reorder Level Error:", e);
+                                            alert("Failed to reorder: " + (e as Error).message);
+                                        }
+                                    }}
+                                    onReorderDifficulty={async (diffName, direction) => {
+                                        try {
+                                            await reorderDifficulties({ levelId: level._id, difficultyName: diffName, direction });
+                                        } catch (e) {
+                                            console.error("Reorder Difficulty Error:", e);
+                                        }
+                                    }}
+                                    onReorderQuestion={async (qId, direction) => {
+                                        try {
+                                            await reorderQuestions({ questionId: qId, direction });
+                                        } catch (e) {
+                                            console.error(e);
+                                        }
+                                    }}
+                                />
+                            ))
+                        ) : (
+                            <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-300 rounded-xl">
+                                <p className="text-slate-500">No levels in this world yet.</p>
+                                <button
+                                    onClick={() => setShowAddLevelModal(true)}
+                                    className="text-indigo-600 font-medium mt-2 hover:underline"
+                                >
+                                    Create a Level
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        })}
+
+        {/* Ungrouped Levels */}
+        {levels?.some(l => !l.groupId) && (
+             <div className="relative mt-12 pt-8 border-t border-slate-200">
+                <div className="flex items-center justify-between mb-4">
+                     <div className="flex items-center gap-3">
+                        <span className="text-3xl filter grayscale opacity-50">📂</span>
+                        <div>
+                            <h2 className="text-xl font-bold text-slate-700 flex items-center gap-2">
+                                Ungrouped Levels
+                            </h2>
+                            <p className="text-sm text-slate-500">Levels not assigned to any world</p>
+                        </div>
+                     </div>
+                </div>
+
+                <div className="space-y-4 pl-4 border-l-2 border-slate-200/50">
+                    {levels.filter(l => !l.groupId).sort((a,b) => a.levelNumber - b.levelNumber).map(level => (
+                         <LevelAccordion
+                            key={level._id}
+                            level={level}
+                            isExpanded={expandedLevels.has(level._id)}
+                            expandedDifficulties={expandedDifficulties}
+                            onToggle={() => toggleLevel(level._id)}
+                            onToggleDifficulty={toggleDifficulty}
+                            onToggleEnabled={() => handleToggleEnabled(level._id)}
+                            onEdit={() => setShowEditLevelModal(level)}
+                            onDelete={() => handleDeleteLevel(level._id)}
+                            onAddDifficulty={() => setShowAddDifficultyModal(level._id)}
+                            onDeleteDifficulty={(diffName) => handleDeleteDifficulty(level._id, diffName)}
+                            onAddQuestion={(diffName) => setShowAddQuestionModal({ levelId: level._id, difficultyName: diffName })}
+                            onEditDifficulty={(diff) => setShowEditDifficultyModal({ levelId: level._id, difficulty: diff })}
+                            onEditQuestion={(q) => setShowEditQuestionModal(q)}
+                            onDeleteQuestion={handleDeleteQuestion}
+                            onUploadCSV={() => {
+                                setUploadLevelId(level._id);
+                                setUploadDifficultyName(null);
+                                fileInputRef.current?.click();
+                            }}
+                            onUploadDifficultyCSV={(diffName) => {
+                                setUploadLevelId(level._id);
+                                setUploadDifficultyName(diffName);
+                                fileInputRef.current?.click();
+                            }}
+                            escapeCSV={escapeCSV}
+                             onReorderLevel={async (direction) => {
+                                try {
+                                    // Use new mutation for in-group reordering (group is null/undefined)
+                                    await reorderLevelsInGroup({ levelId: level._id, direction });
+                                } catch (e) {
+                                    console.error("Reorder Level Error:", e);
+                                    alert("Failed to reorder: " + (e as Error).message);
+                                }
+                            }}
+                            onReorderDifficulty={async (diffName, direction) => {
+                                try {
+                                    await reorderDifficulties({ levelId: level._id, difficultyName: diffName, direction });
+                                } catch (e) {
+                                     console.error(e);
+                                 }
+                            }}
+                            onReorderQuestion={async (qId, direction) => {
+                                try {
+                                    await reorderQuestions({ questionId: qId, direction });
+                                } catch (e) {
+                                    console.error(e);
+                                }
+                            }}
+                        />
+                    ))}
+                </div>
+             </div>
+        )}
+
+      </div>
 
       {/* Search Bar */}
 
@@ -751,78 +896,15 @@ EXAMPLE ROWS
         </div>
 
       {/* Levels accordion */}
-      <div className="space-y-4">
-        {filteredLevels?.map((level) => (
-          <LevelAccordion
-            key={level._id}
-            level={level}
-            isExpanded={expandedLevels.has(level._id)}
-            expandedDifficulties={expandedDifficulties}
-            onToggle={() => toggleLevel(level._id)}
-            onToggleDifficulty={toggleDifficulty}
-            onToggleEnabled={() => handleToggleEnabled(level._id)}
-            onEdit={() => setShowEditLevelModal(level)}
-            onDelete={() => handleDeleteLevel(level._id)}
-            onAddDifficulty={() => setShowAddDifficultyModal(level._id)}
-            onDeleteDifficulty={(diffName) => handleDeleteDifficulty(level._id, diffName)}
-            onAddQuestion={(diffName) => setShowAddQuestionModal({ levelId: level._id, difficultyName: diffName })}
-            onEditDifficulty={(diff) => setShowEditDifficultyModal({ levelId: level._id, difficulty: diff })}
-            onEditQuestion={(q) => setShowEditQuestionModal(q)}
-            onDeleteQuestion={handleDeleteQuestion}
-            onUploadCSV={() => {
-              setUploadLevelId(level._id);
-              setUploadDifficultyName(null);
-              fileInputRef.current?.click();
-            }}
-            onUploadDifficultyCSV={(diffName) => {
-              setUploadLevelId(level._id);
-              setUploadDifficultyName(diffName);
-              fileInputRef.current?.click();
-            }}
 
-            escapeCSV={escapeCSV} // Pass helper down
-            onReorderLevel={async (direction) => {
-              try {
-                await reorderLevels({ levelId: level._id, direction });
-              } catch (e) {
-                console.error("Reorder Level Error:", e);
-                alert("Failed to reorder level: " + (e as Error).message);
-              }
-            }}
-            onReorderDifficulty={async (diffName, direction) => {
-              try {
-                await reorderDifficulties({ levelId: level._id, difficultyName: diffName, direction });
-              } catch (e) {
-                console.error("Reorder Difficulty Error:", e);
-                alert("Failed to reorder difficulty: " + (e as Error).message);
-              }
-            }}
-            onReorderQuestion={async (qId, direction) => {
-              try {
-                await reorderQuestions({ questionId: qId, direction });
-              } catch (e) {
-                console.error("Reorder Question Error:", e);
-                alert("Failed to reorder question: " + (e as Error).message);
-              }
-            }}
-          />
-        ))}
 
-        {(!filteredLevels || filteredLevels.length === 0) && (
-          <div className="text-center py-12 text-slate-500 bg-white rounded-xl border border-slate-200">
-            <Layers className="w-12 h-12 mx-auto mb-4 opacity-30" />
-            <p className="text-lg font-medium">No levels yet</p>
-            <p className="text-sm mt-1">Create your first level to get started</p>
-          </div>
-        )}
-      </div>
 
       {/* Add Level Modal */}
       {showAddLevelModal && (
         <AddLevelModal
           onClose={() => setShowAddLevelModal(false)}
           groups={groups}
-          initialGroupId={selectedGroupId}
+          initialGroupId="all"
           onCreate={async (name, description, groupId) => {
             await createLevel({ name, description, groupId });
             setShowAddLevelModal(false);
