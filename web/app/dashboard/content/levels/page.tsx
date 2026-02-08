@@ -656,7 +656,46 @@ EXAMPLE ROWS
             // Processing Group Upload
             // 1. Fetch levels for this group to map Level Number -> Level ID
             const groupLevels = await convex.query(api.levels.getGroupContent, { groupId: uploadGroupId! });
+            
+            // Map Level Number -> Level ID
             const levelMap = new Map(groupLevels.map(gl => [gl.level.levelNumber, gl.level._id]));
+
+            // Identify MISSING Levels
+            const distinctLevelsInCSV = new Set(parsedQuestions.map(q => q.levelNumber));
+            const missingLevels: number[] = [];
+            
+            distinctLevelsInCSV.forEach(num => {
+                if (!levelMap.has(num)) missingLevels.push(num);
+            });
+
+            // Create Missing Levels
+            if (missingLevels.length > 0) {
+                // We need to create them. 
+                // Note: If we do this in parallel, it might be fast.
+                // We use the createLevel mutation which we modified to accept levelNumber.
+                try {
+                    await Promise.all(missingLevels.map(async (num) => {
+                        await createLevel({
+                            name: `Level ${num}`,
+                            levelNumber: num,
+                            groupId: uploadGroupId!,
+                        });
+                    }));
+                    
+                    // Refresh map after creation
+                    // Since specific query refresh might be tricky without manual trigger or just reading again?
+                    // We can just query again.
+                    // But wait, useQuery hook updates automatically but we are in a function.
+                    // We need to fetch again using convex.query
+                    const refreshedGroupLevels = await convex.query(api.levels.getGroupContent, { groupId: uploadGroupId! });
+                    refreshedGroupLevels.forEach(gl => levelMap.set(gl.level.levelNumber, gl.level._id));
+
+                } catch (e) {
+                    errors.push(`Failed to create missing levels: ${(e as Error).message}`);
+                    setUploadStatus({ success: 0, failed: errors.length, errors: errors.slice(0, 10) });
+                    return;
+                }
+            }
 
             // 2. Group questions by level
             const questionsByLevel = new Map<Id<"levels">, any[]>();
@@ -664,7 +703,7 @@ EXAMPLE ROWS
             for (const q of parsedQuestions) {
                 const lid = levelMap.get(q.levelNumber);
                 if (!lid) {
-                    errors.push(`Level ${q.levelNumber} not found in this group.`);
+                    errors.push(`Level ${q.levelNumber} could not be found or created.`);
                     continue;
                 }
                 if (!questionsByLevel.has(lid)) {

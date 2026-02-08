@@ -751,6 +751,7 @@ export const createLevel = mutation({
         color: v.string(),
       }),
     ),
+    levelNumber: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
@@ -761,8 +762,8 @@ export const createLevel = mutation({
       .withIndex("by_level_number")
       .collect();
 
-    const nextNumber =
-      levels.length > 0 ? Math.max(...levels.map((l) => l.levelNumber)) + 1 : 1;
+    const nextNumber = args.levelNumber ??
+      (levels.length > 0 ? Math.max(...levels.map((l) => l.levelNumber)) + 1 : 1);
 
     // Default difficulties
     const defaultDifficulties = [
