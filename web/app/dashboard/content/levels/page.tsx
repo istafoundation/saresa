@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, Suspense, useRef, useMemo } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useConvex } from "convex/react";
 import { api } from "@convex/_generated/api";
 import Link from "next/link";
 import ImageUpload from "@/app/components/ImageUpload";
@@ -19,7 +19,7 @@ import {
   ToggleRight,
   Zap,
   Target,
-  Map,
+  Map as MapIcon,
   Type,
   Grid3X3,
   X,
@@ -36,7 +36,7 @@ import type { Id, Doc } from "@convex/_generated/dataModel";
 import ImageKit from "imagekit-javascript";
 
 // Initialize ImageKit for client-side uploads
-const imagekit = new ImageKit({
+const imagekit = new (ImageKit as any)({
   publicKey: process.env.NEXT_PUBLIC_IMAGEKIT_PUBLIC_KEY!,
   urlEndpoint: process.env.NEXT_PUBLIC_IMAGEKIT_URL_ENDPOINT!,
   authenticationEndpoint: "/api/imagekit",
@@ -56,7 +56,7 @@ const QUESTION_TYPES: { value: QuestionType; label: string; icon: React.ReactNod
   { value: "mcq", label: "Multiple Choice", icon: <Zap className="w-4 h-4" /> },
   { value: "select", label: "Word Select", icon: <Type className="w-4 h-4" /> },
   { value: "grid", label: "Word Grid", icon: <Grid3X3 className="w-4 h-4" /> },
-  { value: "map", label: "Map Location", icon: <Map className="w-4 h-4" /> },
+  { value: "map", label: "Map Location", icon: <MapIcon className="w-4 h-4" /> },
   { value: "match", label: "Picture Match", icon: <LinkIcon className="w-4 h-4" /> },
   { value: "speaking", label: "Speaking", icon: <Zap className="w-4 h-4" /> },
 
@@ -156,6 +156,8 @@ function LevelsContent() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadLevelId, setUploadLevelId] = useState<Id<"levels"> | null>(null);
   const [uploadDifficultyName, setUploadDifficultyName] = useState<string | null>(null);
+  const [uploadGroupId, setUploadGroupId] = useState<Id<"levelGroups"> | null>(null);
+  const convex = useConvex();
   
   // Search State
   const [searchQuery, setSearchQuery] = useState("");
@@ -319,10 +321,98 @@ EXAMPLE ROWS
     // -> Moved logic to LevelAccordion component (see below changes)
   };
 
+  // Group CSV Download
+  const handleDownloadGroupCSV = async (groupId: Id<"levelGroups">, groupName: string) => {
+      try {
+          const content = await convex.query(api.levels.getGroupContent, { groupId });
+          
+          // Flatten data to CSV rows
+          const rows = [];
+          
+          // Header
+          rows.push(['Level', 'Order', 'Type', 'Difficulty', 'Question', 'Option 1', 'Option 2', 'Option 3', 'Option 4', 'Correct Option', 'Solution', 'Statement', 'Correct Words', 'Select Mode', 'Explanation', 'Pairs', 'Sentence']);
+
+          content.forEach(({ level, questions }) => {
+              questions.forEach(q => {
+                  let options = ['', '', '', '', ''];
+                  let correct = '';
+                  let solution = '';
+                  let statement = '';
+                  let correctWords = '';
+                  let selectMode = '';
+                  let explanation = '';
+                  let pairs = '';
+                  let sentence = '';
+
+                  // Extract data based on type
+                  if (q.questionType === 'mcq') {
+                      options = [
+                          q.data.options[0] || '',
+                          q.data.options[1] || '',
+                          q.data.options[2] || '',
+                          q.data.options[3] || ''
+                      ];
+                      correct = (q.data.correctIndex + 1).toString();
+                      explanation = q.data.explanation || '';
+                  } else if (q.questionType === 'grid') {
+                      solution = q.data.solution || '';
+                  } else if (q.questionType === 'map') {
+                      solution = q.data.solution || '';
+                  } else if (q.questionType === 'select') {
+                      statement = q.data.statement || '';
+                      correctWords = q.data.correctWords?.join(',') || '';
+                      selectMode = q.data.selectMode || 'single';
+                      explanation = q.data.explanation || '';
+                  } else if (q.questionType === 'match') {
+                      // Serialize pairs: url|text;url|text
+                      pairs = q.data.pairs?.map((p: any) => `${p.imageUrl}|${p.text}`).join(';') || '';
+                  } else if (q.questionType === 'speaking') {
+                      sentence = q.data.sentence || '';
+                  }
+
+                  rows.push([
+                      level.levelNumber,
+                      q.order || '',
+                      q.questionType,
+                      q.difficultyName,
+                      escapeCSV(q.question),
+                      escapeCSV(options[0]),
+                      escapeCSV(options[1]),
+                      escapeCSV(options[2]),
+                      escapeCSV(options[3]),
+                      correct,
+                      escapeCSV(solution),
+                      escapeCSV(statement),
+                      escapeCSV(correctWords),
+                      selectMode,
+                      escapeCSV(explanation),
+                      escapeCSV(pairs),
+                      escapeCSV(sentence)
+                  ]);
+              });
+          });
+
+          // Generate Content
+          const csvContent = rows.map(e => e.join(",")).join("\n");
+          const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.setAttribute("href", url);
+          link.setAttribute("download", `${groupName}_levels.csv`);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+
+      } catch (e) {
+          console.error("Failed to download group CSV", e);
+          alert("Failed to download CSV: " + (e as Error).message);
+      }
+  };
+
   // CSV Upload
   const handleUploadCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !uploadLevelId) return;
+    if (!file || (!uploadLevelId && !uploadGroupId)) return;
 
     setUploadStatus(null);
     setIsSubmitting(true);
@@ -374,7 +464,9 @@ EXAMPLE ROWS
 
       // Validate Headers
       const headers = rows[0].map(h => h.trim().toLowerCase());
-      const expectedHeaders = ['order','type','difficulty','question','option 1','option 2','option 3','option 4','correct option','solution','statement','correct words','select mode','explanation','pairs','sentence'];
+
+      const expectedHeaders = ['level', 'order','type','difficulty','question','option 1','option 2','option 3','option 4','correct option','solution','statement','correct words','select mode','explanation','pairs','sentence'];
+      
       
       const missingHeaders = expectedHeaders.filter(h => !headers.includes(h) && h !== 'pairs'); // pairs is optional for other types
       // Actually, if we enforce all headers to be present in CSV even if empty, strictly checking might be annoying.
@@ -392,8 +484,12 @@ EXAMPLE ROWS
       // Check strictly required headers
       // If uploading for specific difficulty, 'difficulty' header is optional/ignored but good to have for validation
       const requiredCols = ['order','type','question']; 
-      if (!uploadDifficultyName) {
+      if (!uploadDifficultyName && !uploadGroupId) {
         requiredCols.push('difficulty');
+      }
+      if (uploadGroupId) {
+          requiredCols.push('level');
+          requiredCols.push('difficulty');
       }
       
       const missingRequired = requiredCols.filter(h => !headers.includes(h));
@@ -417,6 +513,7 @@ EXAMPLE ROWS
             return row[i]?.trim();
         };
 
+        const levelNumStr = getVal('level');
         const orderStr = getVal('order');
         const type = getVal('type').toLowerCase();
         let diff = getVal('difficulty');
@@ -443,6 +540,15 @@ EXAMPLE ROWS
         if (isNaN(order)) {
           errors.push(`Row ${rowNum}: Invalid Order "${orderStr}"`);
           continue;
+        }
+
+        let levelNumber = 0;
+        if (uploadGroupId) {
+            levelNumber = parseInt(levelNumStr);
+            if (isNaN(levelNumber)) {
+                errors.push(`Row ${rowNum}: Invalid Level Number`);
+                continue;
+            }
         }
 
         let data: any = {};
@@ -522,6 +628,11 @@ EXAMPLE ROWS
             order
           });
 
+          if (uploadGroupId) {
+               // Tag with levelNumber for group upload processing
+               parsedQuestions[parsedQuestions.length - 1].levelNumber = levelNumber;
+          }
+
         } catch (e) {
           errors.push(`Row ${rowNum}: ${(e as Error).message}`);
         }
@@ -536,16 +647,55 @@ EXAMPLE ROWS
              const questionsForDifficulty = parsedQuestions.map(({ difficultyName, ...rest }) => rest);
              
              await bulkReplaceDifficultyQuestions({
-                levelId: uploadLevelId,
+                levelId: uploadLevelId!,
+
                 difficultyName: uploadDifficultyName,
                 questions: questionsForDifficulty
              });
+        } else if (uploadGroupId) {
+            // Processing Group Upload
+            // 1. Fetch levels for this group to map Level Number -> Level ID
+            const groupLevels = await convex.query(api.levels.getGroupContent, { groupId: uploadGroupId! });
+            const levelMap = new Map(groupLevels.map(gl => [gl.level.levelNumber, gl.level._id]));
+
+            // 2. Group questions by level
+            const questionsByLevel = new Map<Id<"levels">, any[]>();
+            
+            for (const q of parsedQuestions) {
+                const lid = levelMap.get(q.levelNumber);
+                if (!lid) {
+                    errors.push(`Level ${q.levelNumber} not found in this group.`);
+                    continue;
+                }
+                if (!questionsByLevel.has(lid)) {
+                    questionsByLevel.set(lid, []);
+                }
+                questionsByLevel.get(lid)?.push(q);
+            }
+
+            // 3. Execute Updates
+            let successCount = 0;
+            for (const [lid, questions] of questionsByLevel.entries()) {
+                 // Remove temporary levelNumber property before sending to API
+                 const cleanedQuestions = questions.map(({ levelNumber, ...rest }: any) => rest);
+                 await bulkReplaceQuestions({
+                     levelId: lid,
+                     questions: cleanedQuestions
+                 });
+                 successCount += questions.length;
+            }
+            
+            // Adjust success count
+            setUploadStatus({ success: successCount, failed: errors.length, errors: errors.slice(0, 10) });
+            return; 
+
         } else {
             await bulkReplaceQuestions({
-                levelId: uploadLevelId,
+                levelId: uploadLevelId!,
                 questions: parsedQuestions
             });
         }
+
         setUploadStatus({ success: parsedQuestions.length, failed: 0, errors: [] });
       }
 
@@ -558,6 +708,7 @@ EXAMPLE ROWS
     if (fileInputRef.current) fileInputRef.current.value = '';
     setUploadLevelId(null);
     setUploadDifficultyName(null);
+    setUploadGroupId(null);
   };
 
   const totalLevels = levels?.length ?? 0;
@@ -679,6 +830,25 @@ EXAMPLE ROWS
                                 className="text-sm text-indigo-600 font-medium hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors border border-indigo-200"
                              >
                                  + Add Level Here
+                             </button>
+                             <button
+                                onClick={() => handleDownloadGroupCSV(group._id, group.name)}
+                                className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors"
+                                title="Download Group CSV"
+                             >
+                                 <Download className="w-5 h-5" />
+                             </button>
+                             <button
+                                onClick={() => {
+                                    setUploadLevelId(null);
+                                    setUploadDifficultyName(null);
+                                    setUploadGroupId(group._id);
+                                    fileInputRef.current?.click();
+                                }}
+                                className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors"
+                                title="Upload Group CSV"
+                             >
+                                 <Upload className="w-5 h-5" />
                              </button>
                          </div>
                     </div>

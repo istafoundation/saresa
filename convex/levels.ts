@@ -685,6 +685,56 @@ export const searchQuestionsAdmin = query({
   },
 });
 
+// Get all content for a group (levels + questions) for CSV export
+export const getGroupContent = query({
+  args: { groupId: v.id("levelGroups") },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
+    // 1. Get Levels in Group
+    const levels = await ctx.db
+      .query("levels")
+      .withIndex("by_group_level", (q) => q.eq("groupId", args.groupId))
+      .collect();
+
+    // Sort levels by number
+    levels.sort((a, b) => a.levelNumber - b.levelNumber);
+
+    // 2. Fetch questions for each level
+    const content = await Promise.all(
+      levels.map(async (level) => {
+        const questions = await ctx.db
+          .query("levelQuestions")
+          .withIndex("by_level", (q) => q.eq("levelId", level._id))
+          .collect();
+
+        // Sort questions: Difficulty Order -> Order -> CreatedAt
+        // We need difficulty order map
+        const diffOrder = new Map(level.difficulties.map((d) => [d.name, d.order]));
+
+        questions.sort((a, b) => {
+          const dOrderA = diffOrder.get(a.difficultyName) ?? 999;
+          const dOrderB = diffOrder.get(b.difficultyName) ?? 999;
+          
+          if (dOrderA !== dOrderB) return dOrderA - dOrderB;
+          
+          const orderDiff = (a.order ?? 0) - (b.order ?? 0);
+          if (orderDiff !== 0) return orderDiff;
+          
+          return a.createdAt - b.createdAt;
+        });
+
+        return {
+          level,
+          questions,
+        };
+      })
+    );
+
+    return content;
+  },
+});
+
 // ============================================
 // ADMIN MUTATIONS - LEVELS
 // ============================================
