@@ -274,14 +274,14 @@ D. For Select Questions (Type = select):
    - (Leave Option columns empty)
 
 E. For Match Questions (Type = match):
-   - Pairs: Semicolon separated pairs of "ImageURL|Text".
-     Format: url1|text1;url2|text2;url3|text3
-     Example: https://site.com/cat.jpg|Cat;https://site.com/dog.jpg|Dog
-     Note: If Image URL is not from ImageKit, it will be automatically uploaded.
-256: 
-257: F. For Speaking Questions (Type = speaking):
-258:    - Sentence: The text the child needs to speak aloud.
-259:    - (Level Option columns empty)
+   - Pairs: Semicolon separated pairs.
+     - Image Match: "ImageURL|Text" (e.g. "https://site.com/cat.jpg|Cat")
+     - Text Match: "LeftText|RightText" (e.g. "Big|Small;Up|Down")
+     Note: If the first part matches a URL format, it's treated as an image. Otherwise, it's treated as text.
+
+F. For Speaking Questions (Type = speaking):
+   - Sentence: The text the child needs to speak aloud.
+   - (Level Option columns empty)
 
 -------------------------------------------
 EXAMPLE ROWS
@@ -596,24 +596,38 @@ EXAMPLE ROWS
             const pairsStr = getVal('pairs');
             if (!pairsStr) throw new Error("Match requires 'Pairs' (format: url|text;url|text)");
             
-            // Parse pairs: "url|text;url2|text2"
+            // Parse pairs: "url|text;url2|text2" or "left|right;left2|right2"
             const rawPairs = pairsStr.split(';').filter(p => p.trim());
             const processedPairs = [];
+            let detectedType: 'image-text' | 'text-text' | null = null;
             
             for (const p of rawPairs) {
                 const parts = p.split('|');
-                if (parts.length < 2) throw new Error(`Invalid pair format: ${p}. Expected url|text`);
+                if (parts.length < 2) throw new Error(`Invalid pair format: ${p}. Expected left|right`);
                 
-                const rawUrl = parts[0].trim();
-                const text = parts.slice(1).join('|').trim(); // Join back in case text has pipes?
+                const left = parts[0].trim();
+                const right = parts.slice(1).join('|').trim();
                 
-                // Process Image
-                const finalUrl = await processImageUrl(rawUrl, `Row ${rowNum}`);
-                processedPairs.push({ imageUrl: finalUrl, text });
+                // Simple URL detection
+                const isUrl = left.startsWith('http://') || left.startsWith('https://') || left.startsWith('data:');
+
+                if (!detectedType) {
+                    detectedType = isUrl ? 'image-text' : 'text-text';
+                } else if ((isUrl && detectedType === 'text-text') || (!isUrl && detectedType === 'image-text')) {
+                     throw new Error(`Row ${rowNum}: Mixed pair types detected. All pairs must be either Image-Text or Text-Text.`);
+                }
+                
+                if (detectedType === 'image-text') {
+                    // Process Image
+                    const finalUrl = await processImageUrl(left, `Row ${rowNum}`);
+                    processedPairs.push({ imageUrl: finalUrl, text: right });
+                } else {
+                    processedPairs.push({ leftText: left, rightText: right });
+                }
             }
             
             if (processedPairs.length < 2) throw new Error("Match requires at least 2 pairs");
-            data = { pairs: processedPairs };
+            data = { matchType: detectedType, pairs: processedPairs };
           } else if (type === 'speaking') {
             const sentence = getVal('sentence');
             if (!sentence) throw new Error("Speaking requires 'Sentence'");
@@ -2056,9 +2070,10 @@ function AddQuestionModal({ levelId, difficultyName, onClose, onCreate }: {
   const [mapSolution, setMapSolution] = useState("IN-MH");
 
   // Match fields (picture matching)
-  const [matchPairs, setMatchPairs] = useState<{imageUrl: string; text: string}[]>([
-    { imageUrl: "", text: "" },
-    { imageUrl: "", text: "" },
+  const [matchType, setMatchType] = useState<'image-text' | 'text-text'>('image-text');
+  const [matchPairs, setMatchPairs] = useState<{imageUrl: string; text: string; leftText: string; rightText: string}[]>([
+    { imageUrl: "", text: "", leftText: "", rightText: "" },
+    { imageUrl: "", text: "", leftText: "", rightText: "" },
   ]);
 
   // Speaking fields
@@ -2074,7 +2089,7 @@ function AddQuestionModal({ levelId, difficultyName, onClose, onCreate }: {
 
   const addMatchPair = () => {
     if (matchPairs.length < 6) {
-      setMatchPairs([...matchPairs, { imageUrl: "", text: "" }]);
+      setMatchPairs([...matchPairs, { imageUrl: "", text: "", leftText: "", rightText: "" }]);
     }
   };
 
@@ -2084,7 +2099,7 @@ function AddQuestionModal({ levelId, difficultyName, onClose, onCreate }: {
     }
   };
 
-  const updateMatchPair = (index: number, field: 'imageUrl' | 'text', value: string) => {
+  const updateMatchPair = (index: number, field: 'imageUrl' | 'text' | 'leftText' | 'rightText', value: string) => {
     const updated = [...matchPairs];
     updated[index] = { ...updated[index], [field]: value };
     setMatchPairs(updated);
@@ -2127,11 +2142,19 @@ function AddQuestionModal({ levelId, difficultyName, onClose, onCreate }: {
         break;
       case "match":
         try {
-          const processedPairs = await Promise.all(matchPairs.filter(p => p.imageUrl.trim() && p.text.trim()).map(async (p, idx) => {
-             const finalUrl = await processImageUrl(p.imageUrl, `Pair ${idx + 1}`);
-             return { ...p, imageUrl: finalUrl };
-          }));
-          data = { pairs: processedPairs };
+          let processedPairs;
+          if (matchType === 'image-text') {
+             processedPairs = await Promise.all(matchPairs.filter(p => p.imageUrl.trim() && p.text.trim()).map(async (p, idx) => {
+                const finalUrl = await processImageUrl(p.imageUrl, `Pair ${idx + 1}`);
+                return { imageUrl: finalUrl, text: p.text };
+             }));
+          } else {
+             processedPairs = matchPairs.filter(p => p.leftText.trim() && p.rightText.trim()).map(p => ({
+                leftText: p.leftText,
+                rightText: p.rightText
+             }));
+          }
+          data = { matchType, pairs: processedPairs };
         } catch (err) {
           alert((err as Error).message);
           setIsSubmitting(false);
@@ -2326,38 +2349,84 @@ function AddQuestionModal({ levelId, difficultyName, onClose, onCreate }: {
 
         {questionType === "match" && (
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Image-Text Pairs ({matchPairs.length}/6)
-            </label>
+            <div className="flex justify-between items-center mb-2">
+              <label className="block text-sm font-medium text-slate-700">
+                Pairs ({matchPairs.length}/6)
+              </label>
+              <div className="flex bg-slate-100 p-1 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setMatchType('image-text')}
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                    matchType === 'image-text'
+                      ? 'bg-white text-indigo-600 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Image-Text
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMatchType('text-text')}
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                    matchType === 'text-text'
+                      ? 'bg-white text-indigo-600 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Text-Text
+                </button>
+              </div>
+            </div>
+            
             <p className="text-xs text-slate-500 mb-3">
-              Click to upload images for each pair. Images will be cropped to 1:1 ratio.
+              {matchType === 'image-text' 
+                ? "Upload images and their corresponding labels." 
+                : "Enter matching text pairs (e.g., Opposites, Synonyms)."}
             </p>
+
             <div className="space-y-3">
               {matchPairs.map((pair, idx) => (
                 <div key={idx} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg">
-                  <div className="flex flex-col gap-2">
-                    <ImageUpload
-                      value={pair.imageUrl}
-                      onChange={(url) => updateMatchPair(idx, 'imageUrl', url)}
-                    />
-                  </div>
+                  {matchType === 'image-text' ? (
+                    <div className="flex flex-col gap-2">
+                      <ImageUpload
+                        value={pair.imageUrl}
+                        onChange={(url) => updateMatchPair(idx, 'imageUrl', url)}
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex-1">
+                       <input
+                        type="text"
+                        value={pair.leftText}
+                        onChange={(e) => updateMatchPair(idx, 'leftText', e.target.value)}
+                        placeholder="Left Side Text"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                      />
+                    </div>
+                  )}
+                  
                   <div className="flex-1 space-y-2">
-                     <input
-                      type="text"
-                      value={pair.imageUrl}
-                      onChange={(e) => updateMatchPair(idx, 'imageUrl', e.target.value)}
-                      placeholder="Or paste image URL..."
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs"
-                    />
+                    {matchType === 'image-text' && (
+                       <input
+                        type="text"
+                        value={pair.imageUrl}
+                        onChange={(e) => updateMatchPair(idx, 'imageUrl', e.target.value)}
+                        placeholder="Or paste image URL..."
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs"
+                      />
+                    )}
                     <input
                       type="text"
-                      value={pair.text}
-                      onChange={(e) => updateMatchPair(idx, 'text', e.target.value)}
-                      placeholder="Label text (e.g., Apple)"
+                      value={matchType === 'image-text' ? pair.text : pair.rightText}
+                      onChange={(e) => updateMatchPair(idx, matchType === 'image-text' ? 'text' : 'rightText', e.target.value)}
+                      placeholder={matchType === 'image-text' ? "Label text" : "Right Side Text"}
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                     />
                     <span className="text-xs text-slate-400">Pair {idx + 1}</span>
                   </div>
+
                   {matchPairs.length > 2 && (
                     <button
                       type="button"
@@ -2478,8 +2547,14 @@ function EditQuestionModal({ question, onClose, onSave }: {
   const [selectMode, setSelectMode] = useState<"single" | "multiple" | "boxed">(data.selectMode ?? "single");
   
   // Match question fields
-  const [matchPairs, setMatchPairs] = useState<{imageUrl: string; text: string}[]>(
-    data.pairs ?? [{ imageUrl: "", text: "" }, { imageUrl: "", text: "" }]
+  const [matchType, setMatchType] = useState<'image-text' | 'text-text'>(data.matchType ?? 'image-text');
+  const [matchPairs, setMatchPairs] = useState<{imageUrl: string; text: string; leftText: string; rightText: string}[]>(
+    data.pairs ? data.pairs.map((p: any) => ({
+      imageUrl: p.imageUrl ?? "",
+      text: p.text ?? "",
+      leftText: p.leftText ?? "",
+      rightText: p.rightText ?? ""
+    })) : [{ imageUrl: "", text: "", leftText: "", rightText: "" }, { imageUrl: "", text: "", leftText: "", rightText: "" }]
   );
 
   // Speaking fields
@@ -2499,7 +2574,7 @@ function EditQuestionModal({ question, onClose, onSave }: {
 
   const addMatchPair = () => {
     if (matchPairs.length < 6) {
-      setMatchPairs([...matchPairs, { imageUrl: "", text: "" }]);
+      setMatchPairs([...matchPairs, { imageUrl: "", text: "", leftText: "", rightText: "" }]);
     }
   };
 
@@ -2509,7 +2584,7 @@ function EditQuestionModal({ question, onClose, onSave }: {
     }
   };
 
-  const updateMatchPair = (index: number, field: 'imageUrl' | 'text', value: string) => {
+  const updateMatchPair = (index: number, field: 'imageUrl' | 'text' | 'leftText' | 'rightText', value: string) => {
     const updated = [...matchPairs];
     updated[index] = { ...updated[index], [field]: value };
     setMatchPairs(updated);
@@ -2551,11 +2626,19 @@ function EditQuestionModal({ question, onClose, onSave }: {
         break;
       case "match":
         try {
-          const processedPairs = await Promise.all(matchPairs.filter(p => p.imageUrl.trim() && p.text.trim()).map(async (p, idx) => {
-             const finalUrl = await processImageUrl(p.imageUrl, `Pair ${idx + 1}`);
-             return { ...p, imageUrl: finalUrl };
-          }));
-          newData = { pairs: processedPairs };
+          let processedPairs;
+          if (matchType === 'image-text') {
+             processedPairs = await Promise.all(matchPairs.filter(p => p.imageUrl.trim() && p.text.trim()).map(async (p, idx) => {
+                const finalUrl = await processImageUrl(p.imageUrl, `Pair ${idx + 1}`);
+                return { imageUrl: finalUrl, text: p.text };
+             }));
+          } else {
+             processedPairs = matchPairs.filter(p => p.leftText.trim() && p.rightText.trim()).map(p => ({
+                leftText: p.leftText,
+                rightText: p.rightText
+             }));
+          }
+          newData = { matchType, pairs: processedPairs };
         } catch (err) {
           alert((err as Error).message);
           setIsSubmitting(false);
@@ -2707,34 +2790,78 @@ function EditQuestionModal({ question, onClose, onSave }: {
 
         {question.questionType === "match" && (
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Image-Text Pairs ({matchPairs.length}/6)
-            </label>
+            <div className="flex justify-between items-center mb-2">
+              <label className="block text-sm font-medium text-slate-700">
+                Pairs ({matchPairs.length}/6)
+              </label>
+              <div className="flex bg-slate-100 p-1 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setMatchType('image-text')}
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                    matchType === 'image-text'
+                      ? 'bg-white text-indigo-600 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Image-Text
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMatchType('text-text')}
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                    matchType === 'text-text'
+                      ? 'bg-white text-indigo-600 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Text-Text
+                </button>
+              </div>
+            </div>
+            
             <p className="text-xs text-slate-500 mb-3">
-              Click to upload/change images for each pair.
+              {matchType === 'image-text' 
+                ? "Upload images and their corresponding labels." 
+                : "Enter matching text pairs (e.g., Opposites, Synonyms)."}
             </p>
+
             <div className="space-y-3">
               {matchPairs.map((pair, idx) => (
                 <div key={idx} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg">
-                  <div className="flex flex-col gap-2">
-                    <ImageUpload
-                      value={pair.imageUrl}
-                      onChange={(url) => updateMatchPair(idx, 'imageUrl', url)}
-                    />
-                  </div>
+                  {matchType === 'image-text' ? (
+                    <div className="flex flex-col gap-2">
+                      <ImageUpload
+                        value={pair.imageUrl}
+                        onChange={(url) => updateMatchPair(idx, 'imageUrl', url)}
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex-1">
+                       <input
+                        type="text"
+                        value={pair.leftText}
+                        onChange={(e) => updateMatchPair(idx, 'leftText', e.target.value)}
+                        placeholder="Left Side Text"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                      />
+                    </div>
+                  )}
                   <div className="flex-1 space-y-2">
-                     <input
-                      type="text"
-                      value={pair.imageUrl}
-                      onChange={(e) => updateMatchPair(idx, 'imageUrl', e.target.value)}
-                      placeholder="Or paste image URL..."
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs"
-                    />
+                    {matchType === 'image-text' && (
+                       <input
+                        type="text"
+                        value={pair.imageUrl}
+                        onChange={(e) => updateMatchPair(idx, 'imageUrl', e.target.value)}
+                        placeholder="Or paste image URL..."
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs"
+                      />
+                    )}
                     <input
                       type="text"
-                      value={pair.text}
-                      onChange={(e) => updateMatchPair(idx, 'text', e.target.value)}
-                      placeholder="Label text (e.g., Apple)"
+                      value={matchType === 'image-text' ? pair.text : pair.rightText}
+                      onChange={(e) => updateMatchPair(idx, matchType === 'image-text' ? 'text' : 'rightText', e.target.value)}
+                      placeholder={matchType === 'image-text' ? "Label text" : "Right Side Text"}
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                     />
                     <span className="text-xs text-slate-400">Pair {idx + 1}</span>
