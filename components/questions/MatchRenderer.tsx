@@ -20,9 +20,12 @@ const TOUCH_SLOP = 20;
 interface MatchRendererProps {
   question: string;
   data: {
+    matchType?: 'image-text' | 'text-text';
     pairs: Array<{
-      imageUrl: string;
-      text: string;
+      imageUrl?: string;
+      text?: string;
+      leftText?: string;
+      rightText?: string;
     }>;
   };
   onAnswer: (isCorrect: boolean) => void;
@@ -38,7 +41,7 @@ interface LayoutItem {
   height: number;
   centerX: number;
   centerY: number;
-  type: 'image' | 'text';
+  type: 'left' | 'right'; // Generalizing from image/text to left/right
   index: number;
 }
 
@@ -91,12 +94,12 @@ export default function MatchRenderer({
   const [showResult, setShowResult] = useState(false);
   
   // Shuffled Indices
-  const { shuffledImageIndices, shuffledTextIndices } = useMemo(() => {
+  const { shuffledLeftIndices, shuffledRightIndices } = useMemo(() => {
     const seed1 = data.pairs.length * 1234;
     const seed2 = data.pairs.length * 5678;
     return {
-      shuffledImageIndices: shuffleArray(data.pairs.map((_, i) => i), seed1),
-      shuffledTextIndices: shuffleArray(data.pairs.map((_, i) => i), seed2),
+      shuffledLeftIndices: shuffleArray(data.pairs.map((_, i) => i), seed1),
+      shuffledRightIndices: shuffleArray(data.pairs.map((_, i) => i), seed2),
     };
   }, [data.pairs]);
 
@@ -109,9 +112,9 @@ export default function MatchRenderer({
   const startX = useSharedValue(0);
   const startY = useSharedValue(0);
   const activeStartIndex = useSharedValue<number>(-1);
-  const activeStartType = useSharedValue<'image' | 'text' | null>(null);
+  const activeStartType = useSharedValue<'left' | 'right' | null>(null);
   const potentialMatchIndex = useSharedValue<number>(-1);
-  const potentialMatchType = useSharedValue<'image' | 'text' | null>(null);
+  const potentialMatchType = useSharedValue<'left' | 'right' | null>(null);
 
   const resetDrag = () => {
     'worklet';
@@ -123,21 +126,21 @@ export default function MatchRenderer({
   };
 
   const handleConnection = (fromIndex: number, fromType: string, toIndex: number, toType: string) => {
-    const imageIdx = fromType === 'image' ? fromIndex : toIndex;
-    const textIdx = fromType === 'text' ? fromIndex : toIndex;
+    const leftIdx = fromType === 'left' ? fromIndex : toIndex;
+    const rightIdx = fromType === 'right' ? fromIndex : toIndex;
     
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     setConnections(prev => {
       const newMap = new Map(prev);
-      if (newMap.has(imageIdx)) newMap.delete(imageIdx);
-      for (const [img, txt] of newMap.entries()) {
-        if (txt === textIdx) {
-          newMap.delete(img);
+      if (newMap.has(leftIdx)) newMap.delete(leftIdx);
+      for (const [l, r] of newMap.entries()) {
+        if (r === rightIdx) {
+          newMap.delete(l);
           break;
         }
       }
-      newMap.set(imageIdx, textIdx);
+      newMap.set(leftIdx, rightIdx);
       return newMap;
     });
   };
@@ -170,20 +173,20 @@ export default function MatchRenderer({
   }, [connections, showResult, data, onAnswer, onFeedback]);
 
   // --- Gestures ---
-  const checkHit = (x: number, y: number): { index: number, type: 'image' | 'text', cx: number, cy: number } | null => {
+  const checkHit = (x: number, y: number): { index: number, type: 'left' | 'right', cx: number, cy: number } | null => {
     'worklet';
-    for (const i of shuffledImageIndices) {
-      const key = `image-${i}`;
+    for (const i of shuffledLeftIndices) {
+      const key = `left-${i}`;
       const layout = layoutStore.current[key];
       if (layout && x >= layout.x - TOUCH_SLOP && x <= layout.x + layout.width + TOUCH_SLOP && y >= layout.y - TOUCH_SLOP && y <= layout.y + layout.height + TOUCH_SLOP) {
-        return { index: i, type: 'image', cx: layout.centerX, cy: layout.centerY };
+        return { index: i, type: 'left', cx: layout.centerX, cy: layout.centerY };
       }
     }
-    for (const i of shuffledTextIndices) {
-      const key = `text-${i}`;
+    for (const i of shuffledRightIndices) {
+      const key = `right-${i}`;
       const layout = layoutStore.current[key];
       if (layout && x >= layout.x - TOUCH_SLOP && x <= layout.x + layout.width + TOUCH_SLOP && y >= layout.y - TOUCH_SLOP && y <= layout.y + layout.height + TOUCH_SLOP) {
-        return { index: i, type: 'text', cx: layout.centerX, cy: layout.centerY };
+        return { index: i, type: 'right', cx: layout.centerX, cy: layout.centerY };
       }
     }
     return null;
@@ -212,8 +215,8 @@ export default function MatchRenderer({
       
       // Collision Detection logic...
       // Since we are running on JS, we can access layoutStore directly
-      const targetType = activeStartType.value === 'image' ? 'text' : 'image';
-      const indicesToCheck = targetType === 'image' ? shuffledImageIndices : shuffledTextIndices;
+      const targetType = activeStartType.value === 'left' ? 'right' : 'left';
+      const indicesToCheck = targetType === 'left' ? shuffledLeftIndices : shuffledRightIndices;
       
       let foundMatch = false;
       for (const i of indicesToCheck) {
@@ -244,7 +247,7 @@ export default function MatchRenderer({
       }
       resetDrag();
     })
-    .runOnJS(true), [disabled, showResult, shuffledImageIndices, shuffledTextIndices, handleConnection]);
+    .runOnJS(true), [disabled, showResult, shuffledLeftIndices, shuffledRightIndices, handleConnection]);
 
   // Memoized Tap Gesture for Submit
   const tapGesture = useMemo(() => Gesture.Tap()
@@ -304,15 +307,15 @@ export default function MatchRenderer({
               <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
                 {/* Show correct answer connections with dotted lines when there are wrong answers */}
                 {showResult && data.pairs.map((_, pairIndex) => {
-                  // Each image should connect to its matching text (same index = correct)
-                  const imgKey = `image-${pairIndex}`;
-                  const txtKey = `text-${pairIndex}`;
-                  const imgLayout = layoutStore.current[imgKey];
-                  const txtLayout = layoutStore.current[txtKey];
+                  // Each left item should connect to its matching right item (same index = correct)
+                  const leftKey = `left-${pairIndex}`;
+                  const rightKey = `right-${pairIndex}`;
+                  const leftLayout = layoutStore.current[leftKey];
+                  const rightLayout = layoutStore.current[rightKey];
                   
-                  if (!imgLayout || !txtLayout) return null;
+                  if (!leftLayout || !rightLayout) return null;
                   
-                  // Check if user got this one wrong (user connected this image to wrong text)
+                  // Check if user got this one wrong (user connected this left item to wrong right item)
                   const userConnection = connections.get(pairIndex);
                   const isWrong = userConnection !== undefined && userConnection !== pairIndex;
                   
@@ -322,10 +325,10 @@ export default function MatchRenderer({
                   return (
                     <G key={`correct-${pairIndex}`}>
                       <Line
-                        x1={imgLayout.centerX}
-                        y1={imgLayout.centerY}
-                        x2={txtLayout.centerX}
-                        y2={txtLayout.centerY}
+                        x1={leftLayout.centerX}
+                        y1={leftLayout.centerY}
+                        x2={rightLayout.centerX}
+                        y2={rightLayout.centerY}
                         stroke={COLORS.success}
                         strokeWidth={2}
                         strokeDasharray="8, 4"
@@ -337,31 +340,31 @@ export default function MatchRenderer({
                 })}
                 
                 {/* User's connections */}
-                {Array.from(connections.entries()).map(([imgIdx, txtIdx]) => {
-                  const imgKey = `image-${imgIdx}`;
-                  const txtKey = `text-${txtIdx}`;
-                  const imgLayout = layoutStore.current[imgKey];
-                  const txtLayout = layoutStore.current[txtKey];
+                {Array.from(connections.entries()).map(([leftIdx, rightIdx]) => {
+                  const leftKey = `left-${leftIdx}`;
+                  const rightKey = `right-${rightIdx}`;
+                  const leftLayout = layoutStore.current[leftKey];
+                  const rightLayout = layoutStore.current[rightKey];
                   
-                  if (!imgLayout || !txtLayout) return null;
+                  if (!leftLayout || !rightLayout) return null;
 
-                  const isCorrect = showResult && imgIdx === txtIdx;
-                  const isWrong = showResult && imgIdx !== txtIdx;
+                  const isCorrect = showResult && leftIdx === rightIdx;
+                  const isWrong = showResult && leftIdx !== rightIdx;
                   const color = isCorrect ? COLORS.success : isWrong ? COLORS.error : COLORS.primary;
 
                   return (
-                    <G key={`conn-${imgIdx}`}>
+                    <G key={`conn-${leftIdx}`}>
                        <Line
-                        x1={imgLayout.centerX}
-                        y1={imgLayout.centerY}
-                        x2={txtLayout.centerX}
-                        y2={txtLayout.centerY}
+                        x1={leftLayout.centerX}
+                        y1={leftLayout.centerY}
+                        x2={rightLayout.centerX}
+                        y2={rightLayout.centerY}
                         stroke={color}
                         strokeWidth={3}
                         strokeLinecap="round"
                       />
-                      <Circle cx={imgLayout.centerX} cy={imgLayout.centerY} r={5} fill={color} />
-                      <Circle cx={txtLayout.centerX} cy={txtLayout.centerY} r={5} fill={color} />
+                      <Circle cx={leftLayout.centerX} cy={leftLayout.centerY} r={5} fill={color} />
+                      <Circle cx={rightLayout.centerX} cy={rightLayout.centerY} r={5} fill={color} />
                     </G>
                   );
                 })}
@@ -377,18 +380,21 @@ export default function MatchRenderer({
 
               {/* Content Columns Layer */}
               <View style={styles.columns}>
-                {/* Images Column */}
+                {/* Left Column (Images or Text 1) */}
                 <View style={[styles.column, { alignItems: 'flex-start' }]}>
-                  {shuffledImageIndices.map((pairIndex, i) => {
+                  {shuffledLeftIndices.map((pairIndex, i) => {
                     const pair = data.pairs[pairIndex];
                     const isConnected = connections.has(pairIndex);
+                    const contentType = data.matchType === 'text-text' ? 'text' : 'image';
+                    const contentValues = data.matchType === 'text-text' ? pair.leftText : pair.imageUrl;
                     
                     return (
                       <MatchItem
-                        key={`img-${pairIndex}`}
-                        type="image"
+                        key={`left-${pairIndex}`}
+                        type="left"
+                        contentType={contentType}
                         index={pairIndex}
-                        content={pair.imageUrl}
+                        content={contentValues || ''}
                         delay={i * 50}
                         connected={isConnected}
                         imageSize={IMAGE_SIZE}
@@ -405,22 +411,24 @@ export default function MatchRenderer({
                   })}
                 </View>
 
-                {/* Texts Column */}
+                {/* Right Column (Text 2) */}
                 <View 
                   style={[styles.column, { alignItems: 'flex-end' }]}
                   onLayout={(e) => setCol2Offset(e.nativeEvent.layout.x)}
                 >
-                  {shuffledTextIndices.map((pairIndex, i) => {
+                  {shuffledRightIndices.map((pairIndex, i) => {
                     const pair = data.pairs[pairIndex];
                     const isConnected = Array.from(connections.values()).includes(pairIndex);
                     const connectedFrom = Array.from(connections.entries()).find(([_, t]) => t === pairIndex)?.[0];
+                    const contentValue = data.matchType === 'text-text' ? pair.rightText : pair.text;
 
                     return (
                       <MatchItem
-                        key={`txt-${pairIndex}`}
-                        type="text"
+                        key={`right-${pairIndex}`}
+                        type="right"
+                        contentType="text"
                         index={pairIndex}
-                        content={pair.text}
+                        content={contentValue || ''}
                         delay={i * 50}
                         connected={isConnected}
                         imageSize={IMAGE_SIZE}
@@ -492,6 +500,7 @@ export default function MatchRenderer({
 // --- Sub-Component for Individual Items ---
 const MatchItem = ({ 
   type, 
+  contentType,
   index, 
   content, 
   delay, 
@@ -507,7 +516,8 @@ const MatchItem = ({
   isCorrect,
   isWrong
 }: {
-  type: 'image' | 'text',
+  type: 'left' | 'right',
+  contentType: 'image' | 'text',
   index: number,
   content: string,
   delay: number,
@@ -516,9 +526,9 @@ const MatchItem = ({
   imageSize: number, 
   offsetX?: number,
   activeItemIndex: SharedValue<number>,
-  activeItemType: SharedValue<'image' | 'text' | null>,
+  activeItemType: SharedValue<'left' | 'right' | null>,
   potentialMatchIndex: SharedValue<number>,
-  potentialMatchType: SharedValue<'image' | 'text' | null>,
+  potentialMatchType: SharedValue<'left' | 'right' | null>,
   showResult: boolean,
   isCorrect?: boolean,
   isWrong?: boolean
@@ -567,7 +577,7 @@ const MatchItem = ({
   }, [connected, isCorrect, isWrong]);
 
   // Image Display
-  if (type === 'image') {
+  if (contentType === 'image') {
     const imageUrl = content.includes('?') 
        ? `${content}&tr=w-${imageSize * 2},h-${imageSize * 2},fo-center`
        : `${content}?tr=w-${imageSize * 2},h-${imageSize * 2},fo-center`;
@@ -581,7 +591,7 @@ const MatchItem = ({
             x, y, width, height,
             centerX: x + width / 2, 
             centerY: y + height / 2,
-            type: 'image',
+            type: type,
             index
           });
         }}
@@ -615,7 +625,7 @@ const MatchItem = ({
             x, y, width, height,
             centerX: x + width / 2,
             centerY: y + height / 2,
-            type: 'text',
+            type: type,
             index
         });
       }}
