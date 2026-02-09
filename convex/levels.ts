@@ -41,7 +41,7 @@ async function normalizeLevelNumbers(ctx: any) {
   levels.sort((a: any, b: any) => {
     const orderA = a.groupId ? (groupOrderMap.get(a.groupId) ?? 9999) : 9999;
     const orderB = b.groupId ? (groupOrderMap.get(b.groupId) ?? 9999) : 9999;
-    
+
     if (orderA !== orderB) return (orderA as number) - (orderB as number);
     return a.levelNumber - b.levelNumber;
   });
@@ -105,14 +105,17 @@ export const getAllLevelsWithProgress = query({
     const [levelsData, groups, progress] = await Promise.all([
       ctx.db.query("levels").withIndex("by_level_number").collect(),
       ctx.db.query("levelGroups").collect(),
-      ctx.db.query("levelProgress").withIndex("by_child", (q) => q.eq("childId", sessionIdentity.childId)).collect(),
+      ctx.db
+        .query("levelProgress")
+        .withIndex("by_child", (q) => q.eq("childId", sessionIdentity.childId))
+        .collect(),
     ]);
 
     let levels = levelsData;
 
     // Filter by group if provided
     if (args.groupId) {
-        levels = levels.filter(l => l.groupId === args.groupId);
+      levels = levels.filter((l) => l.groupId === args.groupId);
     }
 
     const groupMap = new Map(groups.map((g) => [g._id, g]));
@@ -120,11 +123,15 @@ export const getAllLevelsWithProgress = query({
 
     // Sort levels: Group Order -> Level Number
     levels.sort((a, b) => {
-        const orderA = a.groupId ? groupMap.get(a.groupId)?.order ?? 9999 : 9999;
-        const orderB = b.groupId ? groupMap.get(b.groupId)?.order ?? 9999 : 9999;
-        
-        if (orderA !== orderB) return orderA - orderB;
-        return a.levelNumber - b.levelNumber;
+      const orderA = a.groupId
+        ? (groupMap.get(a.groupId)?.order ?? 9999)
+        : 9999;
+      const orderB = b.groupId
+        ? (groupMap.get(b.groupId)?.order ?? 9999)
+        : 9999;
+
+      if (orderA !== orderB) return orderA - orderB;
+      return a.levelNumber - b.levelNumber;
     });
 
     // Determine unlock status for each level
@@ -157,7 +164,7 @@ export const getAllLevelsWithProgress = query({
         ...level,
         state,
         progress: levelProgress ?? null,
-        group: level.groupId ? groupMap.get(level.groupId) : null
+        group: level.groupId ? groupMap.get(level.groupId) : null,
       };
     });
   },
@@ -260,32 +267,33 @@ export const reorderLevelInGroup = mutation({
 
     // Fetch ALL levels to determine global order
     // We need to swap levelNumbers, which are global.
-    // So we finding the "prev" or "next" level *in the same group* 
+    // So we finding the "prev" or "next" level *in the same group*
     // and swapping levelNumbers with it.
-    
+
     // 1. Get all levels
     const allLevels = await ctx.db
       .query("levels")
       .withIndex("by_level_number")
       .collect();
-    
+
     // 2. Filter for siblings in same group (or no group)
     // Note: Use the level's actual groupId, not just the arg (arg is for double check if needed)
     const targetGroupId = level.groupId;
-    
+
     // Sort by levelNumber
     allLevels.sort((a, b) => a.levelNumber - b.levelNumber);
 
-    const siblings = allLevels.filter(l => l.groupId === targetGroupId);
-    
-    const currentIndex = siblings.findIndex(l => l._id === level._id);
+    const siblings = allLevels.filter((l) => l.groupId === targetGroupId);
+
+    const currentIndex = siblings.findIndex((l) => l._id === level._id);
     if (currentIndex === -1) throw new ConvexError("Level not found in group");
 
     // 3. Find swap target in siblings list
-    const targetIndex = args.direction === "up" ? currentIndex - 1 : currentIndex + 1;
-    
+    const targetIndex =
+      args.direction === "up" ? currentIndex - 1 : currentIndex + 1;
+
     if (targetIndex < 0 || targetIndex >= siblings.length) {
-        return; // Cannot move further in this group
+      return; // Cannot move further in this group
     }
 
     const swapTarget = siblings[targetIndex];
@@ -342,7 +350,8 @@ export const reorderDifficulties = mutation({
   },
 });
 
-// Reorder questions
+// Reorder questions (up/down arrows)
+// OPTIMIZED: Only swaps 2 adjacent orders instead of re-indexing all siblings
 export const reorderQuestions = mutation({
   args: {
     questionId: v.id("levelQuestions"),
@@ -379,25 +388,22 @@ export const reorderQuestions = mutation({
       args.direction === "up" ? currentIndex - 1 : currentIndex + 1;
     if (targetIndex < 0 || targetIndex >= siblings.length) return;
 
-    // Swap in memory
-    const temp = siblings[currentIndex];
-    siblings[currentIndex] = siblings[targetIndex];
-    siblings[targetIndex] = temp;
+    // OPTIMIZED: Just swap the 2 adjacent orders (exactly 2 writes instead of N)
+    const current = siblings[currentIndex];
+    const target = siblings[targetIndex];
+    
+    const currentOrder = current.order ?? (currentIndex + 1);
+    const targetOrder = target.order ?? (targetIndex + 1);
 
-    // Re-index ALL siblings to fix gaps/dupes
-    await Promise.all(
-      siblings.map((q, index) => {
-        const newOrder = index + 1;
-        if (q.order !== newOrder) {
-          return ctx.db.patch(q._id, { order: newOrder });
-        }
-        return Promise.resolve();
-      }),
-    );
+    await Promise.all([
+      ctx.db.patch(current._id, { order: targetOrder }),
+      ctx.db.patch(target._id, { order: currentOrder }),
+    ]);
   },
 });
 
 // Move question to a specific index (Drag and Drop)
+// OPTIMIZED: Only updates affected questions between old and new positions
 export const moveQuestion = mutation({
   args: {
     questionId: v.id("levelQuestions"),
@@ -427,27 +433,39 @@ export const moveQuestion = mutation({
       return a.createdAt - b.createdAt;
     });
 
-    // Remove the question from the list
     const currentIndex = siblings.findIndex((q) => q._id === question._id);
     if (currentIndex === -1) return;
 
-    const [movedQuestion] = siblings.splice(currentIndex, 1);
+    const targetIndex = Math.max(0, Math.min(args.newIndex, siblings.length - 1));
+    
+    // No move needed if same position
+    if (currentIndex === targetIndex) return;
 
-    // Insert at new position
-    // Ensure newIndex is within bounds
-    const targetIndex = Math.max(0, Math.min(args.newIndex, siblings.length));
-    siblings.splice(targetIndex, 0, movedQuestion);
+    // OPTIMIZED: Only update questions in the affected range
+    // When moving from currentIndex to targetIndex, we only need to:
+    // 1. Give the moved question its new order
+    // 2. Shift affected questions by 1
+    const updates: Promise<void>[] = [];
+    
+    if (currentIndex < targetIndex) {
+      // Moving down: shift questions between (currentIndex+1, targetIndex] up by 1
+      for (let i = currentIndex + 1; i <= targetIndex; i++) {
+        const sibling = siblings[i];
+        updates.push(ctx.db.patch(sibling._id, { order: i })); // order becomes i (0-based now, +1 for 1-based)
+      }
+      // Moved question gets targetIndex position
+      updates.push(ctx.db.patch(question._id, { order: targetIndex + 1 }));
+    } else {
+      // Moving up: shift questions between [targetIndex, currentIndex) down by 1
+      for (let i = targetIndex; i < currentIndex; i++) {
+        const sibling = siblings[i];
+        updates.push(ctx.db.patch(sibling._id, { order: i + 2 })); // shift down (order +1)
+      }
+      // Moved question gets targetIndex position
+      updates.push(ctx.db.patch(question._id, { order: targetIndex + 1 }));
+    }
 
-    // Update orders
-    await Promise.all(
-      siblings.map((q, index) => {
-        const newOrder = index + 1;
-        if (q.order !== newOrder) {
-          return ctx.db.patch(q._id, { order: newOrder });
-        }
-        return Promise.resolve();
-      }),
-    );
+    await Promise.all(updates);
   },
 });
 
@@ -478,7 +496,7 @@ export const submitLevelAttempt = mutation({
       session.childId as string,
       session.childId,
       child?.name,
-      child?.username
+      child?.username,
     );
 
     // Get level to check required score
@@ -646,47 +664,29 @@ export const getLevelsAdmin = query({
       .query("levels")
       .withIndex("by_level_number")
       .collect();
-    
+
     // Sort by Group Order then Level Number
     // Fetch all groups to get order
     const groups = await ctx.db.query("levelGroups").collect();
-    const groupOrder = new Map(groups.map(g => [g._id, g.order]));
+    const groupOrder = new Map(groups.map((g) => [g._id, g.order]));
 
     // Sort: No Group (Legacy) -> Group 1 -> Group 2...
     levels.sort((a, b) => {
-        const orderA = a.groupId ? (groupOrder.get(a.groupId) ?? 999) : 999; // Legacy levels go last or first? Let's say last if not migrated.
-        const orderB = b.groupId ? (groupOrder.get(b.groupId) ?? 999) : 999;
-        
-        if (orderA !== orderB) return orderA - orderB;
-        return a.levelNumber - b.levelNumber;
+      const orderA = a.groupId ? (groupOrder.get(a.groupId) ?? 999) : 999;
+      const orderB = b.groupId ? (groupOrder.get(b.groupId) ?? 999) : 999;
+
+      if (orderA !== orderB) return orderA - orderB;
+      return a.levelNumber - b.levelNumber;
     });
 
-    // Calculate counts dynamically from actual questions to ensuring accuracy
-    const levelsWithCounts = await Promise.all(
-      levels.map(async (level) => {
-        // We explicitly fetch all questions to get the real count
-        // This fixes the issue where denormalized counts might be out of sync
-        const questions = await ctx.db
-          .query("levelQuestions")
-          .withIndex("by_level", (q) => q.eq("levelId", level._id))
-          .collect();
-
-        const questionCounts: Record<string, number> = {};
-        let totalQuestions = 0;
-
-        questions.forEach((q) => {
-          const diff = q.difficultyName;
-          questionCounts[diff] = (questionCounts[diff] || 0) + 1;
-          totalQuestions++;
-        });
-
-        return {
-          ...level,
-          questionCounts,
-          totalQuestions,
-        };
-      }),
-    );
+    // OPTIMIZED: Use pre-computed denormalized counts
+    // These are updated atomically by addQuestion/deleteQuestion/deleteDifficulty
+    // This eliminates N+1 queries that were fetching ALL questions per level
+    const levelsWithCounts = levels.map((level) => ({
+      ...level,
+      questionCounts: level.questionCounts ?? {},
+      totalQuestions: level.totalQuestions ?? 0,
+    }));
 
     return levelsWithCounts;
   },
@@ -784,17 +784,19 @@ export const getGroupContent = query({
 
         // Sort questions: Difficulty Order -> Order -> CreatedAt
         // We need difficulty order map
-        const diffOrder = new Map(level.difficulties.map((d) => [d.name, d.order]));
+        const diffOrder = new Map(
+          level.difficulties.map((d) => [d.name, d.order]),
+        );
 
         questions.sort((a, b) => {
           const dOrderA = diffOrder.get(a.difficultyName) ?? 999;
           const dOrderB = diffOrder.get(b.difficultyName) ?? 999;
-          
+
           if (dOrderA !== dOrderB) return dOrderA - dOrderB;
-          
+
           const orderDiff = (a.order ?? 0) - (b.order ?? 0);
           if (orderDiff !== 0) return orderDiff;
-          
+
           return a.createdAt - b.createdAt;
         });
 
@@ -802,7 +804,7 @@ export const getGroupContent = query({
           level,
           questions,
         };
-      })
+      }),
     );
 
     return content;
@@ -836,8 +838,11 @@ export const createLevel = mutation({
       .withIndex("by_level_number")
       .collect();
 
-    const nextNumber = args.levelNumber ??
-      (levels.length > 0 ? Math.max(...levels.map((l) => l.levelNumber)) + 1 : 1);
+    const nextNumber =
+      args.levelNumber ??
+      (levels.length > 0
+        ? Math.max(...levels.map((l) => l.levelNumber)) + 1
+        : 1);
 
     // Default difficulties
     const defaultDifficulties = [
@@ -885,7 +890,8 @@ export const updateLevel = mutation({
     if (updates.name !== undefined) filteredUpdates.name = updates.name;
     if (updates.description !== undefined)
       filteredUpdates.description = updates.description;
-    if (updates.groupId !== undefined) filteredUpdates.groupId = updates.groupId;
+    if (updates.groupId !== undefined)
+      filteredUpdates.groupId = updates.groupId;
     if (updates.theme !== undefined) filteredUpdates.theme = updates.theme;
 
     await ctx.db.patch(levelId, filteredUpdates);
@@ -904,13 +910,54 @@ export const moveLevelToGroup = mutation({
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    
+
     await ctx.db.patch(args.levelId, {
-        groupId: args.groupId,
-        updatedAt: Date.now(),
+      groupId: args.groupId,
+      updatedAt: Date.now(),
     });
 
     await normalizeLevelNumbers(ctx);
+  },
+});
+
+// Recalculate all question counts (admin utility for fixing out-of-sync counts)
+// Run this once if counts are incorrect after the optimization changes
+export const recalculateAllCounts = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+
+    const levels = await ctx.db.query("levels").collect();
+    let updated = 0;
+
+    for (const level of levels) {
+      const questions = await ctx.db
+        .query("levelQuestions")
+        .withIndex("by_level", (q) => q.eq("levelId", level._id))
+        .filter((q) => q.eq(q.field("status"), "active"))
+        .collect();
+
+      const questionCounts: Record<string, number> = {};
+      questions.forEach((q) => {
+        questionCounts[q.difficultyName] = (questionCounts[q.difficultyName] || 0) + 1;
+      });
+      const totalQuestions = questions.length;
+
+      // Only update if different
+      const currentTotal = level.totalQuestions ?? 0;
+      const countsMatch = JSON.stringify(level.questionCounts ?? {}) === JSON.stringify(questionCounts);
+      
+      if (currentTotal !== totalQuestions || !countsMatch) {
+        await ctx.db.patch(level._id, {
+          questionCounts,
+          totalQuestions,
+          updatedAt: Date.now(),
+        });
+        updated++;
+      }
+    }
+
+    return { levelsChecked: levels.length, levelsUpdated: updated };
   },
 });
 
