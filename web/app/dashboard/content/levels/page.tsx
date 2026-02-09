@@ -1329,8 +1329,11 @@ function SortableQuestionRow({
         <span className="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">
           #{question.order}
         </span>
-        {questionTypeConfig?.icon && (
-          <span className="text-slate-500">{questionTypeConfig.icon}</span>
+        {questionTypeConfig && (
+          <span className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-500 font-medium whitespace-nowrap">
+            {questionTypeConfig.icon}
+            <span>{questionTypeConfig.label}</span>
+          </span>
         )}
         <span className="font-medium text-slate-800">{question.question}</span>
         <span className="text-xs text-slate-500 ml-auto">
