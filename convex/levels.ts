@@ -394,19 +394,60 @@ export const reorderQuestions = mutation({
         return Promise.resolve();
       }),
     );
+  },
+});
 
-    // If we want to accept that other items might have gaps/dupes, this swap works
-    // IF we assume they were sorted correctly before.
-    // To be robust:
-    /*
-    const updates = [];
-    siblings.forEach((q, idx) => {
-       if (idx === currentIndex) updates.push({ id: q._id, order: targetIndex + 1 });
-       else if (idx === targetIndex) updates.push({ id: q._id, order: currentIndex + 1 });
-       else if (q.order !== idx + 1) updates.push({ id: q._id, order: idx + 1 });
+// Move question to a specific index (Drag and Drop)
+export const moveQuestion = mutation({
+  args: {
+    questionId: v.id("levelQuestions"),
+    newIndex: v.number(), // 0-based index in the current list
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
+    const question = await ctx.db.get(args.questionId);
+    if (!question) throw new ConvexError("Question not found");
+
+    // Get all questions in this group (same level & difficulty)
+    const siblings = await ctx.db
+      .query("levelQuestions")
+      .withIndex("by_level_difficulty", (q) =>
+        q
+          .eq("levelId", question.levelId)
+          .eq("difficultyName", question.difficultyName),
+      )
+      .filter((q) => q.eq(q.field("status"), "active"))
+      .collect();
+
+    // Sort by current order
+    siblings.sort((a, b) => {
+      const orderDiff = (a.order ?? 0) - (b.order ?? 0);
+      if (orderDiff !== 0) return orderDiff;
+      return a.createdAt - b.createdAt;
     });
-    // Applying all is expensive. Just swapping is usually fine.
-    */
+
+    // Remove the question from the list
+    const currentIndex = siblings.findIndex((q) => q._id === question._id);
+    if (currentIndex === -1) return;
+
+    const [movedQuestion] = siblings.splice(currentIndex, 1);
+
+    // Insert at new position
+    // Ensure newIndex is within bounds
+    const targetIndex = Math.max(0, Math.min(args.newIndex, siblings.length));
+    siblings.splice(targetIndex, 0, movedQuestion);
+
+    // Update orders
+    await Promise.all(
+      siblings.map((q, index) => {
+        const newOrder = index + 1;
+        if (q.order !== newOrder) {
+          return ctx.db.patch(q._id, { order: newOrder });
+        }
+        return Promise.resolve();
+      }),
+    );
   },
 });
 
