@@ -27,6 +27,35 @@ async function requireAdmin(ctx: any): Promise<Id<"parents">> {
   return parent._id;
 }
 
+// Normalize all level numbers based on Group Order -> Level Number
+async function normalizeLevelNumbers(ctx: any) {
+  // 1. Get all Groups and Sort by Order
+  const groups = await ctx.db.query("levelGroups").collect();
+  groups.sort((a: any, b: any) => a.order - b.order);
+  const groupOrderMap = new Map(groups.map((g: any, i: number) => [g._id, i]));
+
+  // 2. Get all Levels
+  const levels = await ctx.db.query("levels").collect();
+
+  // 3. Sort Levels: Group Order (asc) -> Current Level Number (asc)
+  levels.sort((a: any, b: any) => {
+    const orderA = a.groupId ? (groupOrderMap.get(a.groupId) ?? 9999) : 9999;
+    const orderB = b.groupId ? (groupOrderMap.get(b.groupId) ?? 9999) : 9999;
+    
+    if (orderA !== orderB) return (orderA as number) - (orderB as number);
+    return a.levelNumber - b.levelNumber;
+  });
+
+  // 4. Re-assign Numbers sequentially
+  let currentNum = 1;
+  for (const level of levels) {
+    if (level.levelNumber !== currentNum) {
+      await ctx.db.patch(level._id, { levelNumber: currentNum });
+    }
+    currentNum++;
+  }
+}
+
 // Generate a unique 6-digit question code
 async function generateUniqueQuestionCode(ctx: any): Promise<string> {
   const generate = () => Math.floor(100000 + Math.random() * 900000).toString();
@@ -211,6 +240,8 @@ export const reorderLevels = mutation({
         await ctx.db.patch(levels[i]._id, { levelNumber: expectedNum });
       }
     }
+
+    await normalizeLevelNumbers(ctx);
   },
 });
 
@@ -268,6 +299,8 @@ export const reorderLevelInGroup = mutation({
 
     await ctx.db.patch(level._id, { levelNumber: numB });
     await ctx.db.patch(swapTarget._id, { levelNumber: numA });
+
+    await normalizeLevelNumbers(ctx);
   },
 });
 
@@ -815,6 +848,11 @@ export const updateLevel = mutation({
     if (updates.theme !== undefined) filteredUpdates.theme = updates.theme;
 
     await ctx.db.patch(levelId, filteredUpdates);
+
+    // If groupId changed, normalize
+    if (updates.groupId !== undefined) {
+      await normalizeLevelNumbers(ctx);
+    }
   },
 });
 
@@ -830,6 +868,8 @@ export const moveLevelToGroup = mutation({
         groupId: args.groupId,
         updatedAt: Date.now(),
     });
+
+    await normalizeLevelNumbers(ctx);
   },
 });
 
@@ -871,6 +911,9 @@ export const deleteLevel = mutation({
 
     // Delete the level
     await ctx.db.delete(args.levelId);
+
+    // Normalize after deletion to close gap
+    await normalizeLevelNumbers(ctx);
   },
 });
 
