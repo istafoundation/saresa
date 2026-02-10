@@ -25,6 +25,9 @@ import { MotiView } from "moti";
 import { api } from "../convex/_generated/api";
 import { useChildAuth } from "../utils/childAuth";
 import { useSafeNavigation } from "../utils/useSafeNavigation";
+import { useOfflineLevels } from "../hooks/useOfflineLevels"; // Add this line
+import { getQuestions as getCachedQuestions } from "../utils/level-cache";
+import { useNetwork } from "../utils/network";
 import { COLORS, SPACING } from "../constants/theme";
 import LevelNode from "./LevelNode";
 import type { Id } from "../convex/_generated/dataModel";
@@ -243,6 +246,23 @@ const LevelListItem = memo(function LevelListItem({
               onPress={() => onPress(level)}
               isLeft={isLeft}
           />
+          {/* Offline Ready badge */}
+          {getCachedQuestions(level._id) && (
+            <View style={{
+              position: 'absolute',
+              bottom: -2,
+              alignSelf: 'center',
+              backgroundColor: '#2E7D32',
+              paddingHorizontal: 6,
+              paddingVertical: 2,
+              borderRadius: 8,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 2,
+            }}>
+              <Text style={{ fontSize: 8, color: '#fff', fontWeight: '600' }}>📥 Offline</Text>
+            </View>
+          )}
         </View>
         
         {/* Orb decoration halfway to next node */}
@@ -266,11 +286,8 @@ export default function LevelPath() {
   const { width: screenWidth } = useWindowDimensions();
   const listRef = React.useRef<any>(null);
 
-  // Fetch levels with progress
-  const levels = useQuery(
-    api.levels.getAllLevelsWithProgress,
-    token ? { token } : "skip",
-  ) as LevelWithProgress[] | undefined;
+  // Fetch levels with progress (offline-first)
+  const levels = useOfflineLevels();
 
   const hasScrolledRef = React.useRef(false);
 
@@ -345,7 +362,22 @@ export default function LevelPath() {
 
   const keyExtractor = useCallback((item: LevelWithProgress) => item._id, []);
 
+  const { isConnected } = useNetwork();
+
   if (!levels) {
+    // First launch while offline
+    if (isConnected === false) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyEmoji}>📡</Text>
+          <Text style={styles.emptyText}>Connect to internet</Text>
+          <Text style={styles.emptySubtext}>
+            Download content to play offline.
+          </Text>
+        </View>
+      );
+    }
+    
     return (
       <View style={styles.loadingContainer}>
         <View style={styles.centerCircle}>

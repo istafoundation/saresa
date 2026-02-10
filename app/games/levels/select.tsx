@@ -4,15 +4,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView } from 'moti';
 import { useLocalSearchParams } from 'expo-router';
-import { useQuery } from 'convex/react';
+import { useOfflineLevels } from '../../../hooks/useOfflineLevels';
 import { Ionicons } from '@expo/vector-icons';
-import { api } from '../../../convex/_generated/api';
 import { useSafeNavigation } from '../../../utils/useSafeNavigation';
 import { useChildAuth } from '../../../utils/childAuth';
 import { useTapFeedback } from '../../../utils/useTapFeedback';
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../../../constants/theme';
 import type { Id } from '../../../convex/_generated/dataModel';
-import { hasLevelProgress } from '../../../utils/storage';
+import { useNetwork } from '../../../utils/network';
+import { getQuestions as getCachedQuestions } from '../../../utils/level-cache';
 
 interface Difficulty {
   name: string;
@@ -33,12 +33,11 @@ export default function DifficultySelectScreen() {
   const { levelId } = useLocalSearchParams<{ levelId: string }>();
   const { token } = useChildAuth();
   const { triggerTap } = useTapFeedback();
+  const { isConnected } = useNetwork();
+  const isOffline = isConnected === false;
   
-  // Fetch levels with progress
-  const levels = useQuery(
-    api.levels.getAllLevelsWithProgress,
-    token ? { token } : 'skip'
-  );
+  // Fetch levels with progress (offline-first)
+  const levels = useOfflineLevels();
   
   // Find the current level
   const level = levels?.find(l => l._id === levelId);
@@ -58,7 +57,7 @@ export default function DifficultySelectScreen() {
   
   // Get progress for each difficulty
   const getProgress = (difficultyName: string): DifficultyProgress | undefined => {
-    return level.progress?.difficultyProgress.find(p => p.difficultyName === difficultyName);
+    return level.progress?.difficultyProgress.find((p: any) => p.difficultyName === difficultyName);
   };
   
   // Check if difficulty is unlocked (sequential unlock)
@@ -116,6 +115,16 @@ export default function DifficultySelectScreen() {
 
   const handleSelectDifficulty = (difficulty: Difficulty, index: number) => {
     if (isDifficultyUnlocked(difficulty, index)) {
+      // Check offline cache gating
+      if (isOffline) {
+        const cached = levelId ? getCachedQuestions(levelId) : null;
+        const hasCachedQuestions = (cached?.questions?.[difficulty.name]?.length ?? 0) > 0;
+        if (!hasCachedQuestions) {
+          triggerTap('light');
+          return; // Can't play - no cached questions and offline
+        }
+      }
+      
       triggerTap('medium');
       
       // Check if we can resume:
@@ -248,12 +257,26 @@ export default function DifficultySelectScreen() {
                       </View>
                     </View>
                     
-                    {/* Play button */}
-                    {unlocked && (
-                      <View style={styles.playButton}>
-                        <Ionicons name="play" size={24} color="#FFFFFF" />
-                      </View>
-                    )}
+                    {/* Play button or offline gate */}
+                    {unlocked && (() => {
+                      // Check if questions are cached for this difficulty
+                      const cached = levelId ? getCachedQuestions(levelId) : null;
+                      const hasCachedQuestions = (cached?.questions?.[difficulty.name]?.length ?? 0) > 0;
+                      
+                      if (isOffline && !hasCachedQuestions) {
+                        return (
+                          <View style={[styles.playButton, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
+                            <Text style={{ fontSize: 8, color: 'rgba(255,255,255,0.8)', textAlign: 'center' }}>📡{"\n"}Sync</Text>
+                          </View>
+                        );
+                      }
+                      
+                      return (
+                        <View style={styles.playButton}>
+                          <Ionicons name="play" size={24} color="#FFFFFF" />
+                        </View>
+                      );
+                    })()}
                   </LinearGradient>
                 </Pressable>
               </MotiView>

@@ -448,6 +448,7 @@ export default defineSchema({
     // Denormalized counts for performance
     questionCounts: v.optional(v.record(v.string(), v.number())), // { "easy": 5, "hard": 10 }
     totalQuestions: v.optional(v.number()), // Total active questions
+    questionsVersion: v.optional(v.number()), // Bumped on any question change
 
     createdAt: v.number(),
     updatedAt: v.number(),

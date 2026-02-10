@@ -31,11 +31,11 @@
     "convex:dev": "node ./scripts/convex-dev.js"
   },
   "dependencies": {
-    "app-blocker": "file:./modules/app-blocker",
     "@expo/vector-icons": "^15.0.3",
     "@react-native-community/slider": "^5.0.1",
     "@shopify/flash-list": "2.0.2",
     "@types/fast-levenshtein": "^0.0.4",
+    "app-blocker": "file:./modules/app-blocker",
     "babel-preset-expo": "^54.0.9",
     "compromise": "^14.14.5",
     "convex": "^1.31.4",
@@ -60,6 +60,7 @@
     "fast-levenshtein": "^3.0.0",
     "lottie-react-native": "~7.3.1",
     "moti": "^0.30.0",
+    "octokit": "^5.0.5",
     "razorpay": "^2.9.6",
     "react": "19.1.0",
     "react-dom": "^19.2.3",

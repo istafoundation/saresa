@@ -1,0 +1,95 @@
+
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, Animated } from 'react-native';
+import { useNetwork } from '../utils/network';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getLastSyncTime } from '../utils/level-cache';
+
+const STALE_THRESHOLD = 24 * 60 * 60 * 1000; // 24 hours
+
+export function NetworkBanner() {
+  const { isConnected, isInternetReachable } = useNetwork();
+  const insets = useSafeAreaInsets();
+  const [showOnline, setShowOnline] = useState(false);
+  const [isStale, setIsStale] = useState(false);
+  
+  // We consider it offline if explicitly false. If null (unknown), we assume online/loading.
+  const isOffline = isConnected === false || isInternetReachable === false;
+
+  useEffect(() => {
+    let timeout: NodeJS.Timeout;
+    if (!isOffline) {
+      // Just came online
+      setShowOnline(true);
+      timeout = setTimeout(() => setShowOnline(false), 3000);
+    }
+    return () => clearTimeout(timeout);
+  }, [isOffline]);
+
+  // Check for stale cache periodically
+  useEffect(() => {
+    const checkStale = () => {
+      const lastSync = getLastSyncTime();
+      if (lastSync > 0) {
+        setIsStale(Date.now() - lastSync > STALE_THRESHOLD);
+      }
+    };
+    
+    checkStale();
+    const interval = setInterval(checkStale, 60 * 1000); // Check every minute
+    return () => clearInterval(interval);
+  }, []);
+
+  // Show stale banner when online but cache is old
+  if (!isOffline && !showOnline && isStale) {
+    return (
+      <View style={[
+        styles.container,
+        { paddingTop: insets.top > 0 ? insets.top : 10 },
+        styles.stale
+      ]}>
+        <Text style={styles.text}>📦 Content may be outdated. Connect to sync</Text>
+      </View>
+    );
+  }
+
+  if (!isOffline && !showOnline) return null;
+
+  return (
+    <View style={[
+      styles.container, 
+      { paddingTop: insets.top > 0 ? insets.top : 10 },
+      isOffline ? styles.offline : styles.online
+    ]}>
+      <Text style={styles.text}>
+        {isOffline ? "📡 No Internet Connection" : "✅ Back Online"}
+      </Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    width: '100%',
+    paddingBottom: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'absolute',
+    top: 0,
+    zIndex: 9999,
+  },
+  offline: {
+    backgroundColor: '#D32F2F',
+  },
+  online: {
+    backgroundColor: '#388E3C',
+  },
+  stale: {
+    backgroundColor: '#F57C00',
+  },
+  text: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+});

@@ -19,6 +19,16 @@ import CoinRewardAnimation from '../../../components/animations/CoinRewardAnimat
 import CoinBalance from '../../../components/CoinBalance';
 import { saveLevelProgress, loadLevelProgress, clearLevelProgress, hasLevelProgress } from '../../../utils/storage';
 import { useUserStore } from '../../../stores/user-store';
+import { useOfflineLevels } from '../../../hooks/useOfflineLevels';
+import { useOfflineQuestions } from '../../../hooks/useOfflineQuestions';
+import { useNetwork } from '../../../utils/network';
+import { enqueueAttempt } from '../../../utils/offline-queue';
+import { syncEngine, CONTENT_BASE_URL } from '../../../utils/sync-engine';
+import { getCachedProgress, setCachedProgress, getQuestions as getCachedQuestions, setQuestions as setCachedQuestions } from '../../../utils/level-cache';
+import { convex } from '../../ConvexClientProvider';
+
+// Coin rates matching server-side logic (convex/lib/coins.ts)
+const LEVEL_PROGRESSION_COINS: Record<string, number> = { easy: 50, medium: 100, hard: 150 };
 
 
 
@@ -39,6 +49,57 @@ type Question = {
   questionCode?: string;
   data: any;
 };
+
+// Helper to update cached progress locally after a game finishes
+function updateCachedProgressLocally(levelId: string, difficultyName: string, score: number, passed: boolean) {
+  try {
+    const cachedProgress = getCachedProgress();
+    const idx = cachedProgress.findIndex((p: any) => p.levelId === levelId);
+    
+    if (idx >= 0) {
+      // Update existing progress
+      const existing = cachedProgress[idx];
+      const diffIdx = existing.difficultyProgress?.findIndex((dp: any) => dp.difficultyName === difficultyName) ?? -1;
+      
+      if (diffIdx >= 0) {
+        const dp = existing.difficultyProgress[diffIdx];
+        existing.difficultyProgress[diffIdx] = {
+          ...dp,
+          highScore: Math.max(dp.highScore ?? 0, score),
+          passed: dp.passed || passed,
+          attempts: (dp.attempts ?? 0) + 1,
+        };
+      } else {
+        existing.difficultyProgress = [...(existing.difficultyProgress ?? []), {
+          difficultyName,
+          highScore: score,
+          passed,
+          attempts: 1,
+        }];
+      }
+      
+      cachedProgress[idx] = { ...existing, updatedAt: Date.now() };
+    } else {
+      // Create new progress entry
+      cachedProgress.push({
+        levelId,
+        difficultyProgress: [{
+          difficultyName,
+          highScore: score,
+          passed,
+          attempts: 1,
+        }],
+        isCompleted: false,
+        updatedAt: Date.now(),
+      });
+    }
+    
+    setCachedProgress(cachedProgress);
+    console.log('[LevelGame] Updated cached progress locally');
+  } catch (e) {
+    console.error('[LevelGame] Failed to update cached progress', e);
+  }
+}
 
 export default function LevelGameScreen() {
   const { safeBack } = useSafeNavigation();
@@ -82,25 +143,18 @@ export default function LevelGameScreen() {
   const correctCountRef = useRef(0);
   const isProcessingRef = useRef(false);
   
-  // Fetch questions
-  const questions = useQuery(
-    api.levels.getLevelQuestions,
-    token && levelId && difficulty
-      ? { token, levelId: levelId as Id<"levels">, difficultyName: difficulty }
-      : 'skip'
-  ) as Question[] | undefined;
+  // Fetch questions (offline-first)
+  const questions = useOfflineQuestions(levelId, difficulty, token ?? undefined);
   
   // Submit attempt mutation
   const submitAttempt = useMutation(api.levels.submitLevelAttempt);
+  const { isConnected } = useNetwork();
   
-  // Get level info for display
-  const levels = useQuery(
-    api.levels.getAllLevelsWithProgress,
-    token ? { token } : 'skip'
-  );
+  // Get level info for display (offline-first)
+  const levels = useOfflineLevels();
   
-  const currentLevel = levels?.find(l => l._id === levelId);
-  const currentDifficulty = currentLevel?.difficulties.find(d => d.name === difficulty);
+  const currentLevel = levels?.find((l: any) => l._id === levelId);
+  const currentDifficulty = currentLevel?.difficulties.find((d: any) => d.name === difficulty);
   
 
   const totalQuestions = questions?.length ?? 0;
@@ -261,6 +315,75 @@ export default function LevelGameScreen() {
         return;
     }
     
+    if (!isConnected) {
+        // Offline Mode: Queue attempt with optimistic coins
+        console.log('[LevelGame] Offline - Queuing attempt');
+        
+        try {
+            const passed = score >= (currentDifficulty?.requiredScore ?? 0);
+            
+            // Calculate optimistic coins (same logic as server)
+            // Only award if passed AND this difficulty wasn't already passed
+            const cachedProgress = getCachedProgress();
+            const levelProg = cachedProgress.find((p: any) => p.levelId === levelId);
+            const diffProg = levelProg?.difficultyProgress?.find((dp: any) => dp.difficultyName === difficulty);
+            const alreadyPassed = diffProg?.passed ?? false;
+            
+            let optimisticCoins = 0;
+            if (passed && !alreadyPassed) {
+                optimisticCoins = LEVEL_PROGRESSION_COINS[difficulty] ?? 50;
+            }
+            
+            enqueueAttempt({
+                id: Date.now().toString(),
+                levelId,
+                difficultyName: difficulty,
+                score,
+                timestamp: Date.now(),
+                coinsAwarded: optimisticCoins,
+            });
+            
+            // Determine if level is completed (all difficulties passed)
+            const allDiffs = currentLevel?.difficulties ?? [];
+            const diffIndex = allDiffs.findIndex((d: any) => d.name === difficulty);
+            const isLastDifficulty = diffIndex === allDiffs.length - 1;
+            const levelCompleted = passed && isLastDifficulty;
+            
+            const isNewHighScore = score > (diffProg?.highScore ?? 0);
+            
+            setGameResult({
+                score,
+                passed,
+                isNewHighScore,
+                levelCompleted,
+                coinsEarned: optimisticCoins,
+            });
+            
+            // Optimistically update coin balance
+            if (optimisticCoins > 0 && syncedData) {
+                setSyncedData({
+                    ...syncedData,
+                    coins: (coins ?? 0) + optimisticCoins
+                });
+                setEarnedCoins(optimisticCoins);
+                setTimeout(() => setShowCoinAnimation(true), 500);
+            }
+            
+            // Update cached progress locally
+            updateCachedProgressLocally(levelId, difficulty, score, passed);
+            
+            triggerTap(passed ? 'heavy' : 'medium');
+            if (passed) playWin();
+            
+            setShowResult(true);
+            setIsTransitioning(false);
+            isProcessingRef.current = false;
+            return;
+        } catch (e) {
+            console.error('[LevelGame] Failed to queue offline attempt', e);
+        }
+    }
+
     try {
       const result = await submitAttempt({
         token,
@@ -308,6 +431,10 @@ export default function LevelGameScreen() {
       }
     } catch (error) {
       console.error('[LevelGame] Failed to submit level attempt:', error);
+      
+      // If error is network related, we might want to queue it here too?
+      // For now, simple error feedback or fallback ui
+      
       setGameResult({
         score,
         passed: score >= (currentDifficulty?.requiredScore ?? 0),
@@ -316,16 +443,50 @@ export default function LevelGameScreen() {
       });
     }
     
+    // Update cached progress locally for online attempts too
+    updateCachedProgressLocally(levelId, difficulty, score, score >= (currentDifficulty?.requiredScore ?? 0));
+    
+    // Trigger post-game sync to refresh cached data
+    if (token) {
+      syncEngine.sync(convex, token, true).catch((e) =>
+        console.error('[LevelGame] Post-game sync failed', e)
+      );
+    }
+    
     setShowResult(true);
     setIsTransitioning(false);
     isProcessingRef.current = false;
-  }, [token, levelId, difficulty, totalQuestions, submitAttempt, playWin, triggerTap, currentDifficulty?.requiredScore]);
+  }, [token, levelId, difficulty, totalQuestions, submitAttempt, playWin, triggerTap, currentDifficulty?.requiredScore, syncedData, coins]);
   
   // Handle back
   const handleBack = useCallback(() => {
     triggerTap('medium');
     safeBack();
   }, [triggerTap, safeBack]);
+  
+  // Cache-miss fallback: if no questions and online, try fetching from GitHub Pages
+  const [isFetchingFallback, setIsFetchingFallback] = useState(false);
+  const fallbackAttempted = useRef(false);
+  
+  useEffect(() => {
+    if (!questions && isConnected && levelId && difficulty && !fallbackAttempted.current && !isFetchingFallback) {
+      fallbackAttempted.current = true;
+      setIsFetchingFallback(true);
+      
+      // Try GitHub Pages fallback
+      fetch(`${CONTENT_BASE_URL}/questions/level_${levelId}.json?t=${Date.now()}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data?.questions?.[difficulty]) {
+            // Cache it for future use
+            setCachedQuestions(levelId, data);
+            console.log('[LevelGame] Fallback: fetched questions from GitHub Pages');
+          }
+        })
+        .catch(e => console.error('[LevelGame] Fallback fetch failed', e))
+        .finally(() => setIsFetchingFallback(false));
+    }
+  }, [questions, isConnected, levelId, difficulty]);
   
   // Loading state
   if (!questions) {
@@ -339,7 +500,9 @@ export default function LevelGameScreen() {
           >
             <Text style={styles.loadingEmoji}>🎯</Text>
           </MotiView>
-          <Text style={styles.loadingText}>Loading questions...</Text>
+          <Text style={styles.loadingText}>
+            {isFetchingFallback ? 'Downloading questions...' : 'Loading questions...'}
+          </Text>
         </View>
       </SafeAreaView>
     );

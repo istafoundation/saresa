@@ -16,6 +16,9 @@ import { useGlobalBackgroundMusic } from '../utils/sound-manager';
 import { useVersionCheck } from '../hooks/useVersionCheck';
 import { UpdateDownloader } from '../components/UpdateDownloader';
 import { AppBlockerListener } from '../components/AppBlockerListener';
+import { NetworkProvider } from '../utils/network';
+import { NetworkBanner } from '../components/NetworkBanner';
+import { useOfflineSync } from '../hooks/useOfflineSync';
 
 // Loading screen while checking auth
 function LoadingScreen() {
@@ -38,6 +41,9 @@ function InitialLayout() {
   
   // Global background music - plays continuously while app is active
   useGlobalBackgroundMusic();
+  
+  // Start SyncEngine + wire offline queue drain
+  useOfflineSync();
   
   // Check if user exists in database (has completed mascot selection)
   const userCheck = useQuery(api.users.checkUserExists, token ? { token } : "skip");
@@ -134,12 +140,15 @@ export default function RootLayout() {
   return (
     <ErrorBoundary>
       <ConvexClientProvider>
-        <GestureHandlerRootView style={styles.container}>
-          <AppBlockerListener />
-          <StatusBar style="dark" />
-          <InitialLayout />
-          <UpdateWrapper />
-        </GestureHandlerRootView>
+        <NetworkProvider>
+          <GestureHandlerRootView style={styles.container}>
+            <NetworkBanner />
+            <AppBlockerListener />
+            <StatusBar style="dark" />
+            <InitialLayout />
+            <UpdateWrapper />
+          </GestureHandlerRootView>
+        </NetworkProvider>
       </ConvexClientProvider>
     </ErrorBoundary>
   );

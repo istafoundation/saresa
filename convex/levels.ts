@@ -56,6 +56,17 @@ async function normalizeLevelNumbers(ctx: any) {
   }
 }
 
+// Helper to bump questions version on level
+async function bumpQuestionsVersion(ctx: any, levelId: Id<"levels">) {
+  const level = await ctx.db.get(levelId);
+  if (level) {
+    await ctx.db.patch(levelId, {
+      questionsVersion: (level.questionsVersion ?? 0) + 1,
+      updatedAt: Date.now(),
+    });
+  }
+}
+
 // Generate a unique 6-digit question code
 async function generateUniqueQuestionCode(ctx: any): Promise<string> {
   const generate = () => Math.floor(100000 + Math.random() * 900000).toString();
@@ -399,6 +410,8 @@ export const reorderQuestions = mutation({
       ctx.db.patch(current._id, { order: targetOrder }),
       ctx.db.patch(target._id, { order: currentOrder }),
     ]);
+
+    await bumpQuestionsVersion(ctx, question.levelId);
   },
 });
 
@@ -466,6 +479,8 @@ export const moveQuestion = mutation({
     }
 
     await Promise.all(updates);
+
+    await bumpQuestionsVersion(ctx, question.levelId);
   },
 });
 
@@ -812,6 +827,70 @@ export const getGroupContent = query({
 });
 
 // ============================================
+// SYNC QUERIES (Local-First)
+// ============================================
+
+// Get all level progress for the current child (for syncing to local storage)
+export const getBulkLevelProgress = query({
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    const session = await ctx.db
+      .query("childSessions")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
+      .first();
+
+    if (!session || session.expiresAt < Date.now()) {
+      throw new ConvexError("Invalid or expired session");
+    }
+
+    const progress = await ctx.db
+      .query("levelProgress")
+      .withIndex("by_child", (q) => q.eq("childId", session.childId))
+      .collect();
+
+    return progress;
+  },
+});
+
+// Get subscription status for the current child (for syncing to local storage)
+export const getSubscriptionStatus = query({
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    const session = await ctx.db
+      .query("childSessions")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
+      .first();
+
+    if (!session || session.expiresAt < Date.now()) {
+      throw new ConvexError("Invalid or expired session");
+    }
+
+    const subscription = await ctx.db
+      .query("subscriptions")
+      .withIndex("by_child", (q) => q.eq("childId", session.childId))
+      .first();
+
+    // Check if active
+    let isActive = false;
+    let activatedTill = 0;
+
+    if (subscription) {
+      if (subscription.status === "active" || subscription.status === "completed") {
+        activatedTill = subscription.currentPeriodEnd ?? 0;
+        isActive = activatedTill > Date.now();
+      }
+    }
+
+    return {
+      isActive,
+      activatedTill,
+      subscriptionId: subscription?._id,
+      planId: subscription?.razorpayPlanId,
+    };
+  },
+});
+
+// ============================================
 // ADMIN MUTATIONS - LEVELS
 // ============================================
 
@@ -1048,6 +1127,8 @@ export const addDifficulty = mutation({
       ],
       updatedAt: Date.now(),
     });
+
+    await bumpQuestionsVersion(ctx, args.levelId);
   },
 });
 
@@ -1082,6 +1163,8 @@ export const updateDifficulty = mutation({
       difficulties: updatedDifficulties,
       updatedAt: Date.now(),
     });
+
+    await bumpQuestionsVersion(ctx, args.levelId);
   },
 });
 
@@ -1145,6 +1228,8 @@ export const deleteDifficulty = mutation({
       totalQuestions,
       updatedAt: Date.now(),
     });
+
+    await bumpQuestionsVersion(ctx, args.levelId);
   },
 });
 
@@ -1226,6 +1311,8 @@ export const addQuestion = mutation({
       updatedAt: Date.now(),
     });
 
+    await bumpQuestionsVersion(ctx, args.levelId);
+
     return questionId;
   },
 });
@@ -1250,6 +1337,12 @@ export const updateQuestion = mutation({
     if (updates.status !== undefined) filteredUpdates.status = updates.status;
 
     await ctx.db.patch(questionId, filteredUpdates);
+
+    // Bump version for the parent level
+    const question = await ctx.db.get(questionId);
+    if (question) {
+      await bumpQuestionsVersion(ctx, question.levelId);
+    }
   },
 });
 
@@ -1283,6 +1376,8 @@ export const deleteQuestion = mutation({
           updatedAt: Date.now(),
         });
       }
+      
+      await bumpQuestionsVersion(ctx, level._id);
     }
   },
 });
@@ -1372,6 +1467,8 @@ export const bulkReplaceQuestions = mutation({
       totalQuestions,
       updatedAt: Date.now(),
     });
+
+    await bumpQuestionsVersion(ctx, args.levelId);
   },
 });
 
@@ -1462,6 +1559,8 @@ export const bulkReplaceDifficultyQuestions = mutation({
       totalQuestions,
       updatedAt: Date.now(),
     });
+
+    await bumpQuestionsVersion(ctx, args.levelId);
   },
 });
 
