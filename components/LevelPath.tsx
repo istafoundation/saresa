@@ -427,15 +427,24 @@ export default function LevelPath() {
       {syncStatus && (
         <View style={styles.syncStatusBar}>
           <View style={styles.syncStatusItem}>
-            <Text style={styles.syncStatusIcon}>🔄</Text>
-            <Text style={styles.syncStatusText}>
+            <Text style={styles.syncStatusIcon}>
+              {syncStatus.lastError ? '⚠️' : '🔄'}
+            </Text>
+            <Text style={[
+              styles.syncStatusText,
+              !!syncStatus.lastError && { color: '#D32F2F', fontWeight: '700' }
+            ]} numberOfLines={1}>
               {syncStatus.isSyncing 
                 ? 'Syncing...' 
-                : syncStatus.lastSyncTime > 0 
-                  ? `Synced ${formatSyncTime(syncStatus.lastSyncTime)}`
-                  : syncStatus.contentSynced 
-                    ? 'Content up to date' 
-                    : 'Not synced'}
+                : syncStatus.lastError
+                  ? (syncStatus.lastError.includes('404') || syncStatus.lastError.includes('Manifest') || syncStatus.lastError.includes('Meta')) 
+                    ? 'Content Missing (Publish Required)' 
+                    : 'Sync Failed'
+                  : syncStatus.lastSyncTime > 0 
+                    ? `Synced ${formatSyncTime(syncStatus.lastSyncTime)}`
+                    : syncStatus.contentSynced 
+                      ? 'Content up to date' 
+                      : 'Not synced'}
             </Text>
           </View>
           <View style={styles.syncStatusItem}>

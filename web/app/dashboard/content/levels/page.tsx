@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, Suspense, useRef, useMemo } from "react";
-import { useQuery, useMutation, useConvex } from "convex/react";
+import { useQuery, useMutation, useConvex, useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
 import Link from "next/link";
 import ImageUpload from "@/app/components/ImageUpload";
@@ -52,7 +52,8 @@ import {
   ArrowDown,
   FolderInput,
   Check,
-  GripVertical
+  GripVertical,
+  UploadCloud
 } from "lucide-react";
 import type { Id, Doc } from "@convex/_generated/dataModel";
 import ImageKit from "imagekit-javascript";
@@ -154,6 +155,25 @@ function LevelsContent() {
   const moveQuestion = useMutation(api.levels.moveQuestion);
 
   const groups = useQuery(api.groups.getGroups);
+
+  // Publish Action
+  const publishContent = useAction(api.publish.publishToGitHub);
+  const [isPublishing, setIsPublishing] = useState(false);
+
+  const handlePublish = async () => {
+    if (!confirm("This will publish all levels to GitHub Pages. Continue?")) return;
+    
+    try {
+      setIsPublishing(true);
+      const result = await publishContent({});
+      alert(`Success! Published ${result.publishedLevels} levels and ${result.totalQuestions} questions.`);
+    } catch (err: any) {
+      console.error(err);
+      alert("Failed to publish: " + (err.message || "Unknown error"));
+    } finally {
+      setIsPublishing(false);
+    }
+  };
 
 
 
@@ -822,6 +842,14 @@ EXAMPLE ROWS
         >
           <FileText className="w-4 h-4" />
           Instructions
+        </button>
+        <button
+          onClick={handlePublish}
+          disabled={isPublishing}
+          className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+        >
+          {isPublishing ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <UploadCloud className="w-4 h-4" />}
+          {isPublishing ? "Publishing..." : "Publish to App"}
         </button>
         <button
           onClick={() => setShowAddLevelModal(true)}

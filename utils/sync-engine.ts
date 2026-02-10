@@ -25,6 +25,7 @@ export interface SyncStatus {
   queueLength: number;
   isSyncing: boolean;
   contentSynced: boolean; // Whether content (questions) has been downloaded at least once
+  lastError: string | null;
 }
 
 export type TokenGetter = () => string | null;
@@ -34,6 +35,7 @@ class SyncEngine {
   private isContentSyncing = false;
   private syncTimer: NodeJS.Timeout | null = null;
   private lastSyncTime = 0;
+  private lastError: string | null = null;
   private tokenGetter: TokenGetter | null = null;
   private convexClient: any = null;
 
@@ -75,6 +77,7 @@ class SyncEngine {
       queueLength: getQueueLength(),
       isSyncing: this.isSyncing || this.isContentSyncing,
       contentSynced: getLevelsMeta().length > 0,
+      lastError: this.lastError,
     };
   }
 
@@ -93,6 +96,7 @@ class SyncEngine {
     }
 
     this.isContentSyncing = true;
+    this.lastError = null;
     console.log("[SyncEngine] Starting content-only sync...");
 
     try {
@@ -103,6 +107,7 @@ class SyncEngine {
       return contentSynced;
     } catch (err) {
       console.error("[SyncEngine] Content-only sync failed:", err);
+      this.lastError = err instanceof Error ? err.message : String(err);
       return false;
     } finally {
       this.isContentSyncing = false;
@@ -116,8 +121,9 @@ class SyncEngine {
   private async _fetchContent(now: number): Promise<boolean> {
     // 1. Fetch Manifest (GitHub Pages) - Free Bandwidth
     const manifestRes = await fetch(`${CONTENT_BASE_URL}/manifest.json?t=${now}`);
-    if (!manifestRes.ok) throw new Error("Failed to fetch manifest");
+    if (!manifestRes.ok) throw new Error(`Manifest fetch failed: ${manifestRes.status}`);
     const manifest: LevelManifest = await manifestRes.json();
+    // ... rest of method ...
 
     const cachedManifest = getCachedManifest();
     const cachedVersions = cachedManifest?.levelVersions || {};
@@ -137,6 +143,8 @@ class SyncEngine {
          const meta = await metaRes.json();
          setLevelsMeta(meta);
          metaUpdated = true;
+      } else {
+         throw new Error(`Meta fetch failed: ${metaRes.status}`);
       }
     }
 
@@ -188,6 +196,7 @@ class SyncEngine {
     }
 
     this.isSyncing = true;
+    this.lastError = null;
     console.log("[SyncEngine] Starting full sync...");
 
     try {
@@ -196,6 +205,7 @@ class SyncEngine {
       await this._fetchContent(now);
     } catch (err) {
       console.error("[SyncEngine] Content sync failed:", err);
+      this.lastError = err instanceof Error ? err.message : String(err);
       // Continue — progress sync can still work
     }
 
@@ -219,6 +229,11 @@ class SyncEngine {
         console.warn("[SyncEngine] Progress sync failed, but content is cached:", err);
       } else {
         console.error("[SyncEngine] Full sync failed:", err);
+        // If content also failed, we already set lastError.
+        // If content succeeded but progress failed, we should set error?
+        // Maybe append?
+        const msg = err instanceof Error ? err.message : String(err);
+        this.lastError = this.lastError ? `${this.lastError} | ${msg}` : msg;
       }
     } finally {
       this.isSyncing = false;
