@@ -24,12 +24,14 @@ export interface SyncStatus {
   cachedLevelCount: number;
   queueLength: number;
   isSyncing: boolean;
+  contentSynced: boolean; // Whether content (questions) has been downloaded at least once
 }
 
 export type TokenGetter = () => string | null;
 
 class SyncEngine {
   private isSyncing = false;
+  private isContentSyncing = false;
   private syncTimer: NodeJS.Timeout | null = null;
   private lastSyncTime = 0;
   private tokenGetter: TokenGetter | null = null;
@@ -71,8 +73,109 @@ class SyncEngine {
       lastSyncTime: this.lastSyncTime || getLastSyncTime(),
       cachedLevelCount: getLevelsMeta().length,
       queueLength: getQueueLength(),
-      isSyncing: this.isSyncing,
+      isSyncing: this.isSyncing || this.isContentSyncing,
+      contentSynced: getLevelsMeta().length > 0,
     };
+  }
+
+  /**
+   * Sync content only from GitHub Pages (no auth needed).
+   * Downloads manifest, levels-meta, and stale questions.
+   * Safe to call before login — these are public static files.
+   */
+  async syncContentOnly(force = false): Promise<boolean> {
+    if (this.isContentSyncing) return false;
+
+    const now = Date.now();
+    // Throttle content-only syncs too (unless forced)
+    if (!force && getLevelsMeta().length > 0 && now - this.lastSyncTime < THROTTLE_INTERVAL) {
+      return false;
+    }
+
+    this.isContentSyncing = true;
+    console.log("[SyncEngine] Starting content-only sync...");
+
+    try {
+      const contentSynced = await this._fetchContent(now);
+      if (contentSynced) {
+        console.log("[SyncEngine] Content-only sync complete.");
+      }
+      return contentSynced;
+    } catch (err) {
+      console.error("[SyncEngine] Content-only sync failed:", err);
+      return false;
+    } finally {
+      this.isContentSyncing = false;
+    }
+  }
+
+  /**
+   * Internal: fetch manifest + meta + questions from GitHub Pages.
+   * Returns true if any content was fetched/updated.
+   */
+  private async _fetchContent(now: number): Promise<boolean> {
+    // 1. Fetch Manifest (GitHub Pages) - Free Bandwidth
+    const manifestRes = await fetch(`${CONTENT_BASE_URL}/manifest.json?t=${now}`);
+    if (!manifestRes.ok) throw new Error("Failed to fetch manifest");
+    const manifest: LevelManifest = await manifestRes.json();
+
+    const cachedManifest = getCachedManifest();
+    const cachedVersions = cachedManifest?.levelVersions || {};
+
+    // 2. Determine Stale Levels
+    const hasLevelsMeta = getLevelsMeta().length > 0;
+    
+    const staleLevelIds: string[] = [];
+    const allLevelIds = Object.keys(manifest.levelVersions);
+
+    let metaUpdated = false;
+
+    // If manifest publishedAt > cached, or no meta cached, fetch meta
+    if (!cachedManifest || manifest.publishedAt > cachedManifest.publishedAt || !hasLevelsMeta) {
+      const metaRes = await fetch(`${CONTENT_BASE_URL}/levels-meta.json?t=${now}`);
+      if (metaRes.ok) {
+         const meta = await metaRes.json();
+         setLevelsMeta(meta);
+         metaUpdated = true;
+      }
+    }
+
+    // Identify questions to fetch
+    for (const id of allLevelIds) {
+      const remoteVer = manifest.levelVersions[id];
+      const localVer = cachedVersions[id] ?? -1;
+      
+      if (remoteVer > localVer) {
+        staleLevelIds.push(id);
+      }
+    }
+
+    console.log(`[SyncEngine] Found ${staleLevelIds.length} stale levels.`);
+
+    // 3. Fetch Stale Questions in parallel batches
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < staleLevelIds.length; i += BATCH_SIZE) {
+      const batch = staleLevelIds.slice(i, i + BATCH_SIZE);
+      await Promise.all(batch.map(async (id) => {
+        try {
+           const qRes = await fetch(`${CONTENT_BASE_URL}/questions/level_${id}.json?t=${now}`);
+           if (qRes.ok) {
+             const qData = await qRes.json();
+             setQuestions(id, qData);
+           }
+        } catch (e) {
+          console.error(`[SyncEngine] Failed to fetch questions for ${id}`, e);
+        }
+      }));
+    }
+
+    // SAVE MANIFEST IMMEDIATELY after content is fetched
+    // This ensures content is persisted even if Convex progress fetch fails later
+    if (staleLevelIds.length > 0 || metaUpdated || !cachedManifest) {
+      setCachedManifest(manifest);
+    }
+
+    return metaUpdated || staleLevelIds.length > 0;
   }
 
   async sync(convexClient: any, token: string, force = false) {
@@ -81,84 +184,42 @@ class SyncEngine {
     // Throttle: at least 5 min between non-forced syncs
     const now = Date.now();
     if (!force && now - this.lastSyncTime < THROTTLE_INTERVAL) {
-      return; // ← Fix: was missing this return
+      return;
     }
 
     this.isSyncing = true;
-    console.log("[SyncEngine] Starting sync...");
+    console.log("[SyncEngine] Starting full sync...");
 
     try {
-      // 1. Fetch Manifest (GitHub Pages) - Free Bandwidth
-      const manifestRes = await fetch(`${CONTENT_BASE_URL}/manifest.json?t=${now}`);
-      if (!manifestRes.ok) throw new Error("Failed to fetch manifest");
-      const manifest: LevelManifest = await manifestRes.json();
+      // PHASE 1: Content sync from GitHub Pages (free, no auth)
+      // This succeeds or fails independently of Convex
+      await this._fetchContent(now);
+    } catch (err) {
+      console.error("[SyncEngine] Content sync failed:", err);
+      // Continue — progress sync can still work
+    }
 
-      const cachedManifest = getCachedManifest();
-      const cachedVersions = cachedManifest?.levelVersions || {};
-
-      // 2. Determine Stale Levels
-      const hasLevelsMeta = getLevelsMeta().length > 0;
-      
-      const staleLevelIds: string[] = [];
-      const allLevelIds = Object.keys(manifest.levelVersions);
-
-      let metaUpdated = false;
-
-      // If manifest publishedAt > cached, or no meta cached, fetch meta
-      if (!cachedManifest || manifest.publishedAt > cachedManifest.publishedAt || !hasLevelsMeta) {
-        const metaRes = await fetch(`${CONTENT_BASE_URL}/levels-meta.json?t=${now}`);
-        if (metaRes.ok) {
-           const meta = await metaRes.json();
-           setLevelsMeta(meta);
-           metaUpdated = true;
-        }
-      }
-
-      // Identify questions to fetch
-      for (const id of allLevelIds) {
-        const remoteVer = manifest.levelVersions[id];
-        const localVer = cachedVersions[id] ?? -1;
-        
-        if (remoteVer > localVer) {
-          staleLevelIds.push(id);
-        }
-      }
-
-      console.log(`[SyncEngine] Found ${staleLevelIds.length} stale levels.`);
-
-      // 3. Fetch Stale Questions in parallel batches
-      const BATCH_SIZE = 5;
-      for (let i = 0; i < staleLevelIds.length; i += BATCH_SIZE) {
-        const batch = staleLevelIds.slice(i, i + BATCH_SIZE);
-        await Promise.all(batch.map(async (id) => {
-          try {
-             const qRes = await fetch(`${CONTENT_BASE_URL}/questions/level_${id}.json?t=${now}`);
-             if (qRes.ok) {
-               const qData = await qRes.json();
-               setQuestions(id, qData);
-             }
-          } catch (e) {
-            console.error(`[SyncEngine] Failed to fetch questions for ${id}`, e);
-          }
-        }));
-      }
-
-      // Update Manifest
-      if (staleLevelIds.length > 0 || metaUpdated || !cachedManifest) {
-        setCachedManifest(manifest);
-      }
-
-      // 4. Fetch Progress + Subscription in ONE Convex call (merged query)
+    try {
+      // PHASE 2: Progress + Subscription from Convex (needs auth, counted bandwidth)
       const syncData = await convexClient.query(api.levels.getSyncData, { token });
       setCachedProgress(syncData.progress);
       setCachedSubscription(syncData.subscription);
 
       setLastSyncTime(now);
       this.lastSyncTime = now;
-      console.log("[SyncEngine] Sync complete.");
-
+      console.log("[SyncEngine] Full sync complete.");
     } catch (err) {
-      console.error("[SyncEngine] Sync failed:", err);
+      // Content was already saved above — only progress failed
+      // Still update lastSyncTime for content portion
+      const contentCached = getLevelsMeta().length > 0;
+      if (contentCached) {
+        // Content was successfully synced, mark partial sync time
+        setLastSyncTime(now);
+        this.lastSyncTime = now;
+        console.warn("[SyncEngine] Progress sync failed, but content is cached:", err);
+      } else {
+        console.error("[SyncEngine] Full sync failed:", err);
+      }
     } finally {
       this.isSyncing = false;
     }

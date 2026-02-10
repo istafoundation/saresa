@@ -23,6 +23,7 @@ export function useOfflineSync() {
   const { isConnected } = useNetwork();
   const prevConnected = useRef<boolean | null>(null);
   const syncStarted = useRef(false);
+  const contentSyncAttempted = useRef(false);
   const tokenRef = useRef<string | null>(token);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
 
@@ -41,6 +42,21 @@ export function useOfflineSync() {
     const interval = setInterval(refreshStatus, 30_000);
     return () => clearInterval(interval);
   }, []);
+
+  // CONTENT-ONLY sync on mount — runs regardless of auth
+  // Downloads manifest + meta + questions from GitHub Pages (public, free)
+  useEffect(() => {
+    if (contentSyncAttempted.current) return;
+    if (isConnected === false) return; // Can't sync without internet
+
+    contentSyncAttempted.current = true;
+    console.log('[useOfflineSync] Triggering content-only sync (no auth needed)');
+    syncEngine.syncContentOnly()
+      .then(() => setSyncStatus(syncEngine.getSyncStatus()))
+      .catch((e) =>
+        console.error('[useOfflineSync] Content-only sync failed', e)
+      );
+  }, [isConnected]);
 
   // Start/stop periodic sync based on auth
   useEffect(() => {
@@ -71,6 +87,14 @@ export function useOfflineSync() {
         .then(() => setSyncStatus(syncEngine.getSyncStatus()))
         .catch((e) =>
           console.error('[useOfflineSync] Failed to sync on recovery', e)
+        );
+    } else if (prevConnected.current === false && isConnected === true && !token) {
+      // Network recovered but no auth — at least sync content
+      console.log('[useOfflineSync] Network recovered (no auth) — content-only sync');
+      syncEngine.syncContentOnly(true)
+        .then(() => setSyncStatus(syncEngine.getSyncStatus()))
+        .catch((e) =>
+          console.error('[useOfflineSync] Content sync on recovery failed', e)
         );
     }
     prevConnected.current = isConnected;

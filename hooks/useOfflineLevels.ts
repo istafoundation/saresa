@@ -52,9 +52,9 @@ type LevelWithProgress = {
 
 /**
  * Provides level data with offline-first semantics:
- * 1. Uses cached data when offline (skip Convex query entirely)
- * 2. Enforces subscription gating on premium levels when offline
- * 3. Falls back to live Convex data when online
+ * 1. When offline → immediately returns cached data (skip Convex entirely)
+ * 2. When online  → uses live Convex data, with cache as fallback while loading
+ * 3. Enforces subscription gating on premium levels when offline
  */
 export function useOfflineLevels(): LevelWithProgress[] | undefined {
   const { token } = useChildAuth();
@@ -67,85 +67,107 @@ export function useOfflineLevels(): LevelWithProgress[] | undefined {
   );
 
   return useMemo(() => {
-    // If live data is available, use it (freshest)
+    // OFFLINE PATH: Always use cache when offline
+    if (isConnected === false) {
+      const cachedMeta = getLevelsMeta();
+      if (cachedMeta.length === 0) {
+        // No cache at all — truly first launch while offline
+        return undefined;
+      }
+      return buildLevelsFromCache(cachedMeta);
+    }
+
+    // ONLINE PATH: Prefer live data, fall back to cache while loading
     if (liveLevels && liveLevels.length > 0) {
       return liveLevels as LevelWithProgress[];
     }
 
-    // Fall back to cached data
+    // Live data still loading — use cache as interim display
     const cachedMeta = getLevelsMeta();
-    if (cachedMeta.length === 0) return liveLevels as any; // null/undefined → loading
-
-    const cachedProgress = getCachedProgress();
-    const cachedSub = getCachedSubscription();
-
-    // Build a map of progress by levelId
-    const progressMap = new Map<string, any>();
-    for (const p of cachedProgress) {
-      progressMap.set(p.levelId, p);
+    if (cachedMeta.length > 0) {
+      return buildLevelsFromCache(cachedMeta);
     }
 
-    // Determine subscription status for gating
-    const isSubscribed = cachedSub?.isActive ?? false;
+    // No cache, no live data yet — still loading
+    return liveLevels as any; // undefined → loading
+  }, [liveLevels, isConnected]);
+}
 
-    let lastCompleted = true; // Levels unlock sequentially
+/**
+ * Builds LevelWithProgress[] from cached MMKV data.
+ * Replicates the server's logic for lock/unlock state and subscription gating.
+ */
+function buildLevelsFromCache(cachedMeta: ReturnType<typeof getLevelsMeta>): LevelWithProgress[] {
+  const cachedProgress = getCachedProgress();
+  const cachedSub = getCachedSubscription();
 
-    return cachedMeta.map((level, index) => {
-      const progress = progressMap.get(level._id);
+  // Build a map of progress by levelId
+  const progressMap = new Map<string, any>();
+  for (const p of cachedProgress) {
+    progressMap.set(p.levelId, p);
+  }
 
-      // Build difficulty progress
-      const difficultyProgress: DifficultyProgress[] = level.difficulties.map(d => {
-        const dp = progress?.difficultyProgress?.find(
-          (p: any) => p.difficultyName === d.name
-        );
-        return {
-          difficultyName: d.name,
-          highScore: dp?.highScore ?? 0,
-          passed: dp?.passed ?? false,
-          attempts: dp?.attempts ?? 0,
-        };
-      });
+  // Determine subscription status for gating
+  const isSubscribed = cachedSub?.isActive ?? false;
 
-      const isCompleted = difficultyProgress.length > 0 && 
-        difficultyProgress.every(dp => dp.passed);
+  let lastCompleted = true; // Levels unlock sequentially
 
-      // Determine unlock state
-      let state: "locked" | "unlocked" | "completed" | "coming_soon";
-      if (!level.isEnabled) {
-        state = "coming_soon";
-      } else if (isCompleted) {
-        state = "completed";
-      } else if (index === 0 || lastCompleted) {
-        // First level is always unlocked, or the previous level was completed
-        // Subscription gating: if not subscribed and not the first 3 levels, lock
-        if (!isSubscribed && index >= 3) {
-          state = "locked";
-        } else {
-          state = "unlocked";
-        }
-      } else {
-        state = "locked";
-      }
+  return cachedMeta.map((level, index) => {
+    const progress = progressMap.get(level._id);
 
-      // Track sequential completion for next level unlock
-      lastCompleted = isCompleted;
-
+    // Build difficulty progress
+    const difficultyProgress: DifficultyProgress[] = level.difficulties.map(d => {
+      const dp = progress?.difficultyProgress?.find(
+        (p: any) => p.difficultyName === d.name
+      );
       return {
-        _id: level._id as Id<"levels">,
-        levelNumber: level.levelNumber,
-        name: level.name,
-        description: level.description,
-        isEnabled: level.isEnabled,
-        difficulties: level.difficulties,
-        theme: level.theme,
-        state,
-        progress: difficultyProgress.length > 0 ? {
-          difficultyProgress,
-          isCompleted,
-        } : null,
-        groupId: level.groupId as Id<"levelGroups"> | undefined,
-        group: level.group ?? null,
+        difficultyName: d.name,
+        highScore: dp?.highScore ?? 0,
+        passed: dp?.passed ?? false,
+        attempts: dp?.attempts ?? 0,
       };
     });
-  }, [liveLevels]);
+
+    const isCompleted = difficultyProgress.length > 0 && 
+      difficultyProgress.every(dp => dp.passed);
+
+    // Determine unlock state
+    let state: "locked" | "unlocked" | "completed" | "coming_soon";
+    if (!level.isEnabled) {
+      state = "coming_soon";
+    } else if (isCompleted) {
+      state = "completed";
+    } else if (index === 0 || lastCompleted) {
+      // First level is always unlocked, or the previous level was completed
+      // Subscription gating: if not subscribed and not the first 3 levels, lock
+      if (!isSubscribed && index >= 3) {
+        state = "locked";
+      } else {
+        state = "unlocked";
+      }
+    } else {
+      state = "locked";
+    }
+
+    // Track sequential completion for next level unlock
+    lastCompleted = isCompleted;
+
+    return {
+      _id: level._id as Id<"levels">,
+      levelNumber: level.levelNumber,
+      name: level.name,
+      description: level.description,
+      isEnabled: level.isEnabled,
+      difficulties: level.difficulties,
+      theme: level.theme,
+      state,
+      progress: difficultyProgress.length > 0 ? {
+        difficultyProgress,
+        isCompleted,
+      } : null,
+      groupId: level.groupId as Id<"levelGroups"> | undefined,
+      group: level.group ?? null,
+    };
+  });
 }
+

@@ -367,6 +367,7 @@ export default function LevelPath() {
   const syncStatus = useSyncStatus();
 
   // Format relative time for sync status display
+  // Helper to format sync time
   const formatSyncTime = (timestamp: number): string => {
     if (!timestamp) return 'Never';
     const diff = Date.now() - timestamp;
@@ -378,9 +379,13 @@ export default function LevelPath() {
     return `${Math.floor(hours / 24)}d ago`;
   };
 
+  // 1. Loading / Empty States
   if (!levels) {
-    // First launch while offline
-    if (isConnected === false) {
+    // If offline and NO content cached, show prompt to connect
+    // But if we have contentSynced=true, we should be loading from cache soon
+    const hasContent = syncStatus?.contentSynced ?? false;
+    
+    if (isConnected === false && !hasContent) {
       return (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyEmoji}>📡</Text>
@@ -391,7 +396,7 @@ export default function LevelPath() {
         </View>
       );
     }
-    
+
     return (
       <View style={styles.loadingContainer}>
         <View style={styles.centerCircle}>
@@ -406,15 +411,14 @@ export default function LevelPath() {
     return (
       <View style={styles.emptyContainer}>
         <Text style={styles.emptyEmoji}>🎮</Text>
-        <Text style={styles.emptyText}>No levels available yet!</Text>
+        <Text style={styles.emptyText}>No levels found</Text>
         <Text style={styles.emptySubtext}>
-          Check back soon for new content.
+          Please check your connection and try again.
         </Text>
       </View>
     );
   }
 
-  // Fix for missing estimatedItemSize in definitions
   const SafeFlashList = FlashList as unknown as React.ComponentType<FlashListProps<LevelWithProgress> & { estimatedItemSize: number; ref?: React.Ref<any> }>;
 
   return (
@@ -425,7 +429,13 @@ export default function LevelPath() {
           <View style={styles.syncStatusItem}>
             <Text style={styles.syncStatusIcon}>🔄</Text>
             <Text style={styles.syncStatusText}>
-              {syncStatus.isSyncing ? 'Syncing...' : `Synced ${formatSyncTime(syncStatus.lastSyncTime)}`}
+              {syncStatus.isSyncing 
+                ? 'Syncing...' 
+                : syncStatus.lastSyncTime > 0 
+                  ? `Synced ${formatSyncTime(syncStatus.lastSyncTime)}`
+                  : syncStatus.contentSynced 
+                    ? 'Content up to date' 
+                    : 'Not synced'}
             </Text>
           </View>
           <View style={styles.syncStatusItem}>

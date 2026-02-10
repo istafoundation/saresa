@@ -38,9 +38,16 @@ export function useOfflineQuestions(levelId: string | undefined, difficulty?: st
       setLoading(false);
     } else {
       setQuestions(null); // Reset if level/difficulty changed
-      setLoading(true);
+      
+      // If OFFLINE and cache miss, stop loading immediately
+      // The game component will handle !questions with an error/empty state
+      if (isConnected === false) {
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
     }
-  }, [levelId, difficulty]);
+  }, [levelId, difficulty, isConnected]);
 
   // 2. Use live data as fallback
   useEffect(() => {
