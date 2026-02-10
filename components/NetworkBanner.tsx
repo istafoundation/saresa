@@ -1,6 +1,6 @@
 
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { useNetwork } from '../utils/network';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLastSyncTime } from '../utils/level-cache';
@@ -12,17 +12,27 @@ export function NetworkBanner() {
   const insets = useSafeAreaInsets();
   const [showOnline, setShowOnline] = useState(false);
   const [isStale, setIsStale] = useState(false);
+
+  // Track whether the user has EVER been offline this session
+  // Prevents "Back Online" from flashing on first mount
+  const wasEverOffline = useRef(false);
   
   // We consider it offline if explicitly false. If null (unknown), we assume online/loading.
   const isOffline = isConnected === false || isInternetReachable === false;
 
   useEffect(() => {
     let timeout: NodeJS.Timeout;
-    if (!isOffline) {
-      // Just came online
+
+    if (isOffline) {
+      wasEverOffline.current = true;
+      setShowOnline(false); // Remove any lingering "back online" banner
+    } else if (wasEverOffline.current) {
+      // Only show "Back Online" if user was genuinely offline before
       setShowOnline(true);
       timeout = setTimeout(() => setShowOnline(false), 3000);
     }
+    // If wasEverOffline is false and !isOffline → first mount, do nothing
+
     return () => clearTimeout(timeout);
   }, [isOffline]);
 
@@ -36,7 +46,7 @@ export function NetworkBanner() {
     };
     
     checkStale();
-    const interval = setInterval(checkStale, 60 * 1000); // Check every minute
+    const interval = setInterval(checkStale, 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 

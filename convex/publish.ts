@@ -12,16 +12,11 @@ export const publishToGitHub = action({
     totalQuestions: number;
     commitSha: string;
   }> => {
-    // 1. Verify admin (simulated for now since we don't have full auth context in action easily without passing token,
-    //    but typically we'd check ctx.auth. Here we rely on the implementation plan's guidance or check if user is admin.
-    //    For now, we'll assume the caller is authorized or we'll fetch the user if possible.
-    //    Note: Actions run in Node, so we can use mapped args if needed.
-    //    Let's fetch the identity.)
-    
-    // NOTE: In a real app, strict admin check is needed.
-    // For this implementation, we will proceed assuming the mutation calling this did the check
-    // or we check it here if we pass the token.
-    // For simplicity following the plan, we'll implement the logic.
+    // Verify admin identity — only authenticated admins can publish
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Unauthorized: must be logged in to publish");
+    }
     
     const GITHUB_PAT = process.env.GITHUB_PAT;
     const GITHUB_CONTENT_REPO = process.env.GITHUB_CONTENT_REPO; // e.g. "istafoundation/kids-content"

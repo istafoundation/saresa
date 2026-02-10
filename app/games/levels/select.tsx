@@ -12,7 +12,7 @@ import { useTapFeedback } from '../../../utils/useTapFeedback';
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from '../../../constants/theme';
 import type { Id } from '../../../convex/_generated/dataModel';
 import { useNetwork } from '../../../utils/network';
-import { getQuestions as getCachedQuestions } from '../../../utils/level-cache';
+import { hasQuestions as hasCachedQuestions } from '../../../utils/level-cache';
 
 interface Difficulty {
   name: string;
@@ -117,9 +117,8 @@ export default function DifficultySelectScreen() {
     if (isDifficultyUnlocked(difficulty, index)) {
       // Check offline cache gating
       if (isOffline) {
-        const cached = levelId ? getCachedQuestions(levelId) : null;
-        const hasCachedQuestions = (cached?.questions?.[difficulty.name]?.length ?? 0) > 0;
-        if (!hasCachedQuestions) {
+        const isCached = levelId ? hasCachedQuestions(levelId) : false;
+        if (!isCached) {
           triggerTap('light');
           return; // Can't play - no cached questions and offline
         }
@@ -259,11 +258,9 @@ export default function DifficultySelectScreen() {
                     
                     {/* Play button or offline gate */}
                     {unlocked && (() => {
-                      // Check if questions are cached for this difficulty
-                      const cached = levelId ? getCachedQuestions(levelId) : null;
-                      const hasCachedQuestions = (cached?.questions?.[difficulty.name]?.length ?? 0) > 0;
+                      const isCached = levelId ? hasCachedQuestions(levelId) : false;
                       
-                      if (isOffline && !hasCachedQuestions) {
+                      if (isOffline && !isCached) {
                         return (
                           <View style={[styles.playButton, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
                             <Text style={{ fontSize: 8, color: 'rgba(255,255,255,0.8)', textAlign: 'center' }}>📡{"\n"}Sync</Text>

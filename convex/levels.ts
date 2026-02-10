@@ -890,6 +890,55 @@ export const getSubscriptionStatus = query({
   },
 });
 
+// Combined sync query — fetches progress + subscription in one call
+// This replaces calling getBulkLevelProgress + getSubscriptionStatus separately
+export const getSyncData = query({
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    const session = await ctx.db
+      .query("childSessions")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
+      .first();
+
+    if (!session || session.expiresAt < Date.now()) {
+      throw new ConvexError("Invalid or expired session");
+    }
+
+    // Fetch progress and subscription in parallel (single session lookup)
+    const [progress, subscription] = await Promise.all([
+      ctx.db
+        .query("levelProgress")
+        .withIndex("by_child", (q) => q.eq("childId", session.childId))
+        .collect(),
+      ctx.db
+        .query("subscriptions")
+        .withIndex("by_child", (q) => q.eq("childId", session.childId))
+        .first(),
+    ]);
+
+    // Compute subscription status
+    let isActive = false;
+    let activatedTill = 0;
+
+    if (subscription) {
+      if (subscription.status === "active" || subscription.status === "completed") {
+        activatedTill = subscription.currentPeriodEnd ?? 0;
+        isActive = activatedTill > Date.now();
+      }
+    }
+
+    return {
+      progress,
+      subscription: {
+        isActive,
+        activatedTill,
+        subscriptionId: subscription?._id,
+        planId: subscription?.razorpayPlanId,
+      },
+    };
+  },
+});
+
 // ============================================
 // ADMIN MUTATIONS - LEVELS
 // ============================================

@@ -6,6 +6,7 @@ import * as SecureStore from 'expo-secure-store';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from '../convex/_generated/api';
 import { clearAllCache } from './level-cache';
+import { clearQueue } from './offline-queue';
 
 const SESSION_TOKEN_KEY = 'child_session_token';
 
@@ -128,6 +129,8 @@ export function ChildAuthProvider({ children }: { children: ReactNode }) {
       setChildInfo(null);
       // Clear all cached offline data (levels, questions, progress, subscription)
       clearAllCache();
+      // Clear any pending offline queue items to prevent cross-user leaks
+      clearQueue();
     }
   };
 

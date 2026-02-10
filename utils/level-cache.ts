@@ -1,9 +1,28 @@
 
 import { MMKV } from 'react-native-mmkv';
 
-export const storage = new MMKV({
-  id: 'level-content-cache',
-});
+export let storage: MMKV;
+
+try {
+  storage = new MMKV({
+    id: 'level-content-cache',
+  });
+} catch (e) {
+  console.warn("MMKV initiation failed. This is expected if you are running in a browser or during build (e.g. Expo Router static analysis). Falling back to in-memory storage.");
+  
+  // Minimal mock to prevent crash
+  // @ts-ignore
+  storage = {
+    getString: () => null,
+    set: () => {},
+    getNumber: () => 0,
+    contains: () => false,
+    delete: () => {},
+    getAllKeys: () => [],
+    clearAll: () => {},
+    addOnValueChangedListener: () => ({ remove: () => {} }),
+  } as unknown as MMKV;
+}
 
 // Keys
 const KEY_MANIFEST = 'lf_manifest';
@@ -23,9 +42,31 @@ export interface LevelMeta {
   _id: string;
   levelNumber: number;
   name: string;
-  difficulties: any[];
+  description?: string;
+  isEnabled: boolean;
+  difficulties: Array<{
+    name: string;
+    displayName: string;
+    requiredScore: number;
+    order: number;
+  }>;
   questionsVersion: number;
-  // ... other fields
+  theme?: {
+    emoji: string;
+    color: string;
+  };
+  groupId?: string;
+  group?: {
+    name: string;
+    description?: string;
+    order: number;
+    theme?: {
+      primaryColor: string;
+      secondaryColor?: string;
+      backgroundImage?: string;
+      emoji?: string;
+    };
+  } | null;
 }
 
 export interface CachedLevelQuestions {
@@ -71,6 +112,11 @@ export function getQuestions(levelId: string): CachedLevelQuestions | null {
 export function setQuestions(levelId: string, data: CachedLevelQuestions) {
   const key = `lf_questions_${levelId}`;
   storage.set(key, JSON.stringify(data));
+}
+
+/** O(1) check — does a level have cached questions? (No JSON.parse) */
+export function hasQuestions(levelId: string): boolean {
+  return storage.contains(`lf_questions_${levelId}`);
 }
 
 // === PROGRESS ===

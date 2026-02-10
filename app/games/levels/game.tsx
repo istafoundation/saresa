@@ -51,7 +51,7 @@ type Question = {
 };
 
 // Helper to update cached progress locally after a game finishes
-function updateCachedProgressLocally(levelId: string, difficultyName: string, score: number, passed: boolean) {
+function updateCachedProgressLocally(levelId: string, difficultyName: string, score: number, passed: boolean, allDifficultyNames?: string[]) {
   try {
     const cachedProgress = getCachedProgress();
     const idx = cachedProgress.findIndex((p: any) => p.levelId === levelId);
@@ -78,6 +78,14 @@ function updateCachedProgressLocally(levelId: string, difficultyName: string, sc
         }];
       }
       
+      // Recalculate isCompleted based on all difficulties
+      if (allDifficultyNames && allDifficultyNames.length > 0) {
+        existing.isCompleted = allDifficultyNames.every(dName => {
+          const dp = existing.difficultyProgress?.find((p: any) => p.difficultyName === dName);
+          return dp?.passed === true;
+        });
+      }
+      
       cachedProgress[idx] = { ...existing, updatedAt: Date.now() };
     } else {
       // Create new progress entry
@@ -89,7 +97,7 @@ function updateCachedProgressLocally(levelId: string, difficultyName: string, sc
           passed,
           attempts: 1,
         }],
-        isCompleted: false,
+        isCompleted: passed && allDifficultyNames?.length === 1, // Only complete if single difficulty
         updatedAt: Date.now(),
       });
     }
@@ -144,7 +152,7 @@ export default function LevelGameScreen() {
   const isProcessingRef = useRef(false);
   
   // Fetch questions (offline-first)
-  const questions = useOfflineQuestions(levelId, difficulty, token ?? undefined);
+  const { questions, loading: questionsLoading, fetchFromGitHub } = useOfflineQuestions(levelId, difficulty);
   
   // Submit attempt mutation
   const submitAttempt = useMutation(api.levels.submitLevelAttempt);
@@ -335,7 +343,7 @@ export default function LevelGameScreen() {
             }
             
             enqueueAttempt({
-                id: Date.now().toString(),
+                id: `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
                 levelId,
                 difficultyName: difficulty,
                 score,
@@ -369,8 +377,9 @@ export default function LevelGameScreen() {
                 setTimeout(() => setShowCoinAnimation(true), 500);
             }
             
-            // Update cached progress locally
-            updateCachedProgressLocally(levelId, difficulty, score, passed);
+            // Update cached progress locally (pass all difficulty names for isCompleted calculation)
+            const allDiffNames = currentLevel?.difficulties.map((d: any) => d.name) ?? [];
+            updateCachedProgressLocally(levelId, difficulty, score, passed, allDiffNames);
             
             triggerTap(passed ? 'heavy' : 'medium');
             if (passed) playWin();
@@ -429,11 +438,30 @@ export default function LevelGameScreen() {
       if (result.passed) {
         playWin();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('[LevelGame] Failed to submit level attempt:', error);
       
-      // If error is network related, we might want to queue it here too?
-      // For now, simple error feedback or fallback ui
+      // If network error, queue the attempt for later
+      if (error?.message?.includes('Network') || error?.message?.includes('fetch')) {
+        const passed = score >= (currentDifficulty?.requiredScore ?? 0);
+        const cachedProg = getCachedProgress();
+        const lp = cachedProg.find((p: any) => p.levelId === levelId);
+        const dp = lp?.difficultyProgress?.find((d: any) => d.difficultyName === difficulty);
+        const alreadyPassed = dp?.passed ?? false;
+        let optimisticCoins = 0;
+        if (passed && !alreadyPassed) {
+          optimisticCoins = LEVEL_PROGRESSION_COINS[difficulty] ?? 50;
+        }
+        enqueueAttempt({
+          id: `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+          levelId,
+          difficultyName: difficulty,
+          score,
+          timestamp: Date.now(),
+          coinsAwarded: optimisticCoins,
+        });
+        console.log('[LevelGame] Queued attempt after network error');
+      }
       
       setGameResult({
         score,
@@ -444,7 +472,8 @@ export default function LevelGameScreen() {
     }
     
     // Update cached progress locally for online attempts too
-    updateCachedProgressLocally(levelId, difficulty, score, score >= (currentDifficulty?.requiredScore ?? 0));
+    const allDiffNames = currentLevel?.difficulties.map((d: any) => d.name) ?? [];
+    updateCachedProgressLocally(levelId, difficulty, score, score >= (currentDifficulty?.requiredScore ?? 0), allDiffNames);
     
     // Trigger post-game sync to refresh cached data
     if (token) {
@@ -465,28 +494,18 @@ export default function LevelGameScreen() {
   }, [triggerTap, safeBack]);
   
   // Cache-miss fallback: if no questions and online, try fetching from GitHub Pages
-  const [isFetchingFallback, setIsFetchingFallback] = useState(false);
+  // Uses the fetchFromGitHub from the hook, which directly sets component state
   const fallbackAttempted = useRef(false);
   
   useEffect(() => {
-    if (!questions && isConnected && levelId && difficulty && !fallbackAttempted.current && !isFetchingFallback) {
+    if (!questions && !questionsLoading && isConnected && levelId && difficulty && !fallbackAttempted.current) {
       fallbackAttempted.current = true;
-      setIsFetchingFallback(true);
-      
-      // Try GitHub Pages fallback
-      fetch(`${CONTENT_BASE_URL}/questions/level_${levelId}.json?t=${Date.now()}`)
-        .then(res => res.ok ? res.json() : null)
-        .then(data => {
-          if (data?.questions?.[difficulty]) {
-            // Cache it for future use
-            setCachedQuestions(levelId, data);
-            console.log('[LevelGame] Fallback: fetched questions from GitHub Pages');
-          }
-        })
-        .catch(e => console.error('[LevelGame] Fallback fetch failed', e))
-        .finally(() => setIsFetchingFallback(false));
+      console.log('[LevelGame] Cache miss — trying GitHub Pages fallback');
+      fetchFromGitHub().catch(e =>
+        console.error('[LevelGame] Fallback fetch failed', e)
+      );
     }
-  }, [questions, isConnected, levelId, difficulty]);
+  }, [questions, questionsLoading, isConnected, levelId, difficulty, fetchFromGitHub]);
   
   // Loading state
   if (!questions) {
@@ -501,7 +520,7 @@ export default function LevelGameScreen() {
             <Text style={styles.loadingEmoji}>🎯</Text>
           </MotiView>
           <Text style={styles.loadingText}>
-            {isFetchingFallback ? 'Downloading questions...' : 'Loading questions...'}
+            {questionsLoading ? 'Downloading questions...' : 'Loading questions...'}
           </Text>
         </View>
       </SafeAreaView>

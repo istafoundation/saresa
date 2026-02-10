@@ -26,8 +26,9 @@ import { api } from "../convex/_generated/api";
 import { useChildAuth } from "../utils/childAuth";
 import { useSafeNavigation } from "../utils/useSafeNavigation";
 import { useOfflineLevels } from "../hooks/useOfflineLevels"; // Add this line
-import { getQuestions as getCachedQuestions } from "../utils/level-cache";
+import { hasQuestions as hasQuestionsInCache } from "../utils/level-cache";
 import { useNetwork } from "../utils/network";
+import { useSyncStatus } from "../hooks/useOfflineSync";
 import { COLORS, SPACING } from "../constants/theme";
 import LevelNode from "./LevelNode";
 import type { Id } from "../convex/_generated/dataModel";
@@ -247,7 +248,7 @@ const LevelListItem = memo(function LevelListItem({
               isLeft={isLeft}
           />
           {/* Offline Ready badge */}
-          {getCachedQuestions(level._id) && (
+          {hasQuestionsInCache(level._id) && (
             <View style={{
               position: 'absolute',
               bottom: -2,
@@ -363,6 +364,19 @@ export default function LevelPath() {
   const keyExtractor = useCallback((item: LevelWithProgress) => item._id, []);
 
   const { isConnected } = useNetwork();
+  const syncStatus = useSyncStatus();
+
+  // Format relative time for sync status display
+  const formatSyncTime = (timestamp: number): string => {
+    if (!timestamp) return 'Never';
+    const diff = Date.now() - timestamp;
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.floor(hours / 24)}d ago`;
+  };
 
   if (!levels) {
     // First launch while offline
@@ -405,6 +419,31 @@ export default function LevelPath() {
 
   return (
     <View style={styles.container}>
+      {/* Sync Status Bar */}
+      {syncStatus && (
+        <View style={styles.syncStatusBar}>
+          <View style={styles.syncStatusItem}>
+            <Text style={styles.syncStatusIcon}>🔄</Text>
+            <Text style={styles.syncStatusText}>
+              {syncStatus.isSyncing ? 'Syncing...' : `Synced ${formatSyncTime(syncStatus.lastSyncTime)}`}
+            </Text>
+          </View>
+          <View style={styles.syncStatusItem}>
+            <Text style={styles.syncStatusIcon}>📥</Text>
+            <Text style={styles.syncStatusText}>
+              {syncStatus.cachedLevelCount} cached
+            </Text>
+          </View>
+          {syncStatus.queueLength > 0 && (
+            <View style={[styles.syncStatusItem, styles.syncStatusPending]}>
+              <Text style={styles.syncStatusIcon}>⏳</Text>
+              <Text style={[styles.syncStatusText, { color: '#FF9800' }]}>
+                {syncStatus.queueLength} pending
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
       <SafeFlashList
         ref={listRef}
         data={levels}
@@ -527,5 +566,35 @@ const styles = StyleSheet.create({
     textShadowColor: COLORS.accentGold,
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 4,
+  },
+  syncStatusBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: SPACING.md,
+    backgroundColor: 'rgba(0,0,0,0.03)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.06)',
+    gap: SPACING.md,
+  },
+  syncStatusItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  syncStatusIcon: {
+    fontSize: 12,
+  },
+  syncStatusText: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    fontWeight: '500',
+  },
+  syncStatusPending: {
+    backgroundColor: 'rgba(255, 152, 0, 0.1)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
   },
 });

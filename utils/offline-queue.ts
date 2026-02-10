@@ -2,7 +2,33 @@
 import { MMKV } from 'react-native-mmkv';
 import { api } from '../convex/_generated/api';
 
-const storage = new MMKV({ id: 'offline-queue' });
+let _storage: MMKV | null = null;
+let _initFailed = false;
+
+// In-memory fallback when MMKV/JSI is unavailable
+const _memoryFallback = {
+  getString: (_key: string) => undefined as string | undefined,
+  set: (_key: string, _value: string | number | boolean) => {},
+  delete: (_key: string) => {},
+  getNumber: (_key: string) => 0,
+  contains: (_key: string) => false,
+  getAllKeys: () => [] as string[],
+  clearAll: () => {},
+} as unknown as MMKV;
+
+function getStorage(): MMKV {
+  if (_storage) return _storage;
+  if (_initFailed) return _memoryFallback;
+
+  try {
+    _storage = new MMKV({ id: 'offline-queue' });
+    return _storage;
+  } catch (e) {
+    console.warn('[OfflineQueue] MMKV init failed, using in-memory fallback:', (e as Error).message);
+    _initFailed = true;
+    return _memoryFallback;
+  }
+}
 const QUEUE_KEY = 'mutation_queue';
 
 export interface QueuedAttempt {
@@ -15,16 +41,16 @@ export interface QueuedAttempt {
 }
 
 export function enqueueAttempt(attempt: QueuedAttempt) {
-  const currentQueueStr = storage.getString(QUEUE_KEY);
+  const currentQueueStr = getStorage().getString(QUEUE_KEY);
   const queue: QueuedAttempt[] = currentQueueStr ? JSON.parse(currentQueueStr) : [];
   
   queue.push(attempt);
-  storage.set(QUEUE_KEY, JSON.stringify(queue));
+  getStorage().set(QUEUE_KEY, JSON.stringify(queue));
   console.log(`[OfflineQueue] Enqueued attempt for level ${attempt.levelId}`);
 }
 
 export async function drainQueue(convexClient: any, token: string) {
-  const currentQueueStr = storage.getString(QUEUE_KEY);
+  const currentQueueStr = getStorage().getString(QUEUE_KEY);
   if (!currentQueueStr) return;
   
   const queue: QueuedAttempt[] = JSON.parse(currentQueueStr);
@@ -59,15 +85,20 @@ export async function drainQueue(convexClient: any, token: string) {
   }
 
   if (failedItems.length > 0) {
-    storage.set(QUEUE_KEY, JSON.stringify(failedItems));
+    getStorage().set(QUEUE_KEY, JSON.stringify(failedItems));
   } else {
-    storage.delete(QUEUE_KEY);
+    getStorage().delete(QUEUE_KEY);
   }
   
   console.log(`[OfflineQueue] Drain complete. Remaining: ${failedItems.length}`);
 }
 
 export function getQueueLength(): number {
-  const str = storage.getString(QUEUE_KEY);
+  const str = getStorage().getString(QUEUE_KEY);
   return str ? JSON.parse(str).length : 0;
+}
+
+/** Clear the offline queue (e.g. on logout to prevent cross-user leaks) */
+export function clearQueue() {
+  getStorage().delete(QUEUE_KEY);
 }
