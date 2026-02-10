@@ -8,20 +8,53 @@ try {
     id: 'level-content-cache',
   });
 } catch (e) {
-  console.warn("MMKV initiation failed. This is expected if you are running in a browser or during build (e.g. Expo Router static analysis). Falling back to in-memory storage.");
+  console.error("MMKV initiation failed. Falling back to in-memory storage.", e);
   
-  // Minimal mock to prevent crash
+  class MemoryStorage {
+    private map = new Map<string, string>();
+
+    set(key: string, value: boolean | string | number) {
+      if (typeof value === 'boolean') {
+        this.map.set(key, value ? 'true' : 'false');
+      } else if (typeof value === 'number') {
+        this.map.set(key, value.toString());
+      } else {
+        this.map.set(key, value);
+      }
+    }
+
+    getString(key: string) {
+      return this.map.get(key);
+    }
+
+    getNumber(key: string) {
+      const val = this.map.get(key);
+      return val ? Number(val) : 0;
+    }
+
+    contains(key: string) {
+      return this.map.has(key);
+    }
+
+    delete(key: string) {
+      this.map.delete(key);
+    }
+
+    getAllKeys() {
+      return Array.from(this.map.keys());
+    }
+
+    clearAll() {
+      this.map.clear();
+    }
+
+    addOnValueChangedListener() {
+      return { remove: () => {} };
+    }
+  }
+
   // @ts-ignore
-  storage = {
-    getString: () => null,
-    set: () => {},
-    getNumber: () => 0,
-    contains: () => false,
-    delete: () => {},
-    getAllKeys: () => [],
-    clearAll: () => {},
-    addOnValueChangedListener: () => ({ remove: () => {} }),
-  } as unknown as MMKV;
+  storage = new MemoryStorage();
 }
 
 // Keys

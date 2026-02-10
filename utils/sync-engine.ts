@@ -9,7 +9,8 @@ import {
   setLastSyncTime,
   getLastSyncTime,
   LevelManifest,
-  getLevelsMeta
+  getLevelsMeta,
+  hasQuestions
 } from './level-cache';
 import { getQueueLength } from './offline-queue';
 import { api } from '../convex/_generated/api';
@@ -123,8 +124,7 @@ class SyncEngine {
     const manifestRes = await fetch(`${CONTENT_BASE_URL}/manifest.json?t=${now}`);
     if (!manifestRes.ok) throw new Error(`Manifest fetch failed: ${manifestRes.status}`);
     const manifest: LevelManifest = await manifestRes.json();
-    // ... rest of method ...
-
+    
     const cachedManifest = getCachedManifest();
     const cachedVersions = cachedManifest?.levelVersions || {};
 
@@ -153,7 +153,8 @@ class SyncEngine {
       const remoteVer = manifest.levelVersions[id];
       const localVer = cachedVersions[id] ?? -1;
       
-      if (remoteVer > localVer) {
+      // Fetch if version is newer OR if we don't have the questions cached for this level
+      if (remoteVer > localVer || !hasQuestions(id)) {
         staleLevelIds.push(id);
       }
     }
