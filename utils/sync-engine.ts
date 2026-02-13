@@ -10,9 +10,10 @@ import {
   getLastSyncTime,
   LevelManifest,
   getLevelsMeta,
-  hasQuestions
+  hasQuestions,
+  mergeProgress
 } from './level-cache';
-import { getQueueLength } from './offline-queue';
+import { getQueueLength, drainQueue } from './offline-queue';
 import { api } from '../convex/_generated/api';
 
 const SYNC_INTERVAL = 60 * 60 * 1000; // 1 hour
@@ -201,6 +202,15 @@ class SyncEngine {
     console.log("[SyncEngine] Starting full sync...");
 
     try {
+      // PHASE 0: Drain offline queue first (push local changes)
+      // This ensures server has our latest before we fetch
+      try {
+        await drainQueue(convexClient, token);
+      } catch (e) {
+        console.error("[SyncEngine] Failed to drain queue:", e);
+        // Continue to sync anyway
+      }
+
       // PHASE 1: Content sync from GitHub Pages (free, no auth)
       // This succeeds or fails independently of Convex
       await this._fetchContent(now);
@@ -213,7 +223,11 @@ class SyncEngine {
     try {
       // PHASE 2: Progress + Subscription from Convex (needs auth, counted bandwidth)
       const syncData = await convexClient.query(api.levels.getSyncData, { token });
-      setCachedProgress(syncData.progress);
+      
+      // MERGE progress instead of overwriting
+      const merged = mergeProgress(syncData.progress);
+      setCachedProgress(merged);
+      
       setCachedSubscription(syncData.subscription);
 
       setLastSyncTime(now);

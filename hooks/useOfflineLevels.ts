@@ -133,10 +133,17 @@ function buildLevelsFromCache(cachedMeta: ReturnType<typeof getLevelsMeta>): Lev
 
     // Determine unlock state
     let state: "locked" | "unlocked" | "completed" | "coming_soon";
+    
+    // Check if we have any local progress on this level (even failed attempts)
+    // If user has played it, they should keep access to it offline
+    const hasLocalProgress = difficultyProgress.some(dp => dp.attempts > 0 || dp.passed);
+
     if (!level.isEnabled) {
       state = "coming_soon";
     } else if (isCompleted) {
       state = "completed";
+    } else if (hasLocalProgress) {
+      state = "unlocked";
     } else if (index === 0 || lastCompleted) {
       // First level is always unlocked, or the previous level was completed
       // Subscription gating: if not subscribed and not the first 3 levels, lock
